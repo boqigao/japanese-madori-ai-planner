@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .models import PlanSolution, ValidationReport
+from plan_engine.models import PlanSolution, ValidationReport
 
 
 def write_solution_json(solution: PlanSolution, target: str | Path) -> Path:

@@ -8,6 +8,8 @@ TATAMI_MM2 = 1_620_000
 
 MAJOR_ROOM_TYPES = {"ldk", "bedroom", "master_bedroom"}
 WET_SPACE_TYPES = {"toilet", "wc", "washroom", "bath"}
+STAIR_TYPES = {"straight", "L_landing"}
+EDGE_NAMES = {"left", "right", "top", "bottom"}
 
 WET_MODULE_SIZES_MM: dict[str, tuple[int, int]] = {
     "toilet": (910, 1820),
@@ -34,4 +36,3 @@ def cells_to_mm(cells: int, minor_grid: int) -> int:
 def tatami_to_cells(tatami: float, minor_grid: int) -> int:
     cell_area = minor_grid * minor_grid
     return int(math.ceil((tatami * TATAMI_MM2) / cell_area))
-

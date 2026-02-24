@@ -1,0 +1,120 @@
+from __future__ import annotations
+
+from plan_engine.constants import mm_to_cells, tatami_to_cells
+from plan_engine.models import SpaceSpec
+
+DEFAULT_MIN_TATAMI_BY_TYPE: dict[str, float] = {
+    "entry": 2.0,
+    "hall": 2.0,
+    "ldk": 12.0,
+    "bedroom": 6.0,
+}
+
+SHORTFALL_WEIGHT_BY_TYPE: dict[str, int] = {
+    "hall": 48,
+    "bedroom": 36,
+    "master_bedroom": 36,
+    "ldk": 34,
+    "entry": 30,
+}
+
+OVERSHOOT_WEIGHT_BY_TYPE: dict[str, int] = {
+    "hall": 18,
+    "entry": 20,
+    "bedroom": 24,
+    "master_bedroom": 18,
+    "ldk": 18,
+    "storage": 24,
+}
+
+MIN_WIDTH_CELLS_BY_TYPE: dict[str, int] = {
+    "ldk": 4,
+    "bedroom": 3,
+    "master_bedroom": 3,
+    "entry": 3,
+    "hall": 2,
+}
+
+COMPONENT_CAP_BY_TYPE: dict[str, int] = {
+    "ldk": 2,
+    "hall": 4,
+}
+
+MAX_AREA_TARGET_MULTIPLIER_BY_TYPE: dict[str, float] = {
+    "entry": 1.5,
+    "hall": 1.0,
+    "master_bedroom": 1.9,
+    "bedroom": 1.45,
+    "ldk": 1.7,
+    "storage": 2.2,
+}
+
+MAX_AREA_DEFAULT_TATAMI_BY_TYPE: dict[str, float] = {
+    "entry": 3.5,
+    "hall": 9.0,
+    "master_bedroom": 16.0,
+    "bedroom": 12.0,
+    "ldk": 24.0,
+    "storage": 10.0,
+}
+
+ENTRY_MIN_AREA_DEFAULT_TATAMI = 3.0
+
+
+def _component_count(space: SpaceSpec) -> int:
+    allow_l2 = "L2" in space.shape.allow
+    allow_rect = "rect" in space.shape.allow
+    if not allow_l2 or allow_rect:
+        return 1
+    cap = COMPONENT_CAP_BY_TYPE.get(space.type)
+    if cap is None or space.shape.rect_components_max < 2:
+        return 1
+    return min(cap, max(2, space.shape.rect_components_max))
+
+
+def _min_area_cells(space: SpaceSpec, minor_grid: int) -> int:
+    if space.area.min_tatami is not None:
+        return tatami_to_cells(space.area.min_tatami, minor_grid)
+    if space.area.target_tatami is not None:
+        return tatami_to_cells(space.area.target_tatami, minor_grid)
+    default_tatami = DEFAULT_MIN_TATAMI_BY_TYPE.get(space.type)
+    if default_tatami is not None:
+        return tatami_to_cells(default_tatami, minor_grid)
+    return 4
+
+
+def _target_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
+    if space.area.target_tatami is None:
+        return None
+    return tatami_to_cells(space.area.target_tatami, minor_grid)
+
+
+def _shortfall_weight(space_type: str) -> int:
+    return SHORTFALL_WEIGHT_BY_TYPE.get(space_type, 28)
+
+
+def _overshoot_weight(space_type: str) -> int:
+    return OVERSHOOT_WEIGHT_BY_TYPE.get(space_type, 9)
+
+
+def _max_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
+    multiplier = MAX_AREA_TARGET_MULTIPLIER_BY_TYPE.get(space.type)
+    if multiplier is not None and space.area.target_tatami is not None:
+        return tatami_to_cells(space.area.target_tatami * multiplier, minor_grid)
+
+    if space.type == "entry" and space.area.min_tatami is not None:
+        return tatami_to_cells(
+            max(ENTRY_MIN_AREA_DEFAULT_TATAMI, space.area.min_tatami * 1.5),
+            minor_grid,
+        )
+
+    default_tatami = MAX_AREA_DEFAULT_TATAMI_BY_TYPE.get(space.type)
+    if default_tatami is None:
+        return None
+    return tatami_to_cells(default_tatami, minor_grid)
+
+
+def _min_width_cells(space: SpaceSpec, minor_grid: int) -> int:
+    if space.size_constraints.min_width is not None:
+        return mm_to_cells(space.size_constraints.min_width, minor_grid)
+    return MIN_WIDTH_CELLS_BY_TYPE.get(space.type, 1)

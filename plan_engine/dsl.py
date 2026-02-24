@@ -4,8 +4,8 @@ from pathlib import Path
 
 import yaml
 
-from .constants import MAJOR_GRID_MM, MINOR_GRID_MM
-from .models import (
+from plan_engine.constants import MAJOR_GRID_MM, MINOR_GRID_MM, STAIR_TYPES
+from plan_engine.models import (
     AreaConstraint,
     CoreSpec,
     EnvelopeSpec,
@@ -71,31 +71,7 @@ def _parse_floor(floor_id: str, payload: dict[str, object], minor: int) -> Floor
     core = CoreSpec(stair=None)
     core_raw = payload.get("core")
     if isinstance(core_raw, dict) and isinstance(core_raw.get("stair"), dict):
-        stair_raw = core_raw["stair"]
-        stair_type = str(stair_raw["type"])
-        if stair_type not in {"straight", "L_landing"}:
-            raise ValueError(f"unsupported stair type '{stair_type}' on floor {floor_id}")
-        placement_x: int | None = None
-        placement_y: int | None = None
-        placement_raw = stair_raw.get("placement")
-        if placement_raw is not None:
-            if not isinstance(placement_raw, dict):
-                raise ValueError(f"stair placement must be a mapping on floor {floor_id}")
-            if "x" not in placement_raw or "y" not in placement_raw:
-                raise ValueError(f"stair placement requires both x and y on floor {floor_id}")
-            placement_x = int(placement_raw["x"])
-            placement_y = int(placement_raw["y"])
-        stair = StairSpec(
-            id=str(stair_raw.get("id", "stair")),
-            type=stair_type,
-            width=int(stair_raw["width"]),
-            floor_height=int(stair_raw["floor_height"]),
-            riser_pref=int(stair_raw["riser_pref"]),
-            tread_pref=int(stair_raw["tread_pref"]),
-            connects={str(k): str(v) for k, v in _expect_mapping(stair_raw, "connects").items()},
-            placement_x=placement_x,
-            placement_y=placement_y,
-        )
+        stair = _parse_stair_spec(floor_id, _expect_mapping_value(core_raw["stair"]), minor)
         if stair.width % minor != 0:
             raise ValueError("stair width must align to minor grid")
         if stair.placement_x is not None and stair.placement_x % minor != 0:
@@ -166,6 +142,35 @@ def _parse_space(raw: dict[str, object], minor: int) -> SpaceSpec:
         area=area,
         size_constraints=size,
         shape=shape,
+    )
+
+
+def _parse_stair_spec(floor_id: str, stair_raw: dict[str, object], minor: int) -> StairSpec:
+    stair_type = str(stair_raw["type"])
+    if stair_type not in STAIR_TYPES:
+        raise ValueError(f"unsupported stair type '{stair_type}' on floor {floor_id}")
+
+    placement_x: int | None = None
+    placement_y: int | None = None
+    placement_raw = stair_raw.get("placement")
+    if placement_raw is not None:
+        if not isinstance(placement_raw, dict):
+            raise ValueError(f"stair placement must be a mapping on floor {floor_id}")
+        if "x" not in placement_raw or "y" not in placement_raw:
+            raise ValueError(f"stair placement requires both x and y on floor {floor_id}")
+        placement_x = int(placement_raw["x"])
+        placement_y = int(placement_raw["y"])
+
+    return StairSpec(
+        id=str(stair_raw.get("id", "stair")),
+        type=stair_type,
+        width=int(stair_raw["width"]),
+        floor_height=int(stair_raw["floor_height"]),
+        riser_pref=int(stair_raw["riser_pref"]),
+        tread_pref=int(stair_raw["tread_pref"]),
+        connects={str(k): str(v) for k, v in _expect_mapping(stair_raw, "connects").items()},
+        placement_x=placement_x,
+        placement_y=placement_y,
     )
 
 
