@@ -15,14 +15,31 @@ from plan_engine.renderer.helpers import (
 
 
 def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
-    """Draw space name, dimensions, and area labels for all spaces."""
+    """Draw space labels with shape-aware dimension text.
+
+    Args:
+        renderer: Active ``SvgRenderer`` instance.
+        drawing: SVG drawing object to mutate.
+        floor: Solved floor geometry.
+
+    Returns:
+        None. Labels are appended to ``drawing``.
+    """
     for space in _ordered_spaces(floor):
         area_mm2 = sum(rect.area for rect in space.rects)
         area_sqm = area_mm2 / 1_000_000
         area_jo = area_mm2 / TATAMI_MM2
-        dims = _space_dimensions(space.rects)
         title = _display_space_name(space.id, space.type)
-        lines = [title, f"{dims[0]}x{dims[1]}mm", f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
+        if len(space.rects) == 1:
+            dims = _space_dimensions(space.rects)
+            lines = [title, f"{dims[0]}x{dims[1]}mm", f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
+        else:
+            dims = _space_dimensions(space.rects)
+            component_text = _component_dims_text(space.rects)
+            lines = [title, f"L-shape ({len(space.rects)} parts)"]
+            if space.type != "hall" and min(dims[0], dims[1]) >= 2000:
+                lines.append(component_text)
+            lines.append(f"{area_sqm:.1f}sqm / {area_jo:.1f}jo")
         anchor = _clamped_room_label_anchor(space.rects, lines, renderer.scale)
         for idx, line in enumerate(lines):
             drawing.add(
@@ -30,7 +47,7 @@ def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution)
                     line,
                     insert=(renderer._x(anchor[0]), renderer._y(anchor[1] - 120 + idx * 90)),
                     fill="#1b1b1b",
-                    font_size=10,
+                    font_size=9 if len(space.rects) > 1 else 10,
                     text_anchor="middle",
                 )
             )
@@ -42,7 +59,17 @@ def draw_title_block(
     floor_id: str,
     solution: PlanSolution,
 ) -> None:
-    """Draw floor ID and scale information at the top of the drawing."""
+    """Draw floor title and scale information.
+
+    Args:
+        renderer: Active ``SvgRenderer`` instance.
+        drawing: SVG drawing object to mutate.
+        floor_id: Floor identifier (e.g., ``F1``).
+        solution: Full solved plan.
+
+    Returns:
+        None.
+    """
     drawing.add(
         drawing.text(
             f"{floor_id} Plan  ({solution.envelope.width} x {solution.envelope.depth} mm)",
@@ -62,13 +89,23 @@ def draw_title_block(
 
 
 def draw_legend(renderer, drawing: svgwrite.Drawing, floor: FloorSolution, site_rect: Rect) -> None:
-    """Draw a color legend and symbol legend on the right side of the drawing."""
+    """Draw color/symbol legend on the right side.
+
+    Args:
+        renderer: Active ``SvgRenderer`` instance.
+        drawing: SVG drawing object to mutate.
+        floor: Solved floor geometry for used room types.
+        site_rect: Site boundary rectangle.
+
+    Returns:
+        None.
+    """
     used_types = {space.type for space in floor.spaces.values()}
     legend_items = [space_type for space_type in LEGEND_ORDER if space_type in used_types]
     if not legend_items:
         return
 
-    box_x = renderer._x(site_rect.x2) + 16
+    box_x = renderer._x(site_rect.x2) + 88
     box_y = renderer.margin_px - 70
     row_h = 18
     box_h = row_h * (len(legend_items) + 3)
@@ -131,7 +168,16 @@ def draw_legend(renderer, drawing: svgwrite.Drawing, floor: FloorSolution, site_
 
 
 def draw_north_arrow(renderer, drawing: svgwrite.Drawing, north: str) -> None:
-    """Draw a directional north arrow indicator."""
+    """Draw a directional north arrow.
+
+    Args:
+        renderer: Active ``SvgRenderer`` instance.
+        drawing: SVG drawing object to mutate.
+        north: Cardinal north direction token.
+
+    Returns:
+        None.
+    """
     center_x = renderer.margin_px - 45
     center_y = renderer.margin_px + 18
     vectors = {
@@ -158,3 +204,91 @@ def draw_north_arrow(renderer, drawing: svgwrite.Drawing, north: str) -> None:
     ]
     drawing.add(drawing.polygon(points=head, fill="#111111"))
     drawing.add(drawing.text("N", insert=(center_x - 5, center_y - 36), fill="#111111", font_size=12))
+
+
+def draw_floor_area_summary(
+    renderer,
+    drawing: svgwrite.Drawing,
+    solution: PlanSolution,
+    floor_id: str,
+    site_rect: Rect,
+) -> None:
+    """Draw per-floor and total area summary (sqm + tsubo).
+
+    Args:
+        renderer: Active ``SvgRenderer`` instance.
+        drawing: SVG drawing object to mutate.
+        solution: Full solved plan for area aggregation.
+        floor_id: Current floor id being rendered.
+        site_rect: Site boundary rectangle to anchor the summary box.
+
+    Returns:
+        None.
+    """
+    floor_area_sqm = {}
+    for fid, floor in solution.floors.items():
+        area_mm2 = 0
+        for space in floor.spaces.values():
+            area_mm2 += sum(rect.area for rect in space.rects)
+        if floor.stair is not None:
+            area_mm2 += sum(rect.area for rect in floor.stair.components)
+        floor_area_sqm[fid] = area_mm2 / 1_000_000
+
+    ordered_ids = sorted(
+        floor_area_sqm.keys(),
+        key=lambda value: (int("".join(ch for ch in value if ch.isdigit()) or "9999"), value),
+    )
+    total_sqm = sum(floor_area_sqm.values())
+    sqm_per_tsubo = 3.305785
+
+    lines = [
+        f"{fid}: {floor_area_sqm[fid]:.1f} sqm ({floor_area_sqm[fid] / sqm_per_tsubo:.1f} tsubo)"
+        for fid in ordered_ids
+    ]
+    lines.append(f"Total: {total_sqm:.1f} sqm ({total_sqm / sqm_per_tsubo:.1f} tsubo)")
+
+    box_x = renderer._x(site_rect.x2) + 88
+    box_y = renderer.margin_px + 300
+    row_h = 16
+    box_h = 20 + row_h * len(lines)
+    drawing.add(
+        drawing.rect(
+            insert=(box_x, box_y),
+            size=(200, box_h),
+            fill="#ffffff",
+            stroke="#777777",
+            stroke_width=1,
+        )
+    )
+    drawing.add(
+        drawing.text(
+            f"Area ({floor_id})",
+            insert=(box_x + 8, box_y + 13),
+            fill="#111111",
+            font_size=10,
+        )
+    )
+    for idx, line in enumerate(lines):
+        drawing.add(
+            drawing.text(
+                line,
+                insert=(box_x + 8, box_y + 30 + idx * row_h),
+                fill="#222222",
+                font_size=9,
+            )
+        )
+
+
+def _component_dims_text(rects: list[Rect]) -> str:
+    """Build compact ``WxH`` text for multi-rect spaces.
+
+    Args:
+        rects: Rectangles composing one logical room.
+
+    Returns:
+        Compact component-size summary string.
+    """
+    parts = [f"{rect.w}x{rect.h}" for rect in rects[:3]]
+    if len(rects) > 3:
+        parts.append("...")
+    return " | ".join(parts)

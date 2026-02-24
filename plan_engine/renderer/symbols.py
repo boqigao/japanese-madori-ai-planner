@@ -16,8 +16,24 @@ def draw_door_symbol(
     x_fn,
     y_fn,
     scale: float,
-) -> None:
-    """Draw a door symbol with wall cut, leaf line, and optional swing arc. Handles both vertical and horizontal orientations."""
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Draw one door symbol and return the final wall opening segment.
+
+    Args:
+        drawing: SVG drawing object to mutate.
+        p1: First endpoint of the host wall segment in mm coordinates.
+        p2: Second endpoint of the host wall segment in mm coordinates.
+        exterior: Whether the door is on the building exterior boundary.
+        boundary: Building boundary rectangle, used to choose outward swing side.
+        reverse_swing: If ``True``, mirror swing direction.
+        draw_arc: If ``True``, draw the door swing arc.
+        x_fn: Coordinate conversion function (mm -> px for x).
+        y_fn: Coordinate conversion function (mm -> px for y).
+        scale: Current render scale (px per mm).
+
+    Returns:
+        Opening segment endpoints in mm coordinates.
+    """
     wall_cut_width = 7 if exterior else 6
     if p1[0] == p2[0]:
         x = p1[0]
@@ -28,6 +44,7 @@ def draw_door_symbol(
         center = (y_low + y_high) / 2
         y1 = center - opening / 2
         y2 = center + opening / 2
+        opening_segment = ((int(round(x)), int(round(y1))), (int(round(x)), int(round(y2))))
         drawing.add(
             drawing.line(
                 start=(x_fn(x), y_fn(y1)),
@@ -37,7 +54,7 @@ def draw_door_symbol(
             )
         )
         if not exterior and seg_len <= 1100:
-            return
+            return opening_segment
         swing_sign = -1 if reverse_swing else 1
         if exterior and boundary is not None and x == boundary.x2 and not reverse_swing:
             swing_sign = -1
@@ -64,7 +81,7 @@ def draw_door_symbol(
                     stroke_width=1.0,
                 )
             )
-        return
+        return opening_segment
 
     y = p1[1]
     x_low = min(p1[0], p2[0])
@@ -74,6 +91,7 @@ def draw_door_symbol(
     center = (x_low + x_high) / 2
     x1 = center - opening / 2
     x2 = center + opening / 2
+    opening_segment = ((int(round(x1)), int(round(y))), (int(round(x2)), int(round(y))))
     drawing.add(
         drawing.line(
             start=(x_fn(x1), y_fn(y)),
@@ -83,7 +101,7 @@ def draw_door_symbol(
         )
     )
     if not exterior and seg_len <= 1100:
-        return
+        return opening_segment
     swing_sign = -1 if reverse_swing else 1
     if exterior and boundary is not None and y == boundary.y2 and not reverse_swing:
         swing_sign = -1
@@ -110,6 +128,7 @@ def draw_door_symbol(
                 stroke_width=1.0,
             )
         )
+    return opening_segment
 
 
 def draw_window_symbol(
@@ -119,8 +138,20 @@ def draw_window_symbol(
     offset_ratio: float,
     x_fn,
     y_fn,
-) -> None:
-    """Draw a window symbol as a colored line segment. Handles both vertical and horizontal orientations."""
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Draw a double-line window symbol and return its opening segment.
+
+    Args:
+        drawing: SVG drawing object to mutate.
+        p1: First endpoint of the host wall segment in mm coordinates.
+        p2: Second endpoint of the host wall segment in mm coordinates.
+        offset_ratio: Relative center position (0..1) for placing the opening along the wall.
+        x_fn: Coordinate conversion function (mm -> px for x).
+        y_fn: Coordinate conversion function (mm -> px for y).
+
+    Returns:
+        Opening segment endpoints in mm coordinates.
+    """
     if p1[0] == p2[0]:
         x = p1[0]
         y_low = min(p1[1], p2[1])
@@ -132,13 +163,21 @@ def draw_window_symbol(
         y2 = min(y_high - 120, y1 + win_len)
         drawing.add(
             drawing.line(
-                start=(x_fn(x), y_fn(y1)),
-                end=(x_fn(x), y_fn(y2)),
+                start=(x_fn(x - 22), y_fn(y1)),
+                end=(x_fn(x - 22), y_fn(y2)),
                 stroke="#66a7ff",
-                stroke_width=4.5,
+                stroke_width=2.2,
             )
         )
-        return
+        drawing.add(
+            drawing.line(
+                start=(x_fn(x + 22), y_fn(y1)),
+                end=(x_fn(x + 22), y_fn(y2)),
+                stroke="#66a7ff",
+                stroke_width=2.2,
+            )
+        )
+        return ((int(round(x)), int(round(y1))), (int(round(x)), int(round(y2))))
 
     y = p1[1]
     x_low = min(p1[0], p2[0])
@@ -150,9 +189,18 @@ def draw_window_symbol(
     x2 = min(x_high - 120, x1 + win_len)
     drawing.add(
         drawing.line(
-            start=(x_fn(x1), y_fn(y)),
-            end=(x_fn(x2), y_fn(y)),
+            start=(x_fn(x1), y_fn(y - 22)),
+            end=(x_fn(x2), y_fn(y - 22)),
             stroke="#66a7ff",
-            stroke_width=4.5,
+            stroke_width=2.2,
         )
     )
+    drawing.add(
+        drawing.line(
+            start=(x_fn(x1), y_fn(y + 22)),
+            end=(x_fn(x2), y_fn(y + 22)),
+            stroke="#66a7ff",
+            stroke_width=2.2,
+        )
+    )
+    return ((int(round(x1)), int(round(y))), (int(round(x2)), int(round(y))))

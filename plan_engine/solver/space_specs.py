@@ -19,12 +19,12 @@ SHORTFALL_WEIGHT_BY_TYPE: dict[str, int] = {
 }
 
 OVERSHOOT_WEIGHT_BY_TYPE: dict[str, int] = {
-    "hall": 18,
-    "entry": 20,
-    "bedroom": 24,
-    "master_bedroom": 18,
-    "ldk": 18,
-    "storage": 24,
+    "hall": 34,
+    "entry": 38,
+    "bedroom": 42,
+    "master_bedroom": 48,
+    "ldk": 52,
+    "storage": 44,
 }
 
 MIN_WIDTH_CELLS_BY_TYPE: dict[str, int] = {
@@ -42,20 +42,20 @@ COMPONENT_CAP_BY_TYPE: dict[str, int] = {
 
 MAX_AREA_TARGET_MULTIPLIER_BY_TYPE: dict[str, float] = {
     "entry": 1.5,
-    "hall": 1.0,
-    "master_bedroom": 1.9,
-    "bedroom": 1.45,
-    "ldk": 1.7,
-    "storage": 2.2,
+    "hall": 1.5,
+    "master_bedroom": 1.5,
+    "bedroom": 1.5,
+    "ldk": 1.45,
+    "storage": 1.45,
 }
 
 MAX_AREA_DEFAULT_TATAMI_BY_TYPE: dict[str, float] = {
-    "entry": 3.5,
+    "entry": 4.5,
     "hall": 9.0,
-    "master_bedroom": 16.0,
-    "bedroom": 12.0,
-    "ldk": 24.0,
-    "storage": 10.0,
+    "master_bedroom": 12.0,
+    "bedroom": 10.0,
+    "ldk": 16.0,
+    "storage": 8.0,
 }
 
 ENTRY_MIN_AREA_DEFAULT_TATAMI = 3.0

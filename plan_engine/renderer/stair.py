@@ -18,7 +18,18 @@ def draw_stair(
     floor_index: int,
     total_floors: int,
 ) -> None:
-    """Draw the complete stair visualization including components, steps, void indicators, and labels."""
+    """Draw stair geometry, steps, and compact directional annotation.
+
+    Args:
+        renderer: Active ``SvgRenderer`` instance.
+        drawing: SVG drawing object to mutate.
+        floor: Solved floor geometry.
+        floor_index: Zero-based index in floor rendering order.
+        total_floors: Number of rendered floors.
+
+    Returns:
+        None.
+    """
     if floor.stair is None:
         return
     stair = floor.stair
@@ -86,22 +97,12 @@ def draw_stair(
             text_anchor="middle",
         )
     )
-    stair_area_sqm = sum(component.area for component in stair.components) / 1_000_000
     drawing.add(
         drawing.text(
-            f"{stair_area_sqm:.1f}sqm  H{stair.floor_height}  R{stair.riser_count}@{stair.riser_mm}",
+            f"{stair.riser_count}R/{stair.tread_count}T",
             insert=(renderer._x(label_x), renderer._y(label_y + 120)),
             fill="#3a3a3a",
-            font_size=8.5,
-            text_anchor="middle",
-        )
-    )
-    drawing.add(
-        drawing.text(
-            f"T{stair.tread_count}@{stair.tread_mm}  Landing {stair.landing_size[0]}x{stair.landing_size[1]}",
-            insert=(renderer._x(label_x), renderer._y(label_y + 205)),
-            fill="#3a3a3a",
-            font_size=8.0,
+            font_size=9.0,
             text_anchor="middle",
         )
     )

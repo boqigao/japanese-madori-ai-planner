@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from plan_engine.constants import MINOR_GRID_MM
 from plan_engine.models import FloorSolution, Rect, SpaceGeometry
 from plan_engine.stair_logic import StairPortal, stair_portal_for_floor
@@ -28,6 +30,19 @@ LEGEND_ORDER = [
     "bath",
     "storage",
 ]
+
+JP_SPACE_NAMES = {
+    "entry": "玄関",
+    "hall": "ホール",
+    "ldk": "LDK",
+    "master_bedroom": "主寝室",
+    "bedroom": "洋室",
+    "toilet": "トイレ",
+    "wc": "トイレ",
+    "washroom": "洗面",
+    "bath": "浴室",
+    "storage": "収納",
+}
 
 
 def _ordered_spaces(floor: FloorSolution) -> list[SpaceGeometry]:
@@ -149,7 +164,21 @@ def _space_dimensions(rects: list[Rect]) -> tuple[int, int]:
 
 
 def _display_space_name(space_id: str, space_type: str) -> str:
-    """Format a space ID and type into a human-readable display name."""
+    """Format a space ID/type into a display name in English or Japanese.
+
+    Args:
+        space_id: Logical room id from solver/spec.
+        space_type: Normalized room type token.
+
+    Returns:
+        Display name string. Language is controlled by ``PLAN_ENGINE_LABEL_LANG``.
+    """
+    if os.getenv("PLAN_ENGINE_LABEL_LANG", "en").lower() == "ja":
+        base = JP_SPACE_NAMES.get(space_type, _humanize_space_id(space_id))
+        if space_type in {"bedroom", "master_bedroom"}:
+            suffix = "".join(ch for ch in space_id if ch.isdigit())
+            return f"{base}{suffix}" if suffix else base
+        return base
     pretty_type = space_type.replace("_", " ").title()
     if space_id.startswith("auto_fill_"):
         return "Storage"

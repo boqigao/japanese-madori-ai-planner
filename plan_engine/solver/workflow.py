@@ -182,7 +182,17 @@ def _create_stair_anchor(
 
 
 def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
-    """Create CP-SAT rectangle variables and dimension/area constraints for all spaces."""
+    """Create CP-SAT rectangle variables and space-local constraints.
+
+    Args:
+        spec: Parsed plan specification.
+        ctx: Mutable solve context carrying model state and accumulators.
+
+    Returns:
+        None. Variables/constraints are added to ``ctx.model`` in place.
+    """
+    max_strip_width_cells = max(1, int(ctx.envelope_w_cells * 0.7))
+    max_strip_depth_cells = max(1, int(ctx.envelope_h_cells * 0.7))
     for floor_id, floor in spec.floors.items():
         for space in floor.spaces:
             component_count = _component_count(space)
@@ -223,6 +233,10 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                 if space.type == "hall":
                     max_hall_width_cells = mm_to_cells(1820, spec.grid.minor)
                     ctx.model.Add(min_dim <= max_hall_width_cells)
+                if fixed_dims is None and space.type in {"ldk", "bedroom", "master_bedroom"}:
+                    # Prevent unrealistic full-depth/full-width strips on major habitable rooms.
+                    ctx.model.Add(rect.w <= max_strip_width_cells)
+                    ctx.model.Add(rect.h <= max_strip_depth_cells)
 
             area_sum = ctx.model.NewIntVar(
                 1,

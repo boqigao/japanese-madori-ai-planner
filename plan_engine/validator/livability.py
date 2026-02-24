@@ -24,9 +24,15 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
                 report.warnings.append(
                     f"{floor_id}:{space_id} entry short side {short_side}mm is narrow (recommend >=1365mm)"
                 )
-            if space.type == "storage" and target is not None and area_jo > target * 1.5:
+            if (
+                space.type in {"storage", "ldk", "master_bedroom", "bedroom", "hall", "entry"}
+                and target is not None
+            ):
+                overshoot_limit = 1.5 if space.type == "hall" else 1.3
+                if area_jo <= target * overshoot_limit:
+                    continue
                 report.warnings.append(
-                    f"{floor_id}:{space_id} storage area {area_jo:.1f}jo exceeds 1.5x target ({target:.1f}jo)"
+                    f"{floor_id}:{space_id} {space.type} area {area_jo:.1f}jo exceeds {overshoot_limit:.1f}x target ({target:.1f}jo)"
                 )
             if space.type in {"bedroom", "master_bedroom"} and short_side < 2730:
                 report.warnings.append(

@@ -8,6 +8,7 @@ import svgwrite
 from plan_engine.constants import MINOR_GRID_MM
 from plan_engine.models import FloorSolution, PlanSolution, Rect
 from plan_engine.renderer.annotations import (
+    draw_floor_area_summary,
     draw_legend,
     draw_north_arrow,
     draw_space_labels,
@@ -92,20 +93,29 @@ class SvgRenderer:
         self._draw_grid(drawing, site_rect, solution.grid.minor, solution.grid.major)
         self._draw_site_and_footprint(drawing, site_rect, building_rect)
         self._draw_spaces(drawing, floor)
+        self._draw_fixtures(drawing, floor)
         self._draw_stair(drawing, floor, floor_index, total_floors)
         self._draw_stair_connection_opening(drawing, floor, floor_index, total_floors)
         self._draw_interior_doors(drawing, floor)
-        entry_segment = self._draw_entry_door(drawing, floor, building_rect)
+        entry_wall_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
+        entry_opening_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
+        entry_result = self._draw_entry_door(drawing, floor, building_rect)
+        if entry_result is not None:
+            entry_wall_segment, entry_opening_segment = entry_result
         blocked_segments: set[tuple[tuple[int, int], tuple[int, int]]] = set()
-        if entry_segment is not None:
-            blocked_segments.add(_segment_key(entry_segment))
-        self._draw_windows(drawing, floor, building_rect, blocked_segments)
+        if entry_wall_segment is not None:
+            blocked_segments.add(_segment_key(entry_wall_segment))
+        window_opening_segments = self._draw_windows(drawing, floor, building_rect, blocked_segments)
+        opening_segments = list(window_opening_segments)
+        if entry_opening_segment is not None:
+            opening_segments.append(entry_opening_segment)
         self._draw_room_dimension_guides(drawing, floor)
         self._draw_space_labels(drawing, floor)
         self._draw_title_block(drawing, floor_id, solution)
         self._draw_legend(drawing, floor, site_rect)
+        self._draw_floor_area_summary(drawing, solution, floor_id, site_rect)
         self._draw_north_arrow(drawing, solution.north)
-        self._draw_dimensions(drawing, site_rect, building_rect)
+        self._draw_dimensions(drawing, site_rect, building_rect, floor, opening_segments)
 
         drawing.save()
 
@@ -230,6 +240,146 @@ class SvgRenderer:
                     line_attrs["stroke_dasharray"] = stroke_dash
                 drawing.add(drawing.line(**line_attrs))
 
+    def _draw_fixtures(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        """Draw lightweight furniture/fixture symbols for readability.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            floor: Floor solution containing room geometries.
+
+        Returns:
+            None.
+        """
+        for space in floor.spaces.values():
+            if not space.rects:
+                continue
+            rect = max(space.rects, key=lambda value: value.area)
+            if rect.w < 1365 or rect.h < 1365:
+                continue
+
+            if space.type in {"bedroom", "master_bedroom"}:
+                bed_w = min(rect.w * 0.56, 1820)
+                bed_h = min(rect.h * 0.34, 1365)
+                bed_x = rect.x + (rect.w - bed_w) / 2
+                bed_y = rect.y + rect.h * 0.18
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(bed_x), self._y(bed_y)),
+                        size=(bed_w * self.scale, bed_h * self.scale),
+                        fill="none",
+                        stroke="#7f7f7f",
+                        stroke_width=1.1,
+                    )
+                )
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(bed_x), self._y(bed_y + bed_h * 0.35)),
+                        end=(self._x(bed_x + bed_w), self._y(bed_y + bed_h * 0.35)),
+                        stroke="#7f7f7f",
+                        stroke_width=0.9,
+                    )
+                )
+                continue
+
+            if space.type == "ldk":
+                counter_w = min(rect.w * 0.42, 2730)
+                counter_h = min(rect.h * 0.12, 820)
+                counter_x = rect.x + rect.w * 0.48
+                counter_y = rect.y + rect.h * 0.10
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(counter_x), self._y(counter_y)),
+                        size=(counter_w * self.scale, counter_h * self.scale),
+                        fill="none",
+                        stroke="#8a6b4a",
+                        stroke_width=1.0,
+                    )
+                )
+                island_w = min(rect.w * 0.22, 1365)
+                island_h = min(rect.h * 0.12, 820)
+                island_x = rect.x + rect.w * 0.40
+                island_y = rect.y + rect.h * 0.42
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(island_x), self._y(island_y)),
+                        size=(island_w * self.scale, island_h * self.scale),
+                        fill="none",
+                        stroke="#8a6b4a",
+                        stroke_width=1.0,
+                    )
+                )
+                continue
+
+            if space.type in {"toilet", "wc"}:
+                cx = rect.x + rect.w * 0.5
+                cy = rect.y + rect.h * 0.55
+                drawing.add(
+                    drawing.ellipse(
+                        center=(self._x(cx), self._y(cy)),
+                        r=(max(12, rect.w * self.scale * 0.13), max(8, rect.h * self.scale * 0.18)),
+                        fill="none",
+                        stroke="#6f6f6f",
+                        stroke_width=1.0,
+                    )
+                )
+                continue
+
+            if space.type == "washroom":
+                sink_w = min(rect.w * 0.42, 910)
+                sink_h = min(rect.h * 0.22, 455)
+                sink_x = rect.x + rect.w * 0.30
+                sink_y = rect.y + rect.h * 0.18
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(sink_x), self._y(sink_y)),
+                        size=(sink_w * self.scale, sink_h * self.scale),
+                        fill="none",
+                        stroke="#6f6f6f",
+                        stroke_width=1.0,
+                    )
+                )
+                continue
+
+            if space.type == "bath":
+                tub_w = min(rect.w * 0.62, 1365)
+                tub_h = min(rect.h * 0.55, 910)
+                tub_x = rect.x + rect.w * 0.2
+                tub_y = rect.y + rect.h * 0.22
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(tub_x), self._y(tub_y)),
+                        size=(tub_w * self.scale, tub_h * self.scale),
+                        rx=6,
+                        ry=6,
+                        fill="none",
+                        stroke="#6f6f6f",
+                        stroke_width=1.0,
+                    )
+                )
+                continue
+
+            if space.type == "storage":
+                x1 = rect.x + rect.w * 0.12
+                x2 = rect.x2 - rect.w * 0.12
+                y1 = rect.y + rect.h * 0.18
+                y2 = rect.y2 - rect.h * 0.18
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x1), self._y(y1)),
+                        end=(self._x(x2), self._y(y1)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.9,
+                    )
+                )
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x1), self._y(y2)),
+                        end=(self._x(x2), self._y(y2)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.9,
+                    )
+                )
+
     def _draw_stair(
         self,
         drawing: svgwrite.Drawing,
@@ -285,8 +435,20 @@ class SvgRenderer:
 
     def _draw_entry_door(
         self, drawing: svgwrite.Drawing, floor: FloorSolution, building_rect: Rect
-    ) -> tuple[tuple[int, int], tuple[int, int]] | None:
-        """Find and draw the main entry door on the longest exterior segment."""
+    ) -> tuple[
+        tuple[tuple[int, int], tuple[int, int]],
+        tuple[tuple[int, int], tuple[int, int]],
+    ] | None:
+        """Draw the primary entry door and return wall/opening segments.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            floor: Floor solution containing spaces/topology.
+            building_rect: Building footprint boundary.
+
+        Returns:
+            ``(wall_segment, opening_segment)`` when an entry door is placed, else ``None``.
+        """
         entry_spaces = [space for space in floor.spaces.values() if space.type == "entry"]
         if not entry_spaces:
             return None
@@ -302,7 +464,7 @@ class SvgRenderer:
                         best_segment = segment
         if best_segment is None:
             return None
-        self._draw_door_symbol(
+        opening_segment = self._draw_door_symbol(
             drawing,
             best_segment[0],
             best_segment[1],
@@ -311,7 +473,7 @@ class SvgRenderer:
             reverse_swing=False,
             draw_arc=True,
         )
-        return best_segment
+        return best_segment, opening_segment
 
     def _draw_windows(
         self,
@@ -319,9 +481,20 @@ class SvgRenderer:
         floor: FloorSolution,
         building_rect: Rect,
         blocked_segments: set[tuple[tuple[int, int], tuple[int, int]]],
-    ) -> None:
-        """Draw window symbols on eligible exterior wall segments."""
+    ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+        """Draw exterior window symbols and return their opening segments.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            floor: Floor solution containing spaces.
+            building_rect: Building footprint boundary.
+            blocked_segments: Exterior segments reserved by doors and excluded from windows.
+
+        Returns:
+            List of window opening segments in mm coordinates.
+        """
         min_window_segment = 1365
+        opening_segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
         for space in floor.spaces.values():
             if space.type not in WINDOW_SPACE_TYPES:
                 continue
@@ -348,10 +521,17 @@ class SvgRenderer:
                 if length < min_window_segment:
                     continue
                 if length >= 3600:
-                    self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.28)
-                    self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.72)
+                    opening_segments.append(
+                        self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.28)
+                    )
+                    opening_segments.append(
+                        self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.72)
+                    )
                 else:
-                    self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5)
+                    opening_segments.append(
+                        self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5)
+                    )
+        return opening_segments
 
     def _draw_space_labels(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
         """Delegate space label rendering."""
@@ -369,13 +549,48 @@ class SvgRenderer:
         """Delegate legend rendering."""
         draw_legend(self, drawing, floor, site_rect)
 
+    def _draw_floor_area_summary(
+        self,
+        drawing: svgwrite.Drawing,
+        solution: PlanSolution,
+        floor_id: str,
+        site_rect: Rect,
+    ) -> None:
+        """Delegate floor-area summary rendering."""
+        draw_floor_area_summary(self, drawing, solution, floor_id, site_rect)
+
     def _draw_north_arrow(self, drawing: svgwrite.Drawing, north: str) -> None:
         """Delegate north arrow rendering."""
         draw_north_arrow(self, drawing, north)
 
-    def _draw_dimensions(self, drawing: svgwrite.Drawing, site_rect: Rect, building_rect: Rect) -> None:
-        """Delegate exterior dimension rendering."""
-        draw_dimensions(self, drawing, site_rect, building_rect)
+    def _draw_dimensions(
+        self,
+        drawing: svgwrite.Drawing,
+        site_rect: Rect,
+        building_rect: Rect,
+        floor: FloorSolution,
+        opening_segments: list[tuple[tuple[int, int], tuple[int, int]]],
+    ) -> None:
+        """Delegate exterior dimension rendering with perimeter/opening chains.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            site_rect: Site envelope rectangle.
+            building_rect: Building footprint rectangle.
+            floor: Floor geometry used for room-derived perimeter segmentation.
+            opening_segments: Exterior opening segments (door/window) for opening chains.
+
+        Returns:
+            None.
+        """
+        draw_dimensions(
+            self,
+            drawing,
+            site_rect,
+            building_rect,
+            floor,
+            opening_segments,
+        )
 
     def _draw_dimension_line(
         self,
@@ -417,9 +632,9 @@ class SvgRenderer:
         boundary: Rect | None,
         reverse_swing: bool,
         draw_arc: bool = True,
-    ) -> None:
-        """Delegate door symbol rendering."""
-        draw_door_symbol(
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
+        """Delegate door symbol rendering and return the opening segment."""
+        return draw_door_symbol(
             drawing=drawing,
             p1=p1,
             p2=p2,
@@ -438,9 +653,9 @@ class SvgRenderer:
         p1: tuple[int, int],
         p2: tuple[int, int],
         offset_ratio: float = 0.5,
-    ) -> None:
-        """Delegate window symbol rendering."""
-        draw_window_symbol(
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
+        """Delegate window symbol rendering and return the opening segment."""
+        return draw_window_symbol(
             drawing=drawing,
             p1=p1,
             p2=p2,
