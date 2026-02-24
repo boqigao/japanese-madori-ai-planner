@@ -1,49 +1,63 @@
-# Repository Guidelines
+# AGNETS.md
 
-## Project Structure & Module Organization
-- `main.py`: CLI entrypoint. Orchestrates `DSL -> solve -> validate -> render`.
-- `plan_engine/`: core package.
-  - `dsl.py`: YAML spec parsing and schema checks.
-  - `solver.py`: CP-SAT layout generation.
-  - `validator.py`: post-solve hard checks.
-  - `renderer.py`: SVG/PNG output only (no geometry mutation).
-  - `models.py`, `constants.py`, `io.py`: shared types/constants/output helpers.
-- `local-dev/coding-prompts/requirements.md`: MVP design reference.
-- `tmp/`: local specs and generated artifacts (treat as scratch space).
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Build, Test, and Development Commands
-- `uv sync`: install/update dependencies from `pyproject.toml` and `uv.lock`.
-- `uv run python main.py --spec tmp/sample_spec.yaml --outdir tmp/plan_output --solver-timeout 10`: run end-to-end generation.
-- `python -m compileall main.py plan_engine`: quick syntax check before commits.
-- If/when tests are added: `uv run pytest`.
+## Project Overview
 
-## Coding Style & Naming Conventions
-- Python 3.13+, 4-space indentation, PEP 8 style.
-- Prefer explicit type hints on public functions and dataclass fields.
-- Naming:
-  - modules/functions/variables: `snake_case`
-  - classes/dataclasses: `PascalCase`
-  - constants: `UPPER_SNAKE_CASE`
-- Keep architectural boundaries strict:
-  - solver must not render;
-  - renderer must not alter solved geometry;
-  - validator must run on solved output.
+AI-Driven Madori Plan Engine: generates structurally valid Japanese detached house floor plans from a YAML DSL specification. Uses Google OR-Tools CP-SAT solver for constraint-based layout generation and renders output as SVG/PNG.
 
-## Testing Guidelines
-- Current repo has no formal `tests/` suite yet; add new tests under `tests/`.
-- Use `pytest` naming conventions: files `test_*.py`, functions `test_*`.
-- Prioritize regression tests for:
-  - grid alignment (`% 455 == 0`)
-  - no overlap / inside envelope
-  - mandatory space presence
-  - stair-floor alignment and hall adjacency
+Pipeline: `DSL (YAML) → Solver (CP-SAT) → Validator → Renderer (SVG/PNG)`
 
-## Commit & Pull Request Guidelines
-- Follow Conventional Commits where possible (e.g., `feat:`, `fix:`, `refactor:`).
-- PRs should include:
-  - purpose and scope,
-  - sample spec used,
-  - validation result (`report.txt` summary),
-  - output impact (attach or reference `F1/F2` SVG/PNG when layout behavior changes).
-- Avoid committing transient files (`__pycache__/`, `.venv/`, ad-hoc `tmp/` outputs) unless intentionally required as fixtures.
+## Build & Run Commands
 
+```bash
+uv sync                          # Install/update dependencies
+uv run python main.py --spec tmp/sample_spec.yaml --outdir tmp/plan_output --solver-timeout 10
+python -m compileall main.py plan_engine   # Quick syntax check
+uv run pytest                    # When tests exist (add under tests/)
+```
+
+## Architecture
+
+Strict separation of concerns — these boundaries must never be crossed:
+- **Solver** must not render; **Renderer** must not alter geometry; **Validator** runs only on solved output.
+
+### Module Responsibilities
+
+| Module | Role |
+|---|---|
+| `main.py` | CLI entrypoint. Orchestrates DSL → solve → validate → render. |
+| `plan_engine/dsl.py` | Parses YAML spec into `PlanSpec`. Validates grid alignment and schema. |
+| `plan_engine/solver.py` | CP-SAT model: creates `RectVar` decision variables per space, enforces hard constraints (no-overlap, envelope, adjacency, wet-cluster), minimizes soft objective (area targets, alignment, compactness). |
+| `plan_engine/validator.py` | Post-solve checks: space presence, grid alignment (`% 455 == 0`), no overlap, 100% envelope coverage, entry-reachability (BFS), stair projection alignment, WC-LDK non-adjacency. |
+| `plan_engine/renderer.py` | `SvgRenderer` — read-only consumption of `PlanSolution`. Draws grid, spaces, stairs, doors, windows, labels, legend, north arrow, dimensions. Exports PNG via CairoSVG. |
+| `plan_engine/models.py` | Frozen dataclasses: `PlanSpec`, `PlanSolution`, `Rect`, `SpaceGeometry`, `StairGeometry`, `ValidationReport`, etc. |
+| `plan_engine/constants.py` | Grid constants (`MINOR_GRID_MM=455`, `MAJOR_GRID_MM=910`, `TATAMI_MM2`), room type sets, wet module fixed sizes, unit conversion helpers. |
+| `plan_engine/io.py` | Writes `solution.json` and `report.txt`. |
+
+### Key Domain Concepts
+
+- **Grid system**: 455mm minor grid (hard), 910mm major grid (soft preference for major rooms). All coordinates/dimensions must satisfy `value % 455 == 0`.
+- **Solver works in cell units** (1 cell = 455mm). Converts back to mm when building `PlanSolution`.
+- **Wet modules** (toilet, washroom, bath) have fixed sizes from `WET_MODULE_SIZES_MM` and must form a connected cluster adjacent to a hall.
+- **Stair** is a shared structural element across floors — single stair position (`stair_x`, `stair_y`) reused for all floors. Supports `straight` and `L_landing` types.
+- **L-shaped rooms**: LDK can use 2 rectangles (`L2` shape) when spec allows.
+- **100% coverage**: Solver enforces that total space area == envelope area per floor.
+- **Adjacency** is modeled via touching constraints (shared edge with positive overlap length).
+- **Non-adjacency** (WC away from LDK) enforced by requiring a 1-cell gap.
+
+### Output Files
+
+Each run produces in `--outdir`: `solution.json`, `{floor_id}.svg`, `{floor_id}.png`, `report.txt`.
+
+## Coding Conventions
+
+- Python 3.13+, PEP 8, 4-space indent, explicit type hints on public APIs.
+- `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants.
+- All model dataclasses are `frozen=True` (immutable) except `ValidationReport`.
+- Conventional Commits (`feat:`, `fix:`, `refactor:`).
+
+## Design Reference
+
+`local-dev/coding-prompts/requirements.md` contains the full MVP specification.
+`local-dev/feedback/` contains review notes on generated output quality.
