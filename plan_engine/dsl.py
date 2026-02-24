@@ -155,6 +155,10 @@ def _parse_space(raw: dict[str, object], minor: int) -> SpaceSpec:
             allow=[str(v) for v in allow],
             rect_components_max=int(shape_raw.get("rect_components_max", 1)),
         )
+    if "L2" in shape.allow and space_type not in {"ldk", "hall"}:
+        raise ValueError(
+            f"space '{space_id}' of type '{space_type}' cannot use L2 shape in current stage"
+        )
 
     return SpaceSpec(
         id=space_id,

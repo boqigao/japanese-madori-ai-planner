@@ -170,8 +170,11 @@ class StairGeometry:
     type: str
     bbox: Rect
     components: list[Rect]
+    floor_height: int
     riser_count: int
     tread_count: int
+    riser_mm: int
+    tread_mm: int
     landing_size: tuple[int, int]
     connects: dict[str, str]
     portal_component: int | None = None
@@ -183,8 +186,11 @@ class StairGeometry:
             "type": self.type,
             "bbox": self.bbox.to_dict(),
             "components": [component.to_dict() for component in self.components],
+            "floor_height": self.floor_height,
             "riser_count": self.riser_count,
             "tread_count": self.tread_count,
+            "riser_mm": self.riser_mm,
+            "tread_mm": self.tread_mm,
             "landing_size": {"w": self.landing_size[0], "h": self.landing_size[1]},
             "connects": dict(self.connects),
         }

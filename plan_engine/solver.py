@@ -48,6 +48,8 @@ class StairFootprint:
     components: list[tuple[str, int, int, int, int]]
     riser_count: int
     tread_count: int
+    riser_mm: int
+    tread_mm: int
     landing_mm: tuple[int, int]
 
 
@@ -67,7 +69,6 @@ class PlanSolver:
     def solve(self, spec: PlanSpec) -> PlanSolution:
         skip_portal_edge = os.getenv("PLAN_ENGINE_SKIP_PORTAL_EDGE") == "1"
         skip_internal_portal = os.getenv("PLAN_ENGINE_SKIP_INTERNAL_PORTAL") == "1"
-        skip_non_portal_forbid = os.getenv("PLAN_ENGINE_SKIP_NON_PORTAL_FORBID") == "1"
         debug_solver = os.getenv("PLAN_ENGINE_DEBUG_SOLVER") == "1"
         forced_stair_x_cells_raw = os.getenv("PLAN_ENGINE_FORCE_STAIR_X_CELLS")
         forced_stair_y_cells_raw = os.getenv("PLAN_ENGINE_FORCE_STAIR_Y_CELLS")
@@ -169,6 +170,8 @@ class PlanSolver:
                     )
                     model.AddMinEquality(min_dim, [rect.w, rect.h])
                     model.Add(min_dim >= min_width_cells)
+                    if space.type in {"bedroom", "master_bedroom"}:
+                        model.Add(min_dim >= mm_to_cells(2275, spec.grid.minor))
                     if space.type == "hall":
                         max_hall_width_cells = mm_to_cells(1820, spec.grid.minor)
                         model.Add(min_dim <= max_hall_width_cells)
@@ -208,15 +211,25 @@ class PlanSolver:
 
                 floor_area_vars[floor_id].append(area_sum)
 
-                if component_count == 2:
-                    self._touching_constraint(
+                if component_count > 1:
+                    for idx in range(1, component_count):
+                        self._touching_constraint(
+                            model=model,
+                            rects_a=[rects[idx - 1]],
+                            rects_b=[rects[idx]],
+                            max_w=envelope_w_cells,
+                            max_h=envelope_h_cells,
+                            prefix=f"{_slug(floor_id)}_{_slug(space.id)}_chain_{idx - 1}_{idx}",
+                            required=True,
+                        )
+
+                if space.type == "entry":
+                    self._enforce_exterior_touch(
                         model=model,
-                        rects_a=[rects[0]],
-                        rects_b=[rects[1]],
+                        rects=rects,
                         max_w=envelope_w_cells,
                         max_h=envelope_h_cells,
-                        prefix=f"{_slug(floor_id)}_{_slug(space.id)}_l2",
-                        required=True,
+                        prefix=f"{_slug(floor_id)}_{_slug(space.id)}_ext",
                     )
 
                 if space.type in MAJOR_ROOM_TYPES:
@@ -229,8 +242,16 @@ class PlanSolver:
 
                 if space.type not in {"hall", "toilet", "wc", "washroom", "bath"}:
                     for idx, rect in enumerate(rects):
-                        model.Add(rect.w <= 5 * rect.h)
-                        model.Add(rect.h <= 5 * rect.w)
+                        if space.type in {"bedroom", "master_bedroom"}:
+                            # Keep bedrooms from degenerating into unusable strips.
+                            model.Add(2 * rect.w <= 5 * rect.h)
+                            model.Add(2 * rect.h <= 5 * rect.w)
+                        elif space.type in {"storage", "entry"}:
+                            model.Add(rect.w <= 4 * rect.h)
+                            model.Add(rect.h <= 4 * rect.w)
+                        else:
+                            model.Add(rect.w <= 4 * rect.h)
+                            model.Add(rect.h <= 4 * rect.w)
                         aspect_delta = model.NewIntVar(
                             0,
                             max(envelope_w_cells, envelope_h_cells),
@@ -337,21 +358,6 @@ class PlanSolver:
                         max_w=envelope_w_cells,
                         max_h=envelope_h_cells,
                     )
-                is_top_floor = floor_rank[floor_id] == len(ordered_floors) - 1
-                if is_top_floor and not skip_non_portal_forbid:
-                    for index, stair_rect in enumerate(stair_rects):
-                        if index == portal.component_index:
-                            continue
-                        disallow_touch = self._touching_constraint(
-                            model=model,
-                            rects_a=[stair_rect],
-                            rects_b=placements[floor_id][hall_id],
-                            max_w=envelope_w_cells,
-                            max_h=envelope_h_cells,
-                            prefix=f"{_slug(floor_id)}_{_slug(stair_spec.id)}_{_slug(hall_id)}_forbid_{index}",
-                            required=False,
-                        )
-                        model.Add(disallow_touch == 0)
 
         for floor_id, floor in spec.floors.items():
             toilet_ids = [s.id for s in floor.spaces if s.type in {"toilet", "wc"}]
@@ -417,7 +423,7 @@ class PlanSolver:
         objective_terms = [50 * v for v in major_room_alignment_penalties]
         objective_terms.extend(weight * var for var, weight in target_shortfalls)
         objective_terms.extend(weight * var for var, weight in target_overshoots)
-        objective_terms.extend(5 * v for v in shape_balance_penalties)
+        objective_terms.extend(12 * v for v in shape_balance_penalties)
         objective_terms.extend(8 * v for v in floor_compactness_terms)
         objective_terms.extend(10 * v for v in hall_area_penalties)
         if objective_terms:
@@ -431,7 +437,6 @@ class PlanSolver:
                 "debug_solver:",
                 f"skip_portal_edge={skip_portal_edge}",
                 f"skip_internal_portal={skip_internal_portal}",
-                f"skip_non_portal_forbid={skip_non_portal_forbid}",
                 f"forced_stair_x_cells={forced_stair_x_cells}",
                 f"forced_stair_y_cells={forced_stair_y_cells}",
             )
@@ -486,8 +491,11 @@ class PlanSolver:
                         h=max_y - min_y,
                     ),
                     components=stair_components,
+                    floor_height=stair_spec.floor_height,
                     riser_count=stair_footprint.riser_count,
                     tread_count=stair_footprint.tread_count,
+                    riser_mm=stair_footprint.riser_mm,
+                    tread_mm=stair_footprint.tread_mm,
                     landing_size=stair_footprint.landing_mm,
                     connects=stair_spec.connects,
                     portal_component=portal.component_index,
@@ -790,10 +798,53 @@ class PlanSolver:
 
                 model.AddBoolOr([a_right, b_right, a_below, b_below])
 
+    def _enforce_exterior_touch(
+        self,
+        model: cp_model.CpModel,
+        rects: list[RectVar],
+        max_w: int,
+        max_h: int,
+        prefix: str,
+    ) -> None:
+        if not rects:
+            raise ValueError("exterior touch constraints require non-empty rectangles")
+
+        per_rect_touch: list[cp_model.IntVar] = []
+        for index, rect in enumerate(rects):
+            left = model.NewBoolVar(f"{prefix}_{index}_left")
+            right = model.NewBoolVar(f"{prefix}_{index}_right")
+            top = model.NewBoolVar(f"{prefix}_{index}_top")
+            bottom = model.NewBoolVar(f"{prefix}_{index}_bottom")
+
+            model.Add(rect.x == 0).OnlyEnforceIf(left)
+            model.Add(rect.x_end == max_w).OnlyEnforceIf(right)
+            model.Add(rect.y == 0).OnlyEnforceIf(top)
+            model.Add(rect.y_end == max_h).OnlyEnforceIf(bottom)
+
+            rect_touch = model.NewBoolVar(f"{prefix}_{index}_touch")
+            model.AddMaxEquality(rect_touch, [left, right, top, bottom])
+            per_rect_touch.append(rect_touch)
+
+        touch_any = model.NewBoolVar(f"{prefix}_touch_any")
+        model.AddMaxEquality(touch_any, per_rect_touch)
+        model.Add(touch_any == 1)
+
 
 def _component_count(space: SpaceSpec) -> int:
-    if "L2" in space.shape.allow and "rect" not in space.shape.allow and space.shape.rect_components_max >= 2:
+    if (
+        space.type == "ldk"
+        and "L2" in space.shape.allow
+        and "rect" not in space.shape.allow
+        and space.shape.rect_components_max >= 2
+    ):
         return 2
+    if (
+        space.type == "hall"
+        and "L2" in space.shape.allow
+        and "rect" not in space.shape.allow
+        and space.shape.rect_components_max >= 2
+    ):
+        return min(4, max(2, space.shape.rect_components_max))
     return 1
 
 
@@ -830,29 +881,43 @@ def _overshoot_weight(space_type: str) -> int:
     if space_type == "hall":
         return 18
     if space_type == "entry":
-        return 16
-    if space_type in {"bedroom", "master_bedroom"}:
-        return 12
+        return 20
+    if space_type == "bedroom":
+        return 24
+    if space_type == "master_bedroom":
+        return 18
     if space_type == "ldk":
-        return 10
+        return 18
     if space_type == "storage":
-        return 6
+        return 24
     return 9
 
 
 def _max_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
     if space.type == "hall":
-        return tatami_to_cells(10.0, minor_grid)
+        return tatami_to_cells(9.0, minor_grid)
     if space.type == "entry":
-        return tatami_to_cells(4.0, minor_grid)
-    if space.type in {"bedroom", "master_bedroom"}:
         if space.area.target_tatami is not None:
-            return tatami_to_cells(space.area.target_tatami * 1.8, minor_grid)
-        return tatami_to_cells(14.0, minor_grid)
+            return tatami_to_cells(space.area.target_tatami * 1.5, minor_grid)
+        if space.area.min_tatami is not None:
+            return tatami_to_cells(max(3.0, space.area.min_tatami * 1.5), minor_grid)
+        return tatami_to_cells(3.5, minor_grid)
+    if space.type == "master_bedroom":
+        if space.area.target_tatami is not None:
+            return tatami_to_cells(space.area.target_tatami * 1.9, minor_grid)
+        return tatami_to_cells(16.0, minor_grid)
+    if space.type == "bedroom":
+        if space.area.target_tatami is not None:
+            return tatami_to_cells(space.area.target_tatami * 1.45, minor_grid)
+        return tatami_to_cells(12.0, minor_grid)
     if space.type == "ldk":
         if space.area.target_tatami is not None:
-            return tatami_to_cells(space.area.target_tatami * 2.0, minor_grid)
+            return tatami_to_cells(space.area.target_tatami * 1.7, minor_grid)
         return tatami_to_cells(24.0, minor_grid)
+    if space.type == "storage":
+        if space.area.target_tatami is not None:
+            return tatami_to_cells(space.area.target_tatami * 2.2, minor_grid)
+        return tatami_to_cells(10.0, minor_grid)
     return None
 
 
@@ -864,7 +929,7 @@ def _min_width_cells(space: SpaceSpec, minor_grid: int) -> int:
     if space.type in {"bedroom", "master_bedroom"}:
         return 3
     if space.type == "entry":
-        return 2
+        return 3
     if space.type == "hall":
         return 2
     return 1
@@ -889,10 +954,13 @@ def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprin
     riser_count = max(2, int(round(stair.floor_height / max(1, stair.riser_pref))))
     tread_count = max(1, riser_count - 1)
     tread_mm = max(1, stair.tread_pref)
+    riser_mm = max(1, int(round(stair.floor_height / riser_count)))
+    avg_tread_mm = tread_mm
 
     if stair.type == "straight":
         run_mm = ceil_to_grid(tread_count * tread_mm, minor_grid)
         run_cells = max(1, mm_to_cells(run_mm, minor_grid))
+        avg_tread_mm = max(1, int(round(run_mm / tread_count)))
         components = [("flight1", 0, 0, width_cells, run_cells)]
         bbox_w_cells = width_cells
         bbox_h_cells = run_cells
@@ -901,6 +969,7 @@ def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprin
         run2_treads = max(1, tread_count - run1_treads)
         run1_mm = ceil_to_grid(run1_treads * tread_mm, minor_grid)
         run2_mm = ceil_to_grid(run2_treads * tread_mm, minor_grid)
+        avg_tread_mm = max(1, int(round((run1_mm + run2_mm) / tread_count)))
         run1_cells = max(1, mm_to_cells(run1_mm, minor_grid))
         run2_cells = max(1, mm_to_cells(run2_mm, minor_grid))
         components = [
@@ -919,6 +988,8 @@ def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprin
         components=components,
         riser_count=riser_count,
         tread_count=tread_count,
+        riser_mm=riser_mm,
+        tread_mm=avg_tread_mm,
         landing_mm=(width_mm, width_mm),
     )
 

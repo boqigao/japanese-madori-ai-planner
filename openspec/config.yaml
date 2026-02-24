@@ -1,0 +1,42 @@
+schema: spec-driven
+
+context: |
+  Project: AI-Driven Madori Plan Engine
+  Domain: Generates structurally valid Japanese detached house floor plans from YAML DSL specifications.
+  Tech stack: Python 3.13+, Google OR-Tools CP-SAT solver, CairoSVG
+  Pipeline: DSL (YAML) → Solver (CP-SAT) → Validator → Renderer (SVG/PNG)
+  Build tool: uv (package manager)
+  Coding style: PEP 8, 4-space indent, explicit type hints on public APIs
+  Naming: snake_case for functions/variables, PascalCase for classes, UPPER_SNAKE_CASE for constants
+  Model dataclasses are frozen=True (immutable) except ValidationReport
+  Commit style: Conventional Commits (feat:, fix:, refactor:)
+  Key domain concepts:
+    - Grid system: 455mm minor grid (hard), 910mm major grid (soft preference). All coordinates must satisfy value % 455 == 0.
+    - Solver works in cell units (1 cell = 455mm), converts back to mm for output.
+    - Wet modules (toilet, washroom, bath) have fixed sizes and must form a connected cluster adjacent to a hall.
+    - Stair is a shared structural element across floors.
+    - L-shaped rooms: LDK can use 2 rectangles (L2 shape) when spec allows.
+    - 100% coverage: total space area must equal envelope area per floor.
+    - Adjacency modeled via touching constraints (shared edge with positive overlap length).
+  Architecture boundaries (never cross):
+    - Solver must not render
+    - Renderer must not alter geometry
+    - Validator runs only on solved output
+
+rules:
+  proposal:
+    - Always include a "Non-goals" section
+    - Reference which module(s) in plan_engine/ are affected
+    - State whether the change affects the solver, renderer, or validator (or multiple)
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Reference grid alignment constraints (455mm) when applicable
+    - Specify units (mm, cells, tatami) explicitly
+  design:
+    - Respect the strict module separation (solver/renderer/validator)
+    - Document any new constraints added to the CP-SAT model
+    - Note performance implications for solver timeout
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Include a verification step (run main.py with a sample spec) in the final task
+    - Reference specific files in plan_engine/ that need modification

@@ -5,7 +5,7 @@ from pathlib import Path
 import cairosvg
 import svgwrite
 
-from .constants import TATAMI_MM2
+from .constants import MINOR_GRID_MM, TATAMI_MM2
 from .models import FloorSolution, PlanSolution, Rect, SpaceGeometry
 from .stair_logic import StairPortal, stair_portal_for_floor
 
@@ -15,7 +15,7 @@ SPACE_COLORS = {
     "hall": "#efe9ff",
     "ldk": "#ffe2b8",
     "bedroom": "#d9f2ff",
-    "master_bedroom": "#d9f2ff",
+    "master_bedroom": "#c5e8ff",
     "toilet": "#fbe7e6",
     "wc": "#fbe7e6",
     "washroom": "#e7fbfb",
@@ -23,7 +23,17 @@ SPACE_COLORS = {
     "storage": "#f0f0f0",
 }
 WINDOW_SPACE_TYPES = {"ldk", "bedroom", "master_bedroom", "entry"}
-LEGEND_ORDER = ["entry", "hall", "ldk", "bedroom", "toilet", "washroom", "bath", "storage"]
+LEGEND_ORDER = [
+    "entry",
+    "hall",
+    "ldk",
+    "master_bedroom",
+    "bedroom",
+    "toilet",
+    "washroom",
+    "bath",
+    "storage",
+]
 
 
 class SvgRenderer:
@@ -191,12 +201,19 @@ class SvgRenderer:
                     "insert": (self._x(rect.x), self._y(rect.y)),
                     "size": (rect.w * self.scale, rect.h * self.scale),
                     "fill": fill,
+                    "stroke": "none",
+                }
+                drawing.add(drawing.rect(**attrs))
+            for p1, p2 in _space_boundary_segments(space.rects):
+                line_attrs: dict[str, object] = {
+                    "start": (self._x(p1[0]), self._y(p1[1])),
+                    "end": (self._x(p2[0]), self._y(p2[1])),
                     "stroke": "#2f2f2f",
                     "stroke_width": 2.2,
                 }
                 if stroke_dash:
-                    attrs["stroke_dasharray"] = stroke_dash
-                drawing.add(drawing.rect(**attrs))
+                    line_attrs["stroke_dasharray"] = stroke_dash
+                drawing.add(drawing.line(**line_attrs))
 
     def _draw_stair(
         self,
@@ -249,6 +266,7 @@ class SvgRenderer:
                         text_anchor="middle",
                     )
                 )
+                self._draw_void_guardrail(drawing, void_bbox)
 
         self._draw_stair_steps(
             drawing,
@@ -273,10 +291,19 @@ class SvgRenderer:
         stair_area_sqm = sum(component.area for component in stair.components) / 1_000_000
         drawing.add(
             drawing.text(
-                f"{stair_area_sqm:.1f}sqm  R{stair.riser_count}/T{stair.tread_count}",
+                f"{stair_area_sqm:.1f}sqm  H{stair.floor_height}  R{stair.riser_count}@{stair.riser_mm}",
                 insert=(self._x(label_x), self._y(label_y + 120)),
                 fill="#3a3a3a",
                 font_size=8.5,
+                text_anchor="middle",
+            )
+        )
+        drawing.add(
+            drawing.text(
+                f"T{stair.tread_count}@{stair.tread_mm}  Landing {stair.landing_size[0]}x{stair.landing_size[1]}",
+                insert=(self._x(label_x), self._y(label_y + 205)),
+                fill="#3a3a3a",
+                font_size=8.0,
                 text_anchor="middle",
             )
         )
@@ -323,6 +350,7 @@ class SvgRenderer:
         )
 
     def _draw_interior_doors(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        door_entries: list[tuple[int, tuple[tuple[int, int], tuple[int, int]]]] = []
         for index, (left_id, right_id) in enumerate(floor.topology):
             if floor.stair is not None and (left_id == floor.stair.id or right_id == floor.stair.id):
                 continue
@@ -333,6 +361,16 @@ class SvgRenderer:
             segment = _shared_segment(left_rects, right_rects)
             if segment is None:
                 continue
+            door_entries.append((index, segment))
+
+        line_counts: dict[tuple[str, int], int] = {}
+        for _, segment in door_entries:
+            key = _door_line_key(segment)
+            line_counts[key] = line_counts.get(key, 0) + 1
+
+        for index, segment in door_entries:
+            key = _door_line_key(segment)
+            crowded_line = line_counts.get(key, 0) >= 3
             self._draw_door_symbol(
                 drawing,
                 segment[0],
@@ -340,6 +378,7 @@ class SvgRenderer:
                 exterior=False,
                 boundary=None,
                 reverse_swing=(index % 2 == 1),
+                draw_arc=not crowded_line,
             )
 
     def _draw_entry_door(
@@ -367,6 +406,7 @@ class SvgRenderer:
             exterior=True,
             boundary=building_rect,
             reverse_swing=False,
+            draw_arc=True,
         )
         return best_segment
 
@@ -416,8 +456,8 @@ class SvgRenderer:
             area_jo = area_mm2 / TATAMI_MM2
             dims = _space_dimensions(space.rects)
             title = _display_space_name(space.id, space.type)
-            anchor = _room_label_anchor(space.rects)
             lines = [title, f"{dims[0]}x{dims[1]}mm", f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
+            anchor = _clamped_room_label_anchor(space.rects, lines, self.scale)
             for idx, line in enumerate(lines):
                 drawing.add(
                     drawing.text(
@@ -433,9 +473,13 @@ class SvgRenderer:
         for space in _ordered_spaces(floor):
             if space.type == "hall":
                 continue
+            if space.type in {"entry", "toilet", "wc"}:
+                continue
             if len(space.rects) != 1:
                 continue
             rect = space.rects[0]
+            if rect.w < 1365 or rect.h < 1820:
+                continue
             inset = 90
             x1 = rect.x + inset
             x2 = rect.x2 - inset
@@ -757,6 +801,27 @@ class SvgRenderer:
             )
             y += spacing
 
+    def _draw_void_guardrail(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
+        drawing.add(
+            drawing.rect(
+                insert=(self._x(rect.x), self._y(rect.y)),
+                size=(rect.w * self.scale, rect.h * self.scale),
+                fill="none",
+                stroke="#7e7e7e",
+                stroke_width=2.0,
+                stroke_dasharray="3,2",
+            )
+        )
+        drawing.add(
+            drawing.text(
+                "Guardrail",
+                insert=(self._x(rect.x + rect.w / 2), self._y(rect.y + 120)),
+                fill="#666666",
+                font_size=8.5,
+                text_anchor="middle",
+            )
+        )
+
     def _draw_door_symbol(
         self,
         drawing: svgwrite.Drawing,
@@ -765,6 +830,7 @@ class SvgRenderer:
         exterior: bool,
         boundary: Rect | None,
         reverse_swing: bool,
+        draw_arc: bool = True,
     ) -> None:
         wall_cut_width = 7 if exterior else 6
         if p1[0] == p2[0]:
@@ -789,28 +855,29 @@ class SvgRenderer:
             swing_sign = -1 if reverse_swing else 1
             if exterior and boundary is not None and x == boundary.x2 and not reverse_swing:
                 swing_sign = -1
-            hinge = (x, y1)
-            leaf = (x + swing_sign * opening * 0.65, y1 + opening * 0.65)
-            drawing.add(
-                drawing.line(
-                    start=(self._x(hinge[0]), self._y(hinge[1])),
-                    end=(self._x(leaf[0]), self._y(leaf[1])),
-                    stroke="#595959",
-                    stroke_width=1.2,
+            if draw_arc:
+                hinge = (x, y1)
+                leaf = (x + swing_sign * opening * 0.65, y1 + opening * 0.65)
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(hinge[0]), self._y(hinge[1])),
+                        end=(self._x(leaf[0]), self._y(leaf[1])),
+                        stroke="#595959",
+                        stroke_width=1.2,
+                    )
                 )
-            )
-            arc_radius_px = opening * 0.65 * self.scale
-            drawing.add(
-                drawing.path(
-                    d=(
-                        f"M {self._x(x)},{self._y(y1 + opening * 0.65)} "
-                        f"A {arc_radius_px},{arc_radius_px} 0 0 1 {self._x(leaf[0])},{self._y(leaf[1])}"
-                    ),
-                    fill="none",
-                    stroke="#7a7a7a",
-                    stroke_width=1.0,
+                arc_radius_px = opening * 0.65 * self.scale
+                drawing.add(
+                    drawing.path(
+                        d=(
+                            f"M {self._x(x)},{self._y(y1 + opening * 0.65)} "
+                            f"A {arc_radius_px},{arc_radius_px} 0 0 1 {self._x(leaf[0])},{self._y(leaf[1])}"
+                        ),
+                        fill="none",
+                        stroke="#7a7a7a",
+                        stroke_width=1.0,
+                    )
                 )
-            )
             return
 
         y = p1[1]
@@ -834,28 +901,29 @@ class SvgRenderer:
         swing_sign = -1 if reverse_swing else 1
         if exterior and boundary is not None and y == boundary.y2 and not reverse_swing:
             swing_sign = -1
-        hinge = (x1, y)
-        leaf = (x1 + opening * 0.65, y + swing_sign * opening * 0.65)
-        drawing.add(
-            drawing.line(
-                start=(self._x(hinge[0]), self._y(hinge[1])),
-                end=(self._x(leaf[0]), self._y(leaf[1])),
-                stroke="#595959",
-                stroke_width=1.2,
+        if draw_arc:
+            hinge = (x1, y)
+            leaf = (x1 + opening * 0.65, y + swing_sign * opening * 0.65)
+            drawing.add(
+                drawing.line(
+                    start=(self._x(hinge[0]), self._y(hinge[1])),
+                    end=(self._x(leaf[0]), self._y(leaf[1])),
+                    stroke="#595959",
+                    stroke_width=1.2,
+                )
             )
-        )
-        arc_radius_px = opening * 0.65 * self.scale
-        drawing.add(
-            drawing.path(
-                d=(
-                    f"M {self._x(x1 + opening * 0.65)},{self._y(y)} "
-                    f"A {arc_radius_px},{arc_radius_px} 0 0 1 {self._x(leaf[0])},{self._y(leaf[1])}"
-                ),
-                fill="none",
-                stroke="#7a7a7a",
-                stroke_width=1.0,
+            arc_radius_px = opening * 0.65 * self.scale
+            drawing.add(
+                drawing.path(
+                    d=(
+                        f"M {self._x(x1 + opening * 0.65)},{self._y(y)} "
+                        f"A {arc_radius_px},{arc_radius_px} 0 0 1 {self._x(leaf[0])},{self._y(leaf[1])}"
+                    ),
+                    fill="none",
+                    stroke="#7a7a7a",
+                    stroke_width=1.0,
+                )
             )
-        )
 
     def _draw_window_symbol(
         self,
@@ -939,6 +1007,53 @@ def _entity_rects(floor: FloorSolution, entity_id: str) -> list[Rect]:
     return []
 
 
+def _space_boundary_segments(rects: list[Rect]) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    cell = MINOR_GRID_MM
+    occupied: set[tuple[int, int]] = set()
+    for rect in rects:
+        for x in range(rect.x, rect.x2, cell):
+            for y in range(rect.y, rect.y2, cell):
+                occupied.add((x, y))
+
+    horizontal: dict[int, list[tuple[int, int]]] = {}
+    vertical: dict[int, list[tuple[int, int]]] = {}
+
+    for x, y in occupied:
+        if (x, y - cell) not in occupied:
+            horizontal.setdefault(y, []).append((x, x + cell))
+        if (x, y + cell) not in occupied:
+            horizontal.setdefault(y + cell, []).append((x, x + cell))
+        if (x - cell, y) not in occupied:
+            vertical.setdefault(x, []).append((y, y + cell))
+        if (x + cell, y) not in occupied:
+            vertical.setdefault(x + cell, []).append((y, y + cell))
+
+    segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    for y, spans in horizontal.items():
+        for x1, x2 in _merge_spans(spans):
+            segments.append(((x1, y), (x2, y)))
+    for x, spans in vertical.items():
+        for y1, y2 in _merge_spans(spans):
+            segments.append(((x, y1), (x, y2)))
+    return segments
+
+
+def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    if not spans:
+        return []
+    spans = sorted(spans)
+    merged: list[tuple[int, int]] = []
+    cur_start, cur_end = spans[0]
+    for start, end in spans[1:]:
+        if start <= cur_end:
+            cur_end = max(cur_end, end)
+            continue
+        merged.append((cur_start, cur_end))
+        cur_start, cur_end = start, end
+    merged.append((cur_start, cur_end))
+    return merged
+
+
 def _shared_segment(
     rects_a: list[Rect], rects_b: list[Rect]
 ) -> tuple[tuple[int, int], tuple[int, int]] | None:
@@ -978,7 +1093,56 @@ def _display_space_name(space_id: str, space_type: str) -> str:
         return "Storage"
     if space_id == space_type:
         return pretty_type
-    return f"{pretty_type} ({space_id})"
+    if space_type == "storage" and space_id.startswith("pantry"):
+        return _humanize_space_id(space_id)
+    if space_type == "hall" and space_id.startswith("hall"):
+        return _humanize_space_id(space_id)
+    if space_type in {"bedroom", "master_bedroom"} and space_id.startswith("bed"):
+        suffix = "".join(ch for ch in space_id if ch.isdigit())
+        if space_type == "master_bedroom":
+            return f"Master Bedroom {suffix}" if suffix else "Master Bedroom"
+        return f"Bedroom {suffix}" if suffix else "Bedroom"
+    return _humanize_space_id(space_id)
+
+
+def _humanize_space_id(space_id: str) -> str:
+    chars: list[str] = []
+    for idx, char in enumerate(space_id.replace("_", " ")):
+        if char.isdigit() and idx > 0 and chars and chars[-1] != " ":
+            chars.append(" ")
+        chars.append(char)
+    return "".join(chars).strip().title()
+
+
+def _clamped_room_label_anchor(
+    rects: list[Rect],
+    lines: list[str],
+    scale: float,
+    font_size_px: float = 10.0,
+) -> tuple[float, float]:
+    anchor_x, anchor_y = _room_label_anchor(rects)
+    bbox = _bounding_rect(rects)
+    longest = max((len(line) for line in lines), default=8)
+    approx_char_px = font_size_px * 0.58
+    half_label_px = (longest * approx_char_px) / 2
+    half_label_mm = half_label_px / scale
+    x_margin_mm = max(220.0, half_label_mm + 60.0)
+    y_margin_mm = 260.0
+
+    min_x = bbox.x + x_margin_mm
+    max_x = bbox.x2 - x_margin_mm
+    min_y = bbox.y + y_margin_mm
+    max_y = bbox.y2 - y_margin_mm
+
+    if min_x <= max_x:
+        anchor_x = min(max(anchor_x, min_x), max_x)
+    else:
+        anchor_x = bbox.x + bbox.w / 2
+    if min_y <= max_y:
+        anchor_y = min(max(anchor_y, min_y), max_y)
+    else:
+        anchor_y = bbox.y + bbox.h / 2
+    return anchor_x, anchor_y
 
 
 def _sorted_floor_ids(ids: set[str] | list[str]) -> list[str]:
@@ -1013,6 +1177,13 @@ def _segment_key(
     if p1 <= p2:
         return p1, p2
     return p2, p1
+
+
+def _door_line_key(segment: tuple[tuple[int, int], tuple[int, int]]) -> tuple[str, int]:
+    p1, p2 = segment
+    if p1[0] == p2[0]:
+        return ("v", p1[0])
+    return ("h", p1[1])
 
 
 def _portal_for_floor(floor: FloorSolution, floor_index: int, total_floors: int) -> StairPortal:
