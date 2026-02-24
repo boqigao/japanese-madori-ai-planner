@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
@@ -24,6 +25,7 @@ from .models import (
     StairGeometry,
     StairSpec,
 )
+from .stair_logic import ordered_floor_ids, stair_portal_for_floor
 
 
 @dataclass
@@ -63,6 +65,19 @@ class PlanSolver:
         self.num_workers = num_workers
 
     def solve(self, spec: PlanSpec) -> PlanSolution:
+        skip_portal_edge = os.getenv("PLAN_ENGINE_SKIP_PORTAL_EDGE") == "1"
+        skip_internal_portal = os.getenv("PLAN_ENGINE_SKIP_INTERNAL_PORTAL") == "1"
+        skip_non_portal_forbid = os.getenv("PLAN_ENGINE_SKIP_NON_PORTAL_FORBID") == "1"
+        debug_solver = os.getenv("PLAN_ENGINE_DEBUG_SOLVER") == "1"
+        forced_stair_x_cells_raw = os.getenv("PLAN_ENGINE_FORCE_STAIR_X_CELLS")
+        forced_stair_y_cells_raw = os.getenv("PLAN_ENGINE_FORCE_STAIR_Y_CELLS")
+        forced_stair_x_cells = (
+            int(forced_stair_x_cells_raw) if forced_stair_x_cells_raw is not None else None
+        )
+        forced_stair_y_cells = (
+            int(forced_stair_y_cells_raw) if forced_stair_y_cells_raw is not None else None
+        )
+
         envelope_w_cells = mm_to_cells(spec.site.envelope.width, spec.grid.minor)
         envelope_h_cells = mm_to_cells(spec.site.envelope.depth, spec.grid.minor)
         max_area = envelope_w_cells * envelope_h_cells
@@ -78,6 +93,8 @@ class PlanSolver:
         floor_compactness_terms: list[cp_model.IntVar] = []
 
         stair_spec = _find_global_stair(spec)
+        ordered_floors = ordered_floor_ids(spec.floors.keys())
+        floor_rank = {floor_id: idx for idx, floor_id in enumerate(ordered_floors)}
         stair_footprint: StairFootprint | None = None
         stair_x: cp_model.IntVar | None = None
         stair_y: cp_model.IntVar | None = None
@@ -95,6 +112,21 @@ class PlanSolver:
                 envelope_h_cells - stair_footprint.h_cells,
                 f"{_slug(stair_spec.id)}_y",
             )
+            stair_x_cells = forced_stair_x_cells
+            stair_y_cells = forced_stair_y_cells
+            if stair_x_cells is None and stair_spec.placement_x is not None:
+                stair_x_cells = mm_to_cells(stair_spec.placement_x, spec.grid.minor)
+            if stair_y_cells is None and stair_spec.placement_y is not None:
+                stair_y_cells = mm_to_cells(stair_spec.placement_y, spec.grid.minor)
+
+            if stair_x_cells is not None:
+                if stair_x_cells < 0 or stair_x_cells > envelope_w_cells - stair_footprint.w_cells:
+                    raise ValueError("PLAN_ENGINE_FORCE_STAIR_X_CELLS is out of range")
+                model.Add(stair_x == stair_x_cells)
+            if stair_y_cells is not None:
+                if stair_y_cells < 0 or stair_y_cells > envelope_h_cells - stair_footprint.h_cells:
+                    raise ValueError("PLAN_ENGINE_FORCE_STAIR_Y_CELLS is out of range")
+                model.Add(stair_y == stair_y_cells)
             floors_with_stair = set(stair_spec.connects.keys())
             floors_with_stair.update(
                 floor_id for floor_id, floor in spec.floors.items() if floor.core.stair is not None
@@ -278,15 +310,48 @@ class PlanSolver:
                     raise ValueError(f"stair '{stair_spec.id}' is missing on floor '{floor_id}'")
                 if hall_id not in placements[floor_id]:
                     raise ValueError(f"stair connect hall '{hall_id}' is missing on floor '{floor_id}'")
-                self._touching_constraint(
-                    model=model,
-                    rects_a=placements[floor_id][stair_spec.id],
-                    rects_b=placements[floor_id][hall_id],
-                    max_w=envelope_w_cells,
-                    max_h=envelope_h_cells,
-                    prefix=f"{_slug(floor_id)}_{_slug(stair_spec.id)}_{_slug(hall_id)}",
-                    required=True,
+                stair_rects = placements[floor_id][stair_spec.id]
+                portal = stair_portal_for_floor(
+                    stair_type=stair_spec.type,
+                    floor_index=floor_rank[floor_id],
+                    floor_count=len(ordered_floors),
+                    component_count=len(stair_rects),
                 )
+                portal_rect = stair_rects[portal.component_index]
+                if not skip_portal_edge:
+                    self._edge_touch_constraint(
+                        model=model,
+                        portal_rect=portal_rect,
+                        rects_b=placements[floor_id][hall_id],
+                        edge=portal.edge,
+                        max_w=envelope_w_cells,
+                        max_h=envelope_h_cells,
+                        prefix=f"{_slug(floor_id)}_{_slug(stair_spec.id)}_{_slug(hall_id)}_portal",
+                        required=True,
+                    )
+                if not skip_internal_portal:
+                    self._enforce_internal_portal_edge(
+                        model=model,
+                        portal_rect=portal_rect,
+                        edge=portal.edge,
+                        max_w=envelope_w_cells,
+                        max_h=envelope_h_cells,
+                    )
+                is_top_floor = floor_rank[floor_id] == len(ordered_floors) - 1
+                if is_top_floor and not skip_non_portal_forbid:
+                    for index, stair_rect in enumerate(stair_rects):
+                        if index == portal.component_index:
+                            continue
+                        disallow_touch = self._touching_constraint(
+                            model=model,
+                            rects_a=[stair_rect],
+                            rects_b=placements[floor_id][hall_id],
+                            max_w=envelope_w_cells,
+                            max_h=envelope_h_cells,
+                            prefix=f"{_slug(floor_id)}_{_slug(stair_spec.id)}_{_slug(hall_id)}_forbid_{index}",
+                            required=False,
+                        )
+                        model.Add(disallow_touch == 0)
 
         for floor_id, floor in spec.floors.items():
             toilet_ids = [s.id for s in floor.spaces if s.type in {"toilet", "wc"}]
@@ -361,6 +426,16 @@ class PlanSolver:
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.max_time_seconds
         solver.parameters.num_search_workers = self.num_workers
+        if debug_solver:
+            print(
+                "debug_solver:",
+                f"skip_portal_edge={skip_portal_edge}",
+                f"skip_internal_portal={skip_internal_portal}",
+                f"skip_non_portal_forbid={skip_non_portal_forbid}",
+                f"forced_stair_x_cells={forced_stair_x_cells}",
+                f"forced_stair_y_cells={forced_stair_y_cells}",
+            )
+            solver.parameters.log_search_progress = True
         status = solver.Solve(model)
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             raise RuntimeError(f"unable to produce a valid plan (status={solver.StatusName(status)})")
@@ -395,6 +470,12 @@ class PlanSolver:
                 min_y = min(component.y for component in stair_components)
                 max_x = max(component.x2 for component in stair_components)
                 max_y = max(component.y2 for component in stair_components)
+                portal = stair_portal_for_floor(
+                    stair_type=stair_spec.type,
+                    floor_index=floor_rank[floor_id],
+                    floor_count=len(ordered_floors),
+                    component_count=len(stair_components),
+                )
                 stair_geometry = StairGeometry(
                     id=stair_spec.id,
                     type=stair_spec.type,
@@ -409,6 +490,8 @@ class PlanSolver:
                     tread_count=stair_footprint.tread_count,
                     landing_size=stair_footprint.landing_mm,
                     connects=stair_spec.connects,
+                    portal_component=portal.component_index,
+                    portal_edge=portal.edge,
                 )
 
             floor_solutions[floor_id] = FloorSolution(
@@ -518,6 +601,107 @@ class PlanSolver:
             model.Add(touch_any == 1)
         return touch_any
 
+    def _edge_touch_constraint(
+        self,
+        model: cp_model.CpModel,
+        portal_rect: RectVar,
+        rects_b: list[RectVar],
+        edge: str,
+        max_w: int,
+        max_h: int,
+        prefix: str,
+        required: bool,
+    ) -> cp_model.IntVar:
+        if not rects_b:
+            raise ValueError("edge touching constraints require non-empty counterpart rectangles")
+
+        touch_candidates: list[cp_model.IntVar] = []
+        for index, rect_b in enumerate(rects_b):
+            touch_candidates.append(
+                self._pair_edge_touch_bool(
+                    model=model,
+                    rect_a=portal_rect,
+                    rect_b=rect_b,
+                    edge=edge,
+                    max_w=max_w,
+                    max_h=max_h,
+                    prefix=f"{prefix}_{index}",
+                )
+            )
+        touch_any = model.NewBoolVar(f"{prefix}_touch_any")
+        model.AddMaxEquality(touch_any, touch_candidates)
+        if required:
+            model.Add(touch_any == 1)
+        return touch_any
+
+    def _pair_edge_touch_bool(
+        self,
+        model: cp_model.CpModel,
+        rect_a: RectVar,
+        rect_b: RectVar,
+        edge: str,
+        max_w: int,
+        max_h: int,
+        prefix: str,
+    ) -> cp_model.IntVar:
+        overlap_x = self._overlap_length(
+            model=model,
+            a_start=rect_a.x,
+            a_end=rect_a.x_end,
+            b_start=rect_b.x,
+            b_end=rect_b.x_end,
+            limit=max_w,
+            prefix=f"{prefix}_ovx",
+        )
+        overlap_y = self._overlap_length(
+            model=model,
+            a_start=rect_a.y,
+            a_end=rect_a.y_end,
+            b_start=rect_b.y,
+            b_end=rect_b.y_end,
+            limit=max_h,
+            prefix=f"{prefix}_ovy",
+        )
+
+        touch = model.NewBoolVar(f"{prefix}_touch")
+        if edge == "left":
+            model.Add(rect_b.x_end == rect_a.x).OnlyEnforceIf(touch)
+            model.Add(overlap_y >= 1).OnlyEnforceIf(touch)
+        elif edge == "right":
+            model.Add(rect_b.x == rect_a.x_end).OnlyEnforceIf(touch)
+            model.Add(overlap_y >= 1).OnlyEnforceIf(touch)
+        elif edge == "top":
+            model.Add(rect_b.y_end == rect_a.y).OnlyEnforceIf(touch)
+            model.Add(overlap_x >= 1).OnlyEnforceIf(touch)
+        elif edge == "bottom":
+            model.Add(rect_b.y == rect_a.y_end).OnlyEnforceIf(touch)
+            model.Add(overlap_x >= 1).OnlyEnforceIf(touch)
+        else:
+            raise ValueError(f"unsupported portal edge '{edge}'")
+        return touch
+
+    def _enforce_internal_portal_edge(
+        self,
+        model: cp_model.CpModel,
+        portal_rect: RectVar,
+        edge: str,
+        max_w: int,
+        max_h: int,
+    ) -> None:
+        if edge == "left":
+            model.Add(portal_rect.x >= 1)
+            return
+        if edge == "right":
+            model.Add(portal_rect.x_end <= max_w - 1)
+            return
+        if edge == "top":
+            model.Add(portal_rect.y >= 1)
+            return
+        if edge == "bottom":
+            model.Add(portal_rect.y_end <= max_h - 1)
+            return
+        raise ValueError(f"unsupported portal edge '{edge}'")
+
     def _pair_touch_bool(
         self,
         model: cp_model.CpModel,
@@ -608,12 +792,7 @@ class PlanSolver:
 
 
 def _component_count(space: SpaceSpec) -> int:
-    if (
-        space.type == "ldk"
-        and "L2" in space.shape.allow
-        and "rect" not in space.shape.allow
-        and space.shape.rect_components_max >= 2
-    ):
+    if "L2" in space.shape.allow and "rect" not in space.shape.allow and space.shape.rect_components_max >= 2:
         return 2
     return 1
 
@@ -663,7 +842,7 @@ def _overshoot_weight(space_type: str) -> int:
 
 def _max_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
     if space.type == "hall":
-        return tatami_to_cells(5.0, minor_grid)
+        return tatami_to_cells(10.0, minor_grid)
     if space.type == "entry":
         return tatami_to_cells(4.0, minor_grid)
     if space.type in {"bedroom", "master_bedroom"}:

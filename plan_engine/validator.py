@@ -4,6 +4,7 @@ from collections import deque
 
 from .constants import WET_SPACE_TYPES
 from .models import FloorSolution, PlanSolution, PlanSpec, Rect, ValidationReport
+from .stair_logic import ordered_floor_ids, stair_portal_for_floor
 
 
 def validate_solution(spec: PlanSpec, solution: PlanSolution) -> ValidationReport:
@@ -136,6 +137,8 @@ def _validate_stair(spec: PlanSpec, solution: PlanSolution, report: ValidationRe
         report.warnings.append("no stair declared")
         return
     stair = stair_specs[0]
+    ordered_floors = ordered_floor_ids(solution.floors.keys())
+    floor_rank = {floor_id: idx for idx, floor_id in enumerate(ordered_floors)}
 
     stair_bboxes: list[Rect] = []
     stair_components: list[list[Rect]] = []
@@ -173,12 +176,50 @@ def _validate_stair(spec: PlanSpec, solution: PlanSolution, report: ValidationRe
         if hall is None:
             report.errors.append(f"stair hall '{hall_id}' missing on floor '{floor_id}'")
             continue
-        if not any(
-            component.shares_edge_with(rect)
-            for component in floor_solution.stair.components
-            for rect in hall.rects
-        ):
-            report.errors.append(f"stair is not adjacent to hall '{hall_id}' on floor '{floor_id}'")
+        portal = stair_portal_for_floor(
+            stair_type=stair.type,
+            floor_index=floor_rank.get(floor_id, 0),
+            floor_count=len(ordered_floors),
+            component_count=len(floor_solution.stair.components),
+        )
+        if floor_solution.stair.portal_component is not None and floor_solution.stair.portal_component != portal.component_index:
+            report.errors.append(
+                f"{floor_id}: stair portal component mismatch (expected {portal.component_index}, got {floor_solution.stair.portal_component})"
+            )
+        if floor_solution.stair.portal_edge is not None and floor_solution.stair.portal_edge != portal.edge:
+            report.errors.append(
+                f"{floor_id}: stair portal edge mismatch (expected {portal.edge}, got {floor_solution.stair.portal_edge})"
+            )
+
+        portal_component = floor_solution.stair.components[portal.component_index]
+        _validate_portal_internal(
+            floor_id=floor_id,
+            component=portal_component,
+            edge=portal.edge,
+            width=spec.site.envelope.width,
+            depth=spec.site.envelope.depth,
+            report=report,
+        )
+
+        segments = _shared_segments_on_portal_edge(portal_component, hall.rects, portal.edge)
+        unique_segments = {_segment_key(segment) for segment in segments}
+        if len(unique_segments) != 1:
+            report.errors.append(
+                f"{floor_id}: stair must connect hall '{hall_id}' through exactly one portal edge ({portal.edge})"
+            )
+            continue
+        if _segment_length(next(iter(unique_segments))) < spec.grid.minor:
+            report.errors.append(f"{floor_id}: stair portal width is below one minor grid")
+
+        is_top_floor = floor_rank.get(floor_id, 0) == len(ordered_floors) - 1
+        if is_top_floor:
+            for index, component in enumerate(floor_solution.stair.components):
+                if index == portal.component_index:
+                    continue
+                if any(component.shares_edge_with(rect) for rect in hall.rects):
+                    report.errors.append(
+                        f"{floor_id}: hall '{hall_id}' touches non-portal stair component {index}"
+                    )
 
 
 def _floor_graph(floor: FloorSolution) -> dict[str, set[str]]:
@@ -201,6 +242,83 @@ def _floor_graph(floor: FloorSolution) -> dict[str, set[str]]:
 
 def _entities_touch(rects_a: list[Rect], rects_b: list[Rect]) -> bool:
     return any(a.shares_edge_with(b) for a in rects_a for b in rects_b)
+
+
+def _shared_segments_on_portal_edge(
+    portal_component: Rect,
+    hall_rects: list[Rect],
+    edge: str,
+) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    for hall_rect in hall_rects:
+        segment = _edge_shared_segment(portal_component, hall_rect, edge)
+        if segment is not None:
+            segments.append(segment)
+    return segments
+
+
+def _segment_key(
+    segment: tuple[tuple[int, int], tuple[int, int]]
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    p1, p2 = segment
+    if p1 <= p2:
+        return p1, p2
+    return p2, p1
+
+
+def _segment_length(segment: tuple[tuple[int, int], tuple[int, int]]) -> int:
+    p1, p2 = segment
+    return abs(p2[0] - p1[0]) + abs(p2[1] - p1[1])
+
+
+def _edge_shared_segment(
+    portal_component: Rect,
+    other: Rect,
+    edge: str,
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    if edge == "left":
+        if other.x2 != portal_component.x:
+            return None
+        y1 = max(portal_component.y, other.y)
+        y2 = min(portal_component.y2, other.y2)
+        return ((portal_component.x, y1), (portal_component.x, y2)) if y2 > y1 else None
+    if edge == "right":
+        if other.x != portal_component.x2:
+            return None
+        y1 = max(portal_component.y, other.y)
+        y2 = min(portal_component.y2, other.y2)
+        return ((portal_component.x2, y1), (portal_component.x2, y2)) if y2 > y1 else None
+    if edge == "top":
+        if other.y2 != portal_component.y:
+            return None
+        x1 = max(portal_component.x, other.x)
+        x2 = min(portal_component.x2, other.x2)
+        return ((x1, portal_component.y), (x2, portal_component.y)) if x2 > x1 else None
+    if edge == "bottom":
+        if other.y != portal_component.y2:
+            return None
+        x1 = max(portal_component.x, other.x)
+        x2 = min(portal_component.x2, other.x2)
+        return ((x1, portal_component.y2), (x2, portal_component.y2)) if x2 > x1 else None
+    return None
+
+
+def _validate_portal_internal(
+    floor_id: str,
+    component: Rect,
+    edge: str,
+    width: int,
+    depth: int,
+    report: ValidationReport,
+) -> None:
+    if edge == "left" and component.x <= 0:
+        report.errors.append(f"{floor_id}: stair portal edge left is on exterior boundary")
+    elif edge == "right" and component.x2 >= width:
+        report.errors.append(f"{floor_id}: stair portal edge right is on exterior boundary")
+    elif edge == "top" and component.y <= 0:
+        report.errors.append(f"{floor_id}: stair portal edge top is on exterior boundary")
+    elif edge == "bottom" and component.y2 >= depth:
+        report.errors.append(f"{floor_id}: stair portal edge bottom is on exterior boundary")
 
 
 def _bfs(graph: dict[str, set[str]], start_nodes: list[str]) -> set[str]:

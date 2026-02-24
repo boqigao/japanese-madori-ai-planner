@@ -7,6 +7,7 @@ import svgwrite
 
 from .constants import TATAMI_MM2
 from .models import FloorSolution, PlanSolution, Rect, SpaceGeometry
+from .stair_logic import StairPortal, stair_portal_for_floor
 
 
 SPACE_COLORS = {
@@ -70,9 +71,14 @@ class SvgRenderer:
         self._draw_site_and_footprint(drawing, site_rect, building_rect)
         self._draw_spaces(drawing, floor)
         self._draw_stair(drawing, floor, floor_index, total_floors)
+        self._draw_stair_connection_opening(drawing, floor, floor_index, total_floors)
         self._draw_interior_doors(drawing, floor)
-        self._draw_entry_door(drawing, floor, building_rect)
-        self._draw_windows(drawing, floor, building_rect)
+        entry_segment = self._draw_entry_door(drawing, floor, building_rect)
+        blocked_segments: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+        if entry_segment is not None:
+            blocked_segments.add(_segment_key(entry_segment))
+        self._draw_windows(drawing, floor, building_rect, blocked_segments)
+        self._draw_room_dimension_guides(drawing, floor)
         self._draw_space_labels(drawing, floor)
         self._draw_title_block(drawing, floor_id, solution)
         self._draw_legend(drawing, floor, site_rect)
@@ -153,7 +159,7 @@ class SvgRenderer:
             drawing.add(
                 drawing.text(
                     "Site Envelope = Building Footprint",
-                    insert=(self._x(site_rect.x + 200), self._y(site_rect.y - 220)),
+                    insert=(self.margin_px + 2, self.margin_px - 60),
                     fill="#555555",
                     font_size=10,
                 )
@@ -162,7 +168,7 @@ class SvgRenderer:
             drawing.add(
                 drawing.text(
                     "Site Envelope",
-                    insert=(self._x(site_rect.x + 200), self._y(site_rect.y - 320)),
+                    insert=(self.margin_px + 2, self.margin_px - 76),
                     fill="#666666",
                     font_size=10,
                 )
@@ -170,7 +176,7 @@ class SvgRenderer:
             drawing.add(
                 drawing.text(
                     "Building Footprint",
-                    insert=(self._x(building_rect.x + 200), self._y(building_rect.y - 140)),
+                    insert=(self.margin_px + 2, self.margin_px - 60),
                     fill="#1f1f1f",
                     font_size=10,
                 )
@@ -202,23 +208,59 @@ class SvgRenderer:
         if floor.stair is None:
             return
         stair = floor.stair
-        for component in stair.components:
+        is_top_floor = total_floors > 1 and floor_index == total_floors - 1
+        portal = _portal_for_floor(
+            floor=floor,
+            floor_index=floor_index,
+            total_floors=total_floors,
+        )
+        access_indices = [portal.component_index]
+        for index, component in enumerate(stair.components):
+            is_void = is_top_floor and index not in access_indices
             drawing.add(
                 drawing.rect(
                     insert=(self._x(component.x), self._y(component.y)),
                     size=(component.w * self.scale, component.h * self.scale),
-                    fill="#ffffff",
+                    fill="#f4f4f4" if is_void else "#ffffff",
                     stroke="#202020",
                     stroke_width=2.6,
-                    stroke_dasharray="8,4",
+                    stroke_dasharray="4,3" if is_void else "8,4",
                 )
             )
+            if is_void:
+                self._draw_void_hatch(drawing, component)
 
-        self._draw_stair_steps(drawing, stair.type, stair.tread_count, stair.components)
+        visible_step_indices = set(range(len(stair.components)))
+        if is_top_floor:
+            visible_step_indices = set(access_indices)
+            void_components = [
+                stair.components[index]
+                for index in range(len(stair.components))
+                if index not in access_indices
+            ]
+            if void_components:
+                void_bbox = _bounding_rect(void_components)
+                drawing.add(
+                    drawing.text(
+                        "Open To Below",
+                        insert=(self._x(void_bbox.x + void_bbox.w / 2), self._y(void_bbox.y + void_bbox.h / 2)),
+                        fill="#555555",
+                        font_size=9,
+                        text_anchor="middle",
+                    )
+                )
+
+        self._draw_stair_steps(
+            drawing,
+            stair.type,
+            stair.tread_count,
+            stair.components,
+            visible_indices=visible_step_indices,
+        )
         direction = "UP"
-        if total_floors > 1 and floor_index == total_floors - 1:
+        if is_top_floor:
             direction = "DN"
-        label_x, label_y = _stair_label_point(stair.components)
+        label_x, label_y = _stair_label_point(stair.components, portal.component_index)
         drawing.add(
             drawing.text(
                 f"Stair ({direction})",
@@ -228,9 +270,62 @@ class SvgRenderer:
                 text_anchor="middle",
             )
         )
+        stair_area_sqm = sum(component.area for component in stair.components) / 1_000_000
+        drawing.add(
+            drawing.text(
+                f"{stair_area_sqm:.1f}sqm  R{stair.riser_count}/T{stair.tread_count}",
+                insert=(self._x(label_x), self._y(label_y + 120)),
+                fill="#3a3a3a",
+                font_size=8.5,
+                text_anchor="middle",
+            )
+        )
+
+    def _draw_stair_connection_opening(
+        self,
+        drawing: svgwrite.Drawing,
+        floor: FloorSolution,
+        floor_index: int,
+        total_floors: int,
+    ) -> None:
+        if floor.stair is None:
+            return
+        hall_id = floor.stair.connects.get(floor.id)
+        if hall_id is None:
+            return
+        hall = floor.spaces.get(hall_id)
+        if hall is None:
+            return
+        portal = _portal_for_floor(
+            floor=floor,
+            floor_index=floor_index,
+            total_floors=total_floors,
+        )
+        portal_component = floor.stair.components[portal.component_index]
+        segment = _portal_hall_opening_segment(portal_component, hall.rects, portal.edge)
+        if segment is None:
+            return
+        drawing.add(
+            drawing.line(
+                start=(self._x(segment[0][0]), self._y(segment[0][1])),
+                end=(self._x(segment[1][0]), self._y(segment[1][1])),
+                stroke="#ffffff",
+                stroke_width=7,
+            )
+        )
+        drawing.add(
+            drawing.line(
+                start=(self._x(segment[0][0]), self._y(segment[0][1])),
+                end=(self._x(segment[1][0]), self._y(segment[1][1])),
+                stroke="#5e5e5e",
+                stroke_width=1.0,
+            )
+        )
 
     def _draw_interior_doors(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
-        for left_id, right_id in floor.topology:
+        for index, (left_id, right_id) in enumerate(floor.topology):
+            if floor.stair is not None and (left_id == floor.stair.id or right_id == floor.stair.id):
+                continue
             left_rects = _entity_rects(floor, left_id)
             right_rects = _entity_rects(floor, right_id)
             if not left_rects or not right_rects:
@@ -238,12 +333,21 @@ class SvgRenderer:
             segment = _shared_segment(left_rects, right_rects)
             if segment is None:
                 continue
-            self._draw_door_symbol(drawing, segment[0], segment[1], exterior=False, boundary=None)
+            self._draw_door_symbol(
+                drawing,
+                segment[0],
+                segment[1],
+                exterior=False,
+                boundary=None,
+                reverse_swing=(index % 2 == 1),
+            )
 
-    def _draw_entry_door(self, drawing: svgwrite.Drawing, floor: FloorSolution, building_rect: Rect) -> None:
+    def _draw_entry_door(
+        self, drawing: svgwrite.Drawing, floor: FloorSolution, building_rect: Rect
+    ) -> tuple[tuple[int, int], tuple[int, int]] | None:
         entry_spaces = [space for space in floor.spaces.values() if space.type == "entry"]
         if not entry_spaces:
-            return
+            return None
 
         best_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
         best_len = -1
@@ -255,16 +359,25 @@ class SvgRenderer:
                         best_len = seg_len
                         best_segment = segment
         if best_segment is None:
-            return
+            return None
         self._draw_door_symbol(
             drawing,
             best_segment[0],
             best_segment[1],
             exterior=True,
             boundary=building_rect,
+            reverse_swing=False,
         )
+        return best_segment
 
-    def _draw_windows(self, drawing: svgwrite.Drawing, floor: FloorSolution, building_rect: Rect) -> None:
+    def _draw_windows(
+        self,
+        drawing: svgwrite.Drawing,
+        floor: FloorSolution,
+        building_rect: Rect,
+        blocked_segments: set[tuple[tuple[int, int], tuple[int, int]]],
+    ) -> None:
+        min_window_segment = 1365
         for space in floor.spaces.values():
             if space.type not in WINDOW_SPACE_TYPES:
                 continue
@@ -273,15 +386,28 @@ class SvgRenderer:
                 candidate_segments.extend(_exterior_segments(rect, building_rect))
             if not candidate_segments:
                 continue
-            primary = max(candidate_segments, key=lambda seg: _segment_length(seg[0], seg[1]))
-            self._draw_window_symbol(drawing, primary[0], primary[1])
-            if _segment_length(primary[0], primary[1]) >= 2600:
-                self._draw_window_symbol(
-                    drawing,
-                    primary[0],
-                    primary[1],
-                    offset_ratio=0.72,
-                )
+
+            seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+            unique_segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
+            for segment in candidate_segments:
+                key = _segment_key(segment)
+                if key in seen:
+                    continue
+                seen.add(key)
+                unique_segments.append(segment)
+
+            for segment in unique_segments:
+                key = _segment_key(segment)
+                if key in blocked_segments:
+                    continue
+                length = _segment_length(segment[0], segment[1])
+                if length < min_window_segment:
+                    continue
+                if length >= 3600:
+                    self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.28)
+                    self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.72)
+                else:
+                    self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5)
 
     def _draw_space_labels(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
         for space in _ordered_spaces(floor):
@@ -300,6 +426,90 @@ class SvgRenderer:
                         fill="#1b1b1b",
                         font_size=10,
                         text_anchor="middle",
+                    )
+                )
+
+    def _draw_room_dimension_guides(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        for space in _ordered_spaces(floor):
+            if space.type == "hall":
+                continue
+            if len(space.rects) != 1:
+                continue
+            rect = space.rects[0]
+            inset = 90
+            x1 = rect.x + inset
+            x2 = rect.x2 - inset
+            y1 = rect.y + inset
+            y2 = rect.y2 - inset
+
+            if x2 - x1 >= 700:
+                y = rect.y + inset
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x1), self._y(y)),
+                        end=(self._x(x2), self._y(y)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.8,
+                    )
+                )
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x1), self._y(y - 30)),
+                        end=(self._x(x1), self._y(y + 30)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.8,
+                    )
+                )
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x2), self._y(y - 30)),
+                        end=(self._x(x2), self._y(y + 30)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.8,
+                    )
+                )
+                drawing.add(
+                    drawing.text(
+                        f"{rect.w}mm",
+                        insert=(self._x((x1 + x2) / 2), self._y(y - 24)),
+                        fill="#7a7a7a",
+                        font_size=8,
+                        text_anchor="middle",
+                    )
+                )
+
+            if y2 - y1 >= 700:
+                x = rect.x + inset
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x), self._y(y1)),
+                        end=(self._x(x), self._y(y2)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.8,
+                    )
+                )
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x - 30), self._y(y1)),
+                        end=(self._x(x + 30), self._y(y1)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.8,
+                    )
+                )
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x - 30), self._y(y2)),
+                        end=(self._x(x + 30), self._y(y2)),
+                        stroke="#9a9a9a",
+                        stroke_width=0.8,
+                    )
+                )
+                drawing.add(
+                    drawing.text(
+                        f"{rect.h}mm",
+                        insert=(self._x(x + 46), self._y((y1 + y2) / 2)),
+                        fill="#7a7a7a",
+                        font_size=8,
                     )
                 )
 
@@ -374,8 +584,16 @@ class SvgRenderer:
             drawing.line(
                 start=(box_x + 8, symbol_y + 24),
                 end=(box_x + 35, symbol_y + 24),
-                stroke="#ffffff",
-                stroke_width=6,
+                stroke="#666666",
+                stroke_width=2.4,
+            )
+        )
+        drawing.add(
+            drawing.path(
+                d=f"M {box_x + 8},{symbol_y + 24} A 10,10 0 0 1 {box_x + 18},{symbol_y + 14}",
+                fill="none",
+                stroke="#666666",
+                stroke_width=1.2,
             )
         )
         drawing.add(drawing.text("Door", insert=(box_x + 42, symbol_y + 27), fill="#222222", font_size=10))
@@ -474,11 +692,16 @@ class SvgRenderer:
         stair_type: str,
         tread_count: int,
         components: list[Rect],
+        visible_indices: set[int] | None = None,
     ) -> None:
         if tread_count <= 0 or not components:
             return
+        if visible_indices is None:
+            visible_indices = set(range(len(components)))
 
         if stair_type == "straight":
+            if 0 not in visible_indices:
+                return
             flight = components[0]
             for index in range(1, tread_count + 1):
                 y = flight.y + (flight.h * index) / (tread_count + 1)
@@ -497,26 +720,42 @@ class SvgRenderer:
         flight1, _, flight2 = components[0], components[1], components[2]
         run1 = max(1, tread_count // 2)
         run2 = max(1, tread_count - run1)
-        for index in range(1, run1 + 1):
-            x = flight1.x + (flight1.w * index) / (run1 + 1)
+        if 0 in visible_indices:
+            for index in range(1, run1 + 1):
+                x = flight1.x + (flight1.w * index) / (run1 + 1)
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(x), self._y(flight1.y)),
+                        end=(self._x(x), self._y(flight1.y + flight1.h)),
+                        stroke="#2a2a2a",
+                        stroke_width=1.4,
+                    )
+                )
+        if 2 in visible_indices:
+            for index in range(1, run2 + 1):
+                y = flight2.y + (flight2.h * index) / (run2 + 1)
+                drawing.add(
+                    drawing.line(
+                        start=(self._x(flight2.x), self._y(y)),
+                        end=(self._x(flight2.x + flight2.w), self._y(y)),
+                        stroke="#2a2a2a",
+                        stroke_width=1.4,
+                    )
+                )
+
+    def _draw_void_hatch(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
+        spacing = 160
+        y = rect.y + 80
+        while y < rect.y2:
             drawing.add(
                 drawing.line(
-                    start=(self._x(x), self._y(flight1.y)),
-                    end=(self._x(x), self._y(flight1.y + flight1.h)),
-                    stroke="#2a2a2a",
-                    stroke_width=1.4,
+                    start=(self._x(rect.x + 45), self._y(y)),
+                    end=(self._x(rect.x2 - 45), self._y(y)),
+                    stroke="#b8b8b8",
+                    stroke_width=0.9,
                 )
             )
-        for index in range(1, run2 + 1):
-            y = flight2.y + (flight2.h * index) / (run2 + 1)
-            drawing.add(
-                drawing.line(
-                    start=(self._x(flight2.x), self._y(y)),
-                    end=(self._x(flight2.x + flight2.w), self._y(y)),
-                    stroke="#2a2a2a",
-                    stroke_width=1.4,
-                )
-            )
+            y += spacing
 
     def _draw_door_symbol(
         self,
@@ -525,6 +764,7 @@ class SvgRenderer:
         p2: tuple[int, int],
         exterior: bool,
         boundary: Rect | None,
+        reverse_swing: bool,
     ) -> None:
         wall_cut_width = 7 if exterior else 6
         if p1[0] == p2[0]:
@@ -544,8 +784,10 @@ class SvgRenderer:
                     stroke_width=wall_cut_width,
                 )
             )
-            swing_sign = 1
-            if exterior and boundary is not None and x == boundary.x2:
+            if not exterior and seg_len <= 1100:
+                return
+            swing_sign = -1 if reverse_swing else 1
+            if exterior and boundary is not None and x == boundary.x2 and not reverse_swing:
                 swing_sign = -1
             hinge = (x, y1)
             leaf = (x + swing_sign * opening * 0.65, y1 + opening * 0.65)
@@ -587,8 +829,10 @@ class SvgRenderer:
                 stroke_width=wall_cut_width,
             )
         )
-        swing_sign = 1
-        if exterior and boundary is not None and y == boundary.y2:
+        if not exterior and seg_len <= 1100:
+            return
+        swing_sign = -1 if reverse_swing else 1
+        if exterior and boundary is not None and y == boundary.y2 and not reverse_swing:
             swing_sign = -1
         hinge = (x1, y)
         leaf = (x1 + opening * 0.65, y + swing_sign * opening * 0.65)
@@ -762,7 +1006,82 @@ def _segment_length(p1: tuple[int, int], p2: tuple[int, int]) -> int:
     return abs(p2[0] - p1[0]) + abs(p2[1] - p1[1])
 
 
-def _stair_label_point(components: list[Rect]) -> tuple[float, float]:
+def _segment_key(
+    segment: tuple[tuple[int, int], tuple[int, int]]
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    p1, p2 = segment
+    if p1 <= p2:
+        return p1, p2
+    return p2, p1
+
+
+def _portal_for_floor(floor: FloorSolution, floor_index: int, total_floors: int) -> StairPortal:
+    if floor.stair is None:
+        raise ValueError("cannot resolve stair portal without stair geometry")
+    if floor.stair.portal_component is not None and floor.stair.portal_edge is not None:
+        return StairPortal(component_index=floor.stair.portal_component, edge=floor.stair.portal_edge)
+    return stair_portal_for_floor(
+        stair_type=floor.stair.type,
+        floor_index=floor_index,
+        floor_count=total_floors,
+        component_count=len(floor.stair.components),
+    )
+
+
+def _portal_hall_opening_segment(
+    portal_component: Rect,
+    hall_rects: list[Rect],
+    edge: str,
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    best_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
+    best_length = 0
+    for hall_rect in hall_rects:
+        segment = _edge_shared_segment(portal_component, hall_rect, edge)
+        if segment is None:
+            continue
+        length = _segment_length(segment[0], segment[1])
+        if length > best_length:
+            best_length = length
+            best_segment = segment
+    return best_segment
+
+
+def _edge_shared_segment(
+    portal_component: Rect,
+    other: Rect,
+    edge: str,
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    if edge == "left":
+        if other.x2 != portal_component.x:
+            return None
+        y1 = max(portal_component.y, other.y)
+        y2 = min(portal_component.y2, other.y2)
+        return ((portal_component.x, y1), (portal_component.x, y2)) if y2 > y1 else None
+    if edge == "right":
+        if other.x != portal_component.x2:
+            return None
+        y1 = max(portal_component.y, other.y)
+        y2 = min(portal_component.y2, other.y2)
+        return ((portal_component.x2, y1), (portal_component.x2, y2)) if y2 > y1 else None
+    if edge == "top":
+        if other.y2 != portal_component.y:
+            return None
+        x1 = max(portal_component.x, other.x)
+        x2 = min(portal_component.x2, other.x2)
+        return ((x1, portal_component.y), (x2, portal_component.y)) if x2 > x1 else None
+    if edge == "bottom":
+        if other.y != portal_component.y2:
+            return None
+        x1 = max(portal_component.x, other.x)
+        x2 = min(portal_component.x2, other.x2)
+        return ((x1, portal_component.y2), (x2, portal_component.y2)) if x2 > x1 else None
+    return None
+
+
+def _stair_label_point(components: list[Rect], portal_component_index: int) -> tuple[float, float]:
+    if 0 <= portal_component_index < len(components):
+        portal = components[portal_component_index]
+        return portal.x + portal.w / 2, portal.y + portal.h / 2
     if len(components) >= 2:
         landing = components[1]
         return landing.x + landing.w / 2, landing.y + landing.h / 2

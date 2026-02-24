@@ -66,6 +66,8 @@ class StairSpec:
     riser_pref: int
     tread_pref: int
     connects: dict[str, str]
+    placement_x: int | None = None
+    placement_y: int | None = None
 
 
 @dataclass(frozen=True)
@@ -172,9 +174,11 @@ class StairGeometry:
     tread_count: int
     landing_size: tuple[int, int]
     connects: dict[str, str]
+    portal_component: int | None = None
+    portal_edge: str | None = None
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "id": self.id,
             "type": self.type,
             "bbox": self.bbox.to_dict(),
@@ -184,6 +188,12 @@ class StairGeometry:
             "landing_size": {"w": self.landing_size[0], "h": self.landing_size[1]},
             "connects": dict(self.connects),
         }
+        if self.portal_component is not None and self.portal_edge is not None:
+            payload["portal"] = {
+                "component_index": self.portal_component,
+                "edge": self.portal_edge,
+            }
+        return payload
 
 
 @dataclass(frozen=True)
