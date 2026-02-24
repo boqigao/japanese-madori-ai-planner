@@ -1,86 +1,114 @@
 # AI-Driven Plan Engine
 
-基于 YAML DSL + OR-Tools CP-SAT 的户型生成引擎。  
-核心流程：`DSL (YAML) -> Solver -> Validator -> Renderer (SVG/PNG)`。
+Constraint-based Japanese detached house floor plan generator.
+Takes a YAML DSL specification and produces structurally valid layouts as SVG/PNG using Google OR-Tools CP-SAT.
 
-## 1. 环境准备
+Pipeline: `DSL (YAML) -> Solver (CP-SAT) -> Validator -> Renderer (SVG/PNG)`
 
-前置要求：
+## Prerequisites
+
 - Python 3.13+
-- `uv`（依赖安装与运行）
+- [`uv`](https://github.com/astral-sh/uv) for dependency management
 
-安装依赖：
+Install dependencies:
 
 ```bash
 make sync
 ```
 
-## 2. 快速开始
+## Quick Start
 
-仓库内默认提供一个可跑通的 2 层带楼梯示例：
-- 规格文件：`tmp/spec.yaml`
-- 默认输出：`tmp/plan_output`
+The repository includes a runnable two-story house example with stairs:
+- Spec file: `tmp/spec.yaml`
+- Default output: `tmp/plan_output`
 
-一条命令生成：
+Generate with one command:
 
 ```bash
 make run-default
 ```
 
-成功后会生成：
-- `tmp/plan_output/solution.json`
-- `tmp/plan_output/report.txt`
-- `tmp/plan_output/F1.svg`, `tmp/plan_output/F1.png`
-- `tmp/plan_output/F2.svg`, `tmp/plan_output/F2.png`
+Output files:
+- `tmp/plan_output/solution.json` -- solved layout data
+- `tmp/plan_output/report.txt` -- validation report
+- `tmp/plan_output/F1.svg`, `tmp/plan_output/F1.png` -- first floor plan
+- `tmp/plan_output/F2.svg`, `tmp/plan_output/F2.png` -- second floor plan
 
-## 3. 常用命令
+## Commands
 
-查看所有命令：
+Show all available commands:
 
 ```bash
 make help
 ```
 
-自定义 spec / 输出目录 / 求解超时：
+Run with custom spec, output directory, or solver timeout:
 
 ```bash
 make run SPEC=tmp/spec.yaml OUTDIR=tmp/plan_output TIMEOUT=120
 ```
 
-语法检查：
+Syntax check:
 
 ```bash
 make check-syntax
 ```
 
-一键验证（语法检查 + 默认示例生成）：
+Full verification (syntax check + default example generation):
 
 ```bash
 make verify
 ```
 
-清理输出：
+Clean up generated outputs:
 
 ```bash
 make clean-output OUTDIR=tmp/plan_output
 make clean-tmp
 ```
 
-## 4. 手动运行（不走 Makefile）
+## Running Without Make
 
 ```bash
 uv run python main.py --spec tmp/spec.yaml --outdir tmp/plan_output --solver-timeout 90
 ```
 
-## 5. 常见问题
+## Project Structure
 
-- `dsl_parse_failed`：检查 `spec.yaml` 字段名、缩进、网格对齐（455mm）。
-- `solve_failed`：约束过紧或相互冲突，先减少房间数量/邻接关系后再逐步增加。
-- `Plan rejected by validation`：查看 `report.txt` 中 `Errors` 和 `Warnings`。
+```
+main.py                         CLI entrypoint
+plan_engine/
+  constants.py                  Grid constants, room types, unit conversions
+  models.py                     Frozen dataclasses (PlanSpec, PlanSolution, Rect, etc.)
+  dsl.py                        YAML spec parser -> PlanSpec
+  stair_logic.py                Stair portal mapping logic
+  io.py                         JSON/text file output
+  solver/
+    core.py                     PlanSolver class (orchestrates solving)
+    workflow.py                 Constraint building pipeline (variables, packing, topology, wet cluster)
+    rect_var.py                 RectVar factory, StairFootprint computation
+    constraints.py              Low-level CP-SAT constraint builders (touch, overlap, adjacency)
+    space_specs.py              Space-type constraint specifications (area, width, weights)
+    solution_builder.py         Converts solved CP-SAT variables -> PlanSolution
+  validator/
+    core.py                     Validation orchestrator
+    geometry.py                 Grid alignment, boundary, overlap, coverage checks
+    connectivity.py             BFS reachability, WC-LDK separation
+    stair.py                    Stair alignment, portal positioning, hall connectivity
+    livability.py               Dimensional quality, area ratios, circulation metrics
+  renderer/
+    core.py                     SvgRenderer class (orchestrates drawing)
+    annotations.py              Space labels, title block, legend, north arrow
+    dimensions.py               Room dimension guides, exterior dimension lines
+    stair.py                    Stair visualization (steps, voids, guardrails)
+    symbols.py                  Door and window symbols
+    helpers.py                  Geometry helpers, boundary segments, display formatting
+tmp/                            Example specs and generated output
+local-dev/                      Requirements docs, feedback, and refactor plans
+```
 
-## 6. 目录说明
+## Troubleshooting
 
-- `main.py`：CLI 入口，串联解析/求解/验证/渲染。
-- `plan_engine/`：核心模块（dsl、solver、validator、renderer 等）。
-- `tmp/`：示例 spec 与运行产物目录。
-- `local-dev/`：需求文档、反馈与重构计划。
+- **`dsl_parse_failed`**: Check `spec.yaml` field names, indentation, and grid alignment (455mm).
+- **`solve_failed`**: Constraints are too tight or conflicting. Try reducing room count or adjacency relationships, then add back incrementally.
+- **`Plan rejected by validation`**: Review `report.txt` for `Errors` and `Warnings`.

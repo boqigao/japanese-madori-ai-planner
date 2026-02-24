@@ -6,6 +6,7 @@ from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
 
 
 def validate_stair(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
+    """Validate stair alignment across floors, portal positioning, and hall connectivity."""
     stair_specs = [floor.core.stair for floor in spec.floors.values() if floor.core.stair is not None]
     if not stair_specs:
         report.warnings.append("no stair declared")
@@ -94,6 +95,7 @@ def _shared_segments_on_portal_edge(
     hall_rects: list[Rect],
     edge: str,
 ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Find shared edge segments between a portal component and hall rects on the portal edge."""
     if edge not in EDGE_NAMES:
         return []
     segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
@@ -111,6 +113,7 @@ def _shared_segments_on_portal_edge(
 def _segment_key(
     segment: tuple[tuple[int, int], tuple[int, int]]
 ) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Normalize a segment to canonical ordering for deduplication."""
     p1, p2 = segment
     if p1 <= p2:
         return p1, p2
@@ -118,6 +121,7 @@ def _segment_key(
 
 
 def _segment_length(segment: tuple[tuple[int, int], tuple[int, int]]) -> int:
+    """Compute the Manhattan length of an axis-aligned segment."""
     p1, p2 = segment
     return abs(p2[0] - p1[0]) + abs(p2[1] - p1[1])
 
@@ -127,6 +131,7 @@ def _segment_on_portal_edge(
     segment: tuple[tuple[int, int], tuple[int, int]],
     edge: str,
 ) -> bool:
+    """Check whether a segment lies on the specified edge of a portal component."""
     (x1, y1), (x2, y2) = segment
     if edge == "left" and x1 == x2 == portal_component.x:
         return True
@@ -147,6 +152,7 @@ def _validate_portal_internal(
     depth: int,
     report: ValidationReport,
 ) -> None:
+    """Check that a stair portal edge is not on the site exterior boundary."""
     if edge == "left" and component.x <= 0:
         report.errors.append(f"{floor_id}: stair portal edge left is on exterior boundary")
     elif edge == "right" and component.x2 >= width:

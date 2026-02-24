@@ -11,6 +11,8 @@ from plan_engine.models import PlanSpec, StairSpec
 
 @dataclass
 class RectVar:
+    """CP-SAT decision variables representing a rectangle's position, size, and intervals."""
+
     x: cp_model.IntVar
     y: cp_model.IntVar
     w: cp_model.IntVar
@@ -24,6 +26,8 @@ class RectVar:
 
 @dataclass(frozen=True)
 class StairFootprint:
+    """Computed stair geometry in grid cell units."""
+
     w_cells: int
     h_cells: int
     components: list[tuple[str, int, int, int, int]]
@@ -35,6 +39,7 @@ class StairFootprint:
 
 
 def _find_global_stair(spec: PlanSpec) -> StairSpec | None:
+    """Find the shared stair specification across all floors. Raises if multiple distinct stair IDs found."""
     stair: StairSpec | None = None
     for floor in spec.floors.values():
         if floor.core.stair is None:
@@ -48,6 +53,7 @@ def _find_global_stair(spec: PlanSpec) -> StairSpec | None:
 
 
 def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprint:
+    """Compute stair geometry (component layout, riser/tread counts) from a StairSpec."""
     width_mm = ceil_to_grid(stair.width, minor_grid)
     width_cells = mm_to_cells(width_mm, minor_grid)
     riser_count = max(2, int(round(stair.floor_height / max(1, stair.riser_pref))))
@@ -95,6 +101,7 @@ def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprin
 
 
 def _slug(value: str) -> str:
+    """Sanitize a string into a lowercase alphanumeric slug for CP-SAT variable naming."""
     return "".join(ch.lower() if ch.isalnum() else "_" for ch in value)
 
 
@@ -110,6 +117,7 @@ def new_rect(
     shared_x_offset: int = 0,
     shared_y_offset: int = 0,
 ) -> RectVar:
+    """Create a RectVar with all necessary CP-SAT variables and constraints."""
     w = (
         model.NewIntVar(fixed_w, fixed_w, f"{prefix}_w")
         if fixed_w is not None

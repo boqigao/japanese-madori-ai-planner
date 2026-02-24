@@ -5,6 +5,7 @@ from plan_engine.stair_logic import ordered_floor_ids
 
 
 def validate_space_presence(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
+    """Check that all specified spaces exist with valid geometry."""
     for floor_id, floor_spec in spec.floors.items():
         floor_solution = solution.floors.get(floor_id)
         if floor_solution is None:
@@ -30,6 +31,7 @@ def validate_space_presence(spec: PlanSpec, solution: PlanSolution, report: Vali
 
 
 def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
+    """Validate grid alignment, boundary containment, no overlaps, and 100% area coverage."""
     minor = spec.grid.minor
     width = spec.site.envelope.width
     depth = spec.site.envelope.depth
@@ -66,6 +68,7 @@ def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: Validation
 
 
 def validate_entry_exterior(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
+    """Ensure entry spaces exist on ground floor and touch the exterior boundary."""
     width = spec.site.envelope.width
     depth = spec.site.envelope.depth
     ordered = ordered_floor_ids(spec.floors.keys())
@@ -86,4 +89,5 @@ def validate_entry_exterior(spec: PlanSpec, solution: PlanSolution, report: Vali
 
 
 def _touches_exterior(rect: Rect, width: int, depth: int) -> bool:
+    """Check whether a rectangle touches the site envelope boundary."""
     return rect.x == 0 or rect.y == 0 or rect.x2 == width or rect.y2 == depth

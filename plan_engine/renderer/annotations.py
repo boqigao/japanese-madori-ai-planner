@@ -15,6 +15,7 @@ from plan_engine.renderer.helpers import (
 
 
 def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+    """Draw space name, dimensions, and area labels for all spaces."""
     for space in _ordered_spaces(floor):
         area_mm2 = sum(rect.area for rect in space.rects)
         area_sqm = area_mm2 / 1_000_000
@@ -41,6 +42,7 @@ def draw_title_block(
     floor_id: str,
     solution: PlanSolution,
 ) -> None:
+    """Draw floor ID and scale information at the top of the drawing."""
     drawing.add(
         drawing.text(
             f"{floor_id} Plan  ({solution.envelope.width} x {solution.envelope.depth} mm)",
@@ -60,6 +62,7 @@ def draw_title_block(
 
 
 def draw_legend(renderer, drawing: svgwrite.Drawing, floor: FloorSolution, site_rect: Rect) -> None:
+    """Draw a color legend and symbol legend on the right side of the drawing."""
     used_types = {space.type for space in floor.spaces.values()}
     legend_items = [space_type for space_type in LEGEND_ORDER if space_type in used_types]
     if not legend_items:
@@ -128,6 +131,7 @@ def draw_legend(renderer, drawing: svgwrite.Drawing, floor: FloorSolution, site_
 
 
 def draw_north_arrow(renderer, drawing: svgwrite.Drawing, north: str) -> None:
+    """Draw a directional north arrow indicator."""
     center_x = renderer.margin_px - 45
     center_y = renderer.margin_px + 18
     vectors = {

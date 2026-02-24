@@ -20,19 +20,23 @@ WET_MODULE_SIZES_MM: dict[str, tuple[int, int]] = {
 
 
 def ceil_to_grid(value: int, grid: int) -> int:
+    """Round up *value* to the nearest multiple of *grid*."""
     return int(math.ceil(value / grid) * grid)
 
 
 def mm_to_cells(mm_value: int, minor_grid: int) -> int:
+    """Convert millimeters to grid cell count, raising ValueError if not aligned."""
     if mm_value % minor_grid != 0:
         raise ValueError(f"value {mm_value} must align to {minor_grid}mm grid")
     return mm_value // minor_grid
 
 
 def cells_to_mm(cells: int, minor_grid: int) -> int:
+    """Convert grid cell count back to millimeters."""
     return cells * minor_grid
 
 
 def tatami_to_cells(tatami: float, minor_grid: int) -> int:
+    """Convert tatami area to minimum cell count (rounded up)."""
     cell_area = minor_grid * minor_grid
     return int(math.ceil((tatami * TATAMI_MM2) / cell_area))

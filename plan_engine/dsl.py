@@ -22,6 +22,21 @@ from plan_engine.models import (
 
 
 def load_plan_spec(path: str | Path) -> PlanSpec:
+    """Parse a YAML specification file into a PlanSpec.
+
+    Reads the YAML file at *path*, validates that the grid dimensions align to
+    the 455 mm minor grid, that units are millimetres, and that the top-level
+    schema contains the required ``grid``, ``site``, and ``floors`` sections.
+
+    Args:
+        path: Filesystem path to the DSL YAML specification file.
+
+    Returns:
+        A fully-populated ``PlanSpec`` instance.
+
+    Raises:
+        ValueError: If the file content violates any schema or alignment rule.
+    """
     spec_path = Path(path)
     raw = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
@@ -68,6 +83,23 @@ def load_plan_spec(path: str | Path) -> PlanSpec:
 
 
 def _parse_floor(floor_id: str, payload: dict[str, object], minor: int) -> FloorSpec:
+    """Parse a single floor definition from raw YAML data.
+
+    Extracts the optional core (stair) configuration, the list of spaces, and
+    the topology adjacency pairs for the given floor.
+
+    Args:
+        floor_id: Identifier for this floor (e.g. ``"1F"``).
+        payload: Dict of raw YAML values for the floor.
+        minor: Minor grid size in mm, used for alignment validation.
+
+    Returns:
+        A ``FloorSpec`` representing the parsed floor.
+
+    Raises:
+        ValueError: If stair dimensions or placements are not grid-aligned,
+            or if space / topology entries are malformed.
+    """
     core = CoreSpec(stair=None)
     core_raw = payload.get("core")
     if isinstance(core_raw, dict) and isinstance(core_raw.get("stair"), dict):
@@ -98,6 +130,23 @@ def _parse_floor(floor_id: str, payload: dict[str, object], minor: int) -> Floor
 
 
 def _parse_space(raw: dict[str, object], minor: int) -> SpaceSpec:
+    """Parse a single space definition including area, size, and shape constraints.
+
+    Processes the ``area`` (tatami-based), ``size_constraints`` (min width), and
+    ``shape`` (allowed geometries) sub-sections of a space entry.  Validates
+    grid alignment of size constraints and restricts L2 shapes to eligible
+    space types.
+
+    Args:
+        raw: Dict of raw YAML values for one space entry.
+        minor: Minor grid size in mm, used for alignment validation.
+
+    Returns:
+        A ``SpaceSpec`` representing the parsed space.
+
+    Raises:
+        ValueError: If constraints violate grid alignment or shape rules.
+    """
     space_id = str(raw["id"])
     space_type = str(raw["type"])
 
@@ -146,6 +195,24 @@ def _parse_space(raw: dict[str, object], minor: int) -> SpaceSpec:
 
 
 def _parse_stair_spec(floor_id: str, stair_raw: dict[str, object], minor: int) -> StairSpec:
+    """Parse a stair specification from raw YAML data.
+
+    Reads stair type, dimensions, riser/tread preferences, connection mapping,
+    and optional placement coordinates.  Validates that the stair type is one
+    of the supported types defined in ``STAIR_TYPES``.
+
+    Args:
+        floor_id: Identifier of the floor this stair belongs to.
+        stair_raw: Dict of raw YAML values for the stair entry.
+        minor: Minor grid size in mm (used by caller for alignment checks).
+
+    Returns:
+        A ``StairSpec`` representing the parsed stair.
+
+    Raises:
+        ValueError: If the stair type is unsupported or placement data is
+            incomplete.
+    """
     stair_type = str(stair_raw["type"])
     if stair_type not in STAIR_TYPES:
         raise ValueError(f"unsupported stair type '{stair_type}' on floor {floor_id}")
@@ -175,6 +242,7 @@ def _parse_stair_spec(floor_id: str, stair_raw: dict[str, object], minor: int) -
 
 
 def _expect_mapping(root: dict[str, object], key: str) -> dict[str, object]:
+    """Extract a dict value for the given key, raising ValueError if not a mapping."""
     value = root.get(key)
     if not isinstance(value, dict):
         raise ValueError(f"'{key}' must be a mapping")
@@ -182,6 +250,7 @@ def _expect_mapping(root: dict[str, object], key: str) -> dict[str, object]:
 
 
 def _expect_mapping_value(value: object) -> dict[str, object]:
+    """Validate that a value is a dict, raising ValueError otherwise."""
     if not isinstance(value, dict):
         raise ValueError("floor definition must be a mapping")
     return value

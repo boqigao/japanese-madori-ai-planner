@@ -18,11 +18,15 @@ from plan_engine.solver.workflow import (
 
 
 class PlanSolver:
+    """Constraint-based floor plan solver using Google OR-Tools CP-SAT."""
+
     def __init__(self, max_time_seconds: float = 20.0, num_workers: int = 8) -> None:
+        """Initialize solver with timeout and worker count."""
         self.max_time_seconds = max_time_seconds
         self.num_workers = num_workers
 
     def solve(self, spec: PlanSpec) -> PlanSolution:
+        """Solve a plan specification and return the solution. Raises RuntimeError if infeasible."""
         ctx = build_context(spec)
         create_space_variables(spec, ctx)
         add_floor_packing_constraints(ctx)
@@ -47,6 +51,7 @@ class PlanSolver:
         )
 
     def _run_solver(self, ctx: SolveContext) -> tuple[cp_model.CpSolver, int]:
+        """Configure and execute the CP-SAT solver. Returns solver and status."""
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.max_time_seconds
         solver.parameters.num_search_workers = self.num_workers

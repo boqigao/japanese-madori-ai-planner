@@ -18,6 +18,12 @@ EXIT_VALIDATION_FAILED = 4
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the plan engine CLI.
+
+    Returns:
+        A ``Namespace`` with ``spec`` (path to YAML), ``outdir`` (output
+        directory), and ``solver_timeout`` (max solve time in seconds).
+    """
     parser = argparse.ArgumentParser(description="AI-Driven Madori Plan Engine (MVP)")
     parser.add_argument("--spec", required=True, help="Path to DSL YAML specification file")
     parser.add_argument(
@@ -35,6 +41,17 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Run the full plan engine pipeline: parse DSL, solve, validate, and render.
+
+    Orchestrates the end-to-end workflow -- parsing the YAML spec, running the
+    CP-SAT solver, validating the solution against the spec, and rendering
+    floor SVGs.  Writes ``solution.json``, ``report.txt``, and per-floor SVGs
+    to the output directory.
+
+    Returns:
+        Exit code: 0 on success, 2 for parse failure, 3 for solve failure,
+        4 for validation failure.
+    """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     args = parse_args()
     outdir = Path(args.outdir)

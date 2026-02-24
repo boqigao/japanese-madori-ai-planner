@@ -31,10 +31,12 @@ LEGEND_ORDER = [
 
 
 def _ordered_spaces(floor: FloorSolution) -> list[SpaceGeometry]:
+    """Return floor spaces sorted by ID for deterministic rendering order."""
     return [floor.spaces[key] for key in sorted(floor.spaces.keys())]
 
 
 def _floor_rects(floor: FloorSolution) -> list[Rect]:
+    """Collect all rectangles (spaces + stair) from a floor solution."""
     rects: list[Rect] = []
     for space in floor.spaces.values():
         rects.extend(space.rects)
@@ -44,6 +46,7 @@ def _floor_rects(floor: FloorSolution) -> list[Rect]:
 
 
 def _bounding_rect(rects: list[Rect]) -> Rect:
+    """Compute the minimum axis-aligned bounding box of a list of rectangles."""
     min_x = min(rect.x for rect in rects)
     min_y = min(rect.y for rect in rects)
     max_x = max(rect.x2 for rect in rects)
@@ -52,6 +55,7 @@ def _bounding_rect(rects: list[Rect]) -> Rect:
 
 
 def _entity_rects(floor: FloorSolution, entity_id: str) -> list[Rect]:
+    """Get the rectangles for a given entity (space or stair) by ID."""
     if entity_id in floor.spaces:
         return floor.spaces[entity_id].rects
     if floor.stair is not None and floor.stair.id == entity_id:
@@ -60,6 +64,7 @@ def _entity_rects(floor: FloorSolution, entity_id: str) -> list[Rect]:
 
 
 def _space_boundary_segments(rects: list[Rect]) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Generate boundary line segments for a set of rectangles using grid-cell analysis."""
     cell = MINOR_GRID_MM
     occupied: set[tuple[int, int]] = set()
     for rect in rects:
@@ -91,6 +96,7 @@ def _space_boundary_segments(rects: list[Rect]) -> list[tuple[tuple[int, int], t
 
 
 def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Merge overlapping or adjacent 1D spans into non-overlapping spans."""
     if not spans:
         return []
     spans = sorted(spans)
@@ -109,6 +115,7 @@ def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
 def _shared_segment(
     rects_a: list[Rect], rects_b: list[Rect]
 ) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Find the longest shared edge segment between two groups of rectangles."""
     best_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
     best_length = 0
     for rect_a in rects_a:
@@ -124,6 +131,7 @@ def _shared_segment(
 
 
 def _room_label_anchor(rects: list[Rect]) -> tuple[float, float]:
+    """Compute area-weighted centroid for label placement."""
     total_area = sum(rect.area for rect in rects)
     if total_area <= 0:
         return float(rects[0].x), float(rects[0].y)
@@ -133,6 +141,7 @@ def _room_label_anchor(rects: list[Rect]) -> tuple[float, float]:
 
 
 def _space_dimensions(rects: list[Rect]) -> tuple[int, int]:
+    """Get width and height of a space (single rect or bounding box)."""
     if len(rects) == 1:
         return rects[0].w, rects[0].h
     bbox = _bounding_rect(rects)
@@ -140,6 +149,7 @@ def _space_dimensions(rects: list[Rect]) -> tuple[int, int]:
 
 
 def _display_space_name(space_id: str, space_type: str) -> str:
+    """Format a space ID and type into a human-readable display name."""
     pretty_type = space_type.replace("_", " ").title()
     if space_id.startswith("auto_fill_"):
         return "Storage"
@@ -158,6 +168,7 @@ def _display_space_name(space_id: str, space_type: str) -> str:
 
 
 def _humanize_space_id(space_id: str) -> str:
+    """Convert a snake_case space ID to Title Case with digit spacing."""
     chars: list[str] = []
     for idx, char in enumerate(space_id.replace("_", " ")):
         if char.isdigit() and idx > 0 and chars and chars[-1] != " ":
@@ -172,6 +183,7 @@ def _clamped_room_label_anchor(
     scale: float,
     font_size_px: float = 10.0,
 ) -> tuple[float, float]:
+    """Compute label anchor clamped within the space bounding box."""
     anchor_x, anchor_y = _room_label_anchor(rects)
     bbox = _bounding_rect(rects)
     longest = max((len(line) for line in lines), default=8)
@@ -198,6 +210,8 @@ def _clamped_room_label_anchor(
 
 
 def _sorted_floor_ids(ids: set[str] | list[str]) -> list[str]:
+    """Sort floor IDs numerically then lexicographically."""
+
     def key(value: str) -> tuple[int, str]:
         digits = "".join(ch for ch in value if ch.isdigit())
         return (int(digits) if digits else 10_000, value)
@@ -206,6 +220,7 @@ def _sorted_floor_ids(ids: set[str] | list[str]) -> list[str]:
 
 
 def _exterior_segments(rect: Rect, boundary: Rect) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Get segments of a rectangle that lie on the boundary of a larger rectangle."""
     segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
     if rect.x == boundary.x:
         segments.append(((rect.x, rect.y), (rect.x, rect.y2)))
@@ -219,12 +234,14 @@ def _exterior_segments(rect: Rect, boundary: Rect) -> list[tuple[tuple[int, int]
 
 
 def _segment_length(p1: tuple[int, int], p2: tuple[int, int]) -> int:
+    """Compute the Manhattan length of an axis-aligned segment."""
     return abs(p2[0] - p1[0]) + abs(p2[1] - p1[1])
 
 
 def _segment_key(
     segment: tuple[tuple[int, int], tuple[int, int]]
 ) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Normalize a segment to a canonical (min, max) ordering for deduplication."""
     p1, p2 = segment
     if p1 <= p2:
         return p1, p2
@@ -232,6 +249,7 @@ def _segment_key(
 
 
 def _door_line_key(segment: tuple[tuple[int, int], tuple[int, int]]) -> tuple[str, int]:
+    """Create a hashable key identifying the axis and position of a door's wall."""
     p1, p2 = segment
     if p1[0] == p2[0]:
         return ("v", p1[0])
@@ -239,6 +257,7 @@ def _door_line_key(segment: tuple[tuple[int, int], tuple[int, int]]) -> tuple[st
 
 
 def _portal_for_floor(floor: FloorSolution, floor_index: int, total_floors: int) -> StairPortal:
+    """Resolve the stair portal for a given floor, using stored or computed values."""
     if floor.stair is None:
         raise ValueError("cannot resolve stair portal without stair geometry")
     if floor.stair.portal_component is not None and floor.stair.portal_edge is not None:
@@ -256,6 +275,7 @@ def _portal_hall_opening_segment(
     hall_rects: list[Rect],
     edge: str,
 ) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Find the longest shared segment between a portal component and hall on the given edge."""
     best_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
     best_length = 0
     for hall_rect in hall_rects:
@@ -274,6 +294,7 @@ def _edge_shared_segment(
     other: Rect,
     edge: str,
 ) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Compute the shared edge segment between two rectangles on a specific edge direction."""
     if edge == "left":
         if other.x2 != portal_component.x:
             return None
@@ -302,6 +323,7 @@ def _edge_shared_segment(
 
 
 def _stair_label_point(components: list[Rect], portal_component_index: int) -> tuple[float, float]:
+    """Compute the center point for placing a stair label."""
     if 0 <= portal_component_index < len(components):
         portal = components[portal_component_index]
         return portal.x + portal.w / 2, portal.y + portal.h / 2

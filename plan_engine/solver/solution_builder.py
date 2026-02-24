@@ -17,6 +17,7 @@ def build_solution(
     floor_rank: dict[str, int],
     ordered_floors: list[str],
 ) -> PlanSolution:
+    """Convert solved CP-SAT variables back into a PlanSolution with mm coordinates."""
     floor_solutions: dict[str, FloorSolution] = {}
     for floor_id, floor in spec.floors.items():
         solved_spaces: dict[str, SpaceGeometry] = {}

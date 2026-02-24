@@ -5,51 +5,68 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class GridSpec:
+    """Grid configuration with minor and major grid sizes in mm."""
+
     minor: int
     major: int
 
     def to_dict(self) -> dict[str, int]:
+        """Return the grid spec as a plain dictionary."""
         return {"minor": self.minor, "major": self.major}
 
 
 @dataclass(frozen=True)
 class EnvelopeSpec:
+    """Rectangular site envelope dimensions."""
+
     type: str
     width: int
     depth: int
 
     def to_dict(self) -> dict[str, object]:
+        """Return the envelope spec as a plain dictionary."""
         return {"type": self.type, "width": self.width, "depth": self.depth}
 
 
 @dataclass(frozen=True)
 class SiteSpec:
+    """Site properties including envelope and north orientation."""
+
     envelope: EnvelopeSpec
     north: str
 
     def to_dict(self) -> dict[str, object]:
+        """Return the site spec as a plain dictionary."""
         return {"envelope": self.envelope.to_dict(), "north": self.north}
 
 
 @dataclass(frozen=True)
 class AreaConstraint:
+    """Area bounds in tatami units."""
+
     min_tatami: float | None = None
     target_tatami: float | None = None
 
 
 @dataclass(frozen=True)
 class SizeConstraints:
+    """Dimensional constraints for a space."""
+
     min_width: int | None = None
 
 
 @dataclass(frozen=True)
 class ShapeSpec:
+    """Allowed shapes and component limits for a space."""
+
     allow: list[str] = field(default_factory=lambda: ["rect"])
     rect_components_max: int = 1
 
 
 @dataclass(frozen=True)
 class SpaceSpec:
+    """Complete specification for a single space/room."""
+
     id: str
     type: str
     area: AreaConstraint = field(default_factory=AreaConstraint)
@@ -59,6 +76,8 @@ class SpaceSpec:
 
 @dataclass(frozen=True)
 class StairSpec:
+    """Stair specification with type, dimensions, and floor connections."""
+
     id: str
     type: str
     width: int
@@ -72,16 +91,22 @@ class StairSpec:
 
 @dataclass(frozen=True)
 class CoreSpec:
+    """Core structural elements (stair)."""
+
     stair: StairSpec | None = None
 
 
 @dataclass(frozen=True)
 class TopologySpec:
+    """Adjacency relationships between spaces."""
+
     adjacency: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class FloorSpec:
+    """Complete specification for a single floor."""
+
     id: str
     core: CoreSpec = field(default_factory=CoreSpec)
     spaces: list[SpaceSpec] = field(default_factory=list)
@@ -90,6 +115,8 @@ class FloorSpec:
 
 @dataclass(frozen=True)
 class PlanSpec:
+    """Top-level specification for an entire plan."""
+
     version: str
     units: str
     grid: GridSpec
@@ -99,6 +126,8 @@ class PlanSpec:
 
 @dataclass(frozen=True)
 class Rect:
+    """Immutable rectangle with geometry query methods."""
+
     x: int
     y: int
     w: int
@@ -106,20 +135,25 @@ class Rect:
 
     @property
     def x2(self) -> int:
+        """Right edge x-coordinate (x + w)."""
         return self.x + self.w
 
     @property
     def y2(self) -> int:
+        """Bottom edge y-coordinate (y + h)."""
         return self.y + self.h
 
     @property
     def area(self) -> int:
+        """Area of the rectangle in square units."""
         return self.w * self.h
 
     def to_dict(self) -> dict[str, int]:
+        """Return the rectangle as a plain dictionary."""
         return {"x": self.x, "y": self.y, "w": self.w, "h": self.h}
 
     def overlaps(self, other: "Rect") -> bool:
+        """Return True if this rectangle overlaps with *other*."""
         return not (
             self.x2 <= other.x
             or other.x2 <= self.x
@@ -128,6 +162,7 @@ class Rect:
         )
 
     def shares_edge_with(self, other: "Rect") -> bool:
+        """Return True if this rectangle shares a non-zero-length edge with *other*."""
         if self.x2 == other.x or other.x2 == self.x:
             y_overlap = min(self.y2, other.y2) - max(self.y, other.y)
             return y_overlap > 0
@@ -139,6 +174,7 @@ class Rect:
     def shared_edge_segment(
         self, other: "Rect"
     ) -> tuple[tuple[int, int], tuple[int, int]] | None:
+        """Return the shared edge as a pair of endpoints, or None if no edge is shared."""
         if self.x2 == other.x or other.x2 == self.x:
             y1 = max(self.y, other.y)
             y2 = min(self.y2, other.y2)
@@ -156,16 +192,21 @@ class Rect:
 
 @dataclass(frozen=True)
 class SpaceGeometry:
+    """Solved geometry for a space."""
+
     id: str
     type: str
     rects: list[Rect]
 
     def to_dict(self) -> dict[str, object]:
+        """Return the space geometry as a plain dictionary."""
         return {"id": self.id, "type": self.type, "rects": [r.to_dict() for r in self.rects]}
 
 
 @dataclass(frozen=True)
 class StairGeometry:
+    """Solved geometry for a stair including portal information."""
+
     id: str
     type: str
     bbox: Rect
@@ -181,6 +222,7 @@ class StairGeometry:
     portal_edge: str | None = None
 
     def to_dict(self) -> dict[str, object]:
+        """Return the stair geometry as a plain dictionary."""
         payload: dict[str, object] = {
             "id": self.id,
             "type": self.type,
@@ -204,12 +246,15 @@ class StairGeometry:
 
 @dataclass(frozen=True)
 class FloorSolution:
+    """Solved layout for a single floor."""
+
     id: str
     spaces: dict[str, SpaceGeometry]
     stair: StairGeometry | None
     topology: list[tuple[str, str]]
 
     def to_dict(self) -> dict[str, object]:
+        """Return the floor solution as a plain dictionary."""
         ordered_spaces = [self.spaces[sid].to_dict() for sid in sorted(self.spaces)]
         payload: dict[str, object] = {
             "spaces": ordered_spaces,
@@ -222,6 +267,8 @@ class FloorSolution:
 
 @dataclass(frozen=True)
 class PlanSolution:
+    """Complete solved plan with all floors."""
+
     units: str
     grid: GridSpec
     envelope: EnvelopeSpec
@@ -229,6 +276,7 @@ class PlanSolution:
     floors: dict[str, FloorSolution]
 
     def to_dict(self) -> dict[str, object]:
+        """Return the full plan solution as a plain dictionary."""
         return {
             "units": self.units,
             "grid": self.grid.to_dict(),
@@ -239,14 +287,18 @@ class PlanSolution:
 
 @dataclass
 class ValidationReport:
+    """Mutable report collecting errors and warnings."""
+
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
     @property
     def is_valid(self) -> bool:
+        """Return True if the report contains no errors."""
         return len(self.errors) == 0
 
     def to_text(self) -> str:
+        """Format the report as human-readable plain text."""
         lines = [f"valid={self.is_valid}", f"errors={len(self.errors)}", f"warnings={len(self.warnings)}"]
         if self.errors:
             lines.append("")

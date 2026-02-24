@@ -36,6 +36,8 @@ from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
 
 @dataclass
 class SolveContext:
+    """Mutable container holding all state for a single solve run."""
+
     model: cp_model.CpModel
     envelope_w_cells: int
     envelope_h_cells: int
@@ -63,6 +65,7 @@ class SolveContext:
 
 
 def build_context(spec: PlanSpec) -> SolveContext:
+    """Initialize a SolveContext from a PlanSpec, including stair setup and environment parsing."""
     skip_portal_edge = os.getenv("PLAN_ENGINE_SKIP_PORTAL_EDGE") == "1"
     skip_internal_portal = os.getenv("PLAN_ENGINE_SKIP_INTERNAL_PORTAL") == "1"
     debug_solver = os.getenv("PLAN_ENGINE_DEBUG_SOLVER") == "1"
@@ -146,6 +149,7 @@ def _create_stair_anchor(
     forced_stair_x_cells: int | None,
     forced_stair_y_cells: int | None,
 ) -> tuple[StairFootprint, cp_model.IntVar, cp_model.IntVar]:
+    """Create shared stair position variables and compute stair footprint."""
     stair_footprint = _compute_stair_footprint(stair_spec, spec.grid.minor)
     stair_x = model.NewIntVar(
         0,
@@ -178,6 +182,7 @@ def _create_stair_anchor(
 
 
 def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Create CP-SAT rectangle variables and dimension/area constraints for all spaces."""
     for floor_id, floor in spec.floors.items():
         for space in floor.spaces:
             component_count = _component_count(space)
@@ -326,6 +331,7 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
 
 
 def add_floor_packing_constraints(ctx: SolveContext) -> None:
+    """Add non-overlap, compactness, and full-coverage constraints per floor."""
     for floor_id, entities in ctx.placements.items():
         all_rects = [rect for rects in entities.values() for rect in rects]
         if not all_rects:
@@ -357,6 +363,7 @@ def add_floor_packing_constraints(ctx: SolveContext) -> None:
 
 
 def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Enforce adjacency relationships from the spec's topology."""
     for floor_id, floor in spec.floors.items():
         for left_id, right_id in floor.topology.adjacency:
             if left_id not in ctx.placements[floor_id]:
@@ -375,6 +382,7 @@ def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
 
 
 def add_stair_connection_constraints(ctx: SolveContext) -> None:
+    """Enforce stair-to-hall portal edge connectivity."""
     if ctx.stair_spec is None:
         return
     for floor_id, hall_id in ctx.stair_spec.connects.items():
@@ -414,6 +422,7 @@ def add_stair_connection_constraints(ctx: SolveContext) -> None:
 
 
 def add_wc_ldk_non_adjacent_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Enforce separation between toilet/WC and LDK spaces."""
     for floor_id, floor in spec.floors.items():
         toilet_ids = [s.id for s in floor.spaces if s.type in {"toilet", "wc"}]
         ldk_ids = [s.id for s in floor.spaces if s.type == "ldk"]
@@ -428,6 +437,7 @@ def add_wc_ldk_non_adjacent_constraints(spec: PlanSpec, ctx: SolveContext) -> No
 
 
 def add_wet_cluster_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Enforce wet module clustering and hall adjacency."""
     for floor_id, floor in spec.floors.items():
         wet_ids = [s.id for s in floor.spaces if s.type in WET_SPACE_TYPES]
         if not wet_ids:
@@ -479,6 +489,7 @@ def add_wet_cluster_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
 
 
 def build_objective(ctx: SolveContext) -> None:
+    """Assemble and minimize the weighted objective function."""
     objective_terms = [50 * v for v in ctx.major_room_alignment_penalties]
     objective_terms.extend(weight * var for var, weight in ctx.target_shortfalls)
     objective_terms.extend(weight * var for var, weight in ctx.target_overshoots)

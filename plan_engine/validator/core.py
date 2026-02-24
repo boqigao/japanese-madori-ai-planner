@@ -8,6 +8,7 @@ from plan_engine.validator.stair import validate_stair
 
 
 def validate_solution(spec: PlanSpec, solution: PlanSolution) -> ValidationReport:
+    """Run all validation checks on a solved plan and return a report."""
     report = ValidationReport()
     validate_space_presence(spec, solution, report)
     validate_geometry(spec, solution, report)

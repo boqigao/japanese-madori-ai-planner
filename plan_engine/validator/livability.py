@@ -6,6 +6,7 @@ from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
 
 
 def validate_livability(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
+    """Check dimensional quality, area ratios, circulation metrics, and stair specs."""
     target_by_floor_space: dict[tuple[str, str], float] = {}
     for floor_id, floor_spec in spec.floors.items():
         for space_spec in floor_spec.spaces:
@@ -99,6 +100,7 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
 
 
 def _bounding_rect(rects: list[Rect]) -> Rect:
+    """Compute the axis-aligned bounding box of a list of rectangles."""
     min_x = min(rect.x for rect in rects)
     min_y = min(rect.y for rect in rects)
     max_x = max(rect.x2 for rect in rects)
@@ -107,5 +109,6 @@ def _bounding_rect(rects: list[Rect]) -> Rect:
 
 
 def _space_area_jo(rects: list[Rect]) -> float:
+    """Convert total rectangle area from mm2 to tatami (jo) units."""
     area_mm2 = sum(rect.area for rect in rects)
     return area_mm2 / TATAMI_MM2

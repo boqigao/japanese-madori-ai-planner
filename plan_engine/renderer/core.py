@@ -44,11 +44,15 @@ from plan_engine.renderer.symbols import draw_door_symbol, draw_window_symbol
 
 
 class SvgRenderer:
+    """SVG/PNG renderer for floor plan solutions. Converts PlanSolution into annotated architectural drawings."""
+
     def __init__(self, scale: float = 0.12, margin_px: float = 220.0) -> None:
+        """Initialize renderer with scale factor and margin."""
         self.scale = scale
         self.margin_px = margin_px
 
     def render(self, solution: PlanSolution, outdir: str | Path) -> list[Path]:
+        """Render all floors to SVG and PNG files. Returns list of output paths."""
         output_dir = Path(outdir)
         output_dir.mkdir(parents=True, exist_ok=True)
         floor_ids = _sorted_floor_ids(solution.floors.keys())
@@ -71,6 +75,7 @@ class SvgRenderer:
         total_floors: int,
         target: Path,
     ) -> None:
+        """Render a single floor plan to an SVG file."""
         width_px = self._x(solution.envelope.width) + self.margin_px
         height_px = self._y(solution.envelope.depth) + self.margin_px
         drawing = svgwrite.Drawing(
@@ -111,6 +116,7 @@ class SvgRenderer:
         minor_grid_mm: int,
         major_grid_mm: int,
     ) -> None:
+        """Draw minor and major grid lines on the site envelope."""
         color = "#ececec"
         for x in range(site_rect.x, site_rect.x2 + 1, minor_grid_mm):
             drawing.add(
@@ -153,6 +159,7 @@ class SvgRenderer:
     def _draw_site_and_footprint(
         self, drawing: svgwrite.Drawing, site_rect: Rect, building_rect: Rect
     ) -> None:
+        """Draw the site envelope outline and building footprint."""
         drawing.add(
             drawing.rect(
                 insert=(self._x(site_rect.x), self._y(site_rect.y)),
@@ -200,6 +207,7 @@ class SvgRenderer:
             )
 
     def _draw_spaces(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        """Draw colored space rectangles with boundary segments."""
         for space in _ordered_spaces(floor):
             fill = SPACE_COLORS.get(space.type, "#eeeeee")
             stroke_dash = "6,4" if space.id.startswith("auto_fill_") else None
@@ -229,6 +237,7 @@ class SvgRenderer:
         floor_index: int,
         total_floors: int,
     ) -> None:
+        """Delegate stair rendering to the stair sub-module."""
         draw_stair(self, drawing, floor, floor_index, total_floors)
 
     def _draw_stair_connection_opening(
@@ -238,9 +247,11 @@ class SvgRenderer:
         floor_index: int,
         total_floors: int,
     ) -> None:
+        """Delegate stair-hall opening rendering."""
         draw_stair_connection_opening(self, drawing, floor, floor_index, total_floors)
 
     def _draw_interior_doors(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        """Draw door symbols at shared edges between adjacent spaces."""
         door_entries: list[tuple[int, tuple[tuple[int, int], tuple[int, int]]]] = []
         for index, (left_id, right_id) in enumerate(floor.topology):
             if floor.stair is not None and (left_id == floor.stair.id or right_id == floor.stair.id):
@@ -275,6 +286,7 @@ class SvgRenderer:
     def _draw_entry_door(
         self, drawing: svgwrite.Drawing, floor: FloorSolution, building_rect: Rect
     ) -> tuple[tuple[int, int], tuple[int, int]] | None:
+        """Find and draw the main entry door on the longest exterior segment."""
         entry_spaces = [space for space in floor.spaces.values() if space.type == "entry"]
         if not entry_spaces:
             return None
@@ -308,6 +320,7 @@ class SvgRenderer:
         building_rect: Rect,
         blocked_segments: set[tuple[tuple[int, int], tuple[int, int]]],
     ) -> None:
+        """Draw window symbols on eligible exterior wall segments."""
         min_window_segment = 1365
         for space in floor.spaces.values():
             if space.type not in WINDOW_SPACE_TYPES:
@@ -341,21 +354,27 @@ class SvgRenderer:
                     self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5)
 
     def _draw_space_labels(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        """Delegate space label rendering."""
         draw_space_labels(self, drawing, floor)
 
     def _draw_room_dimension_guides(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        """Delegate room dimension guide rendering."""
         draw_room_dimension_guides(self, drawing, floor)
 
     def _draw_title_block(self, drawing: svgwrite.Drawing, floor_id: str, solution: PlanSolution) -> None:
+        """Delegate title block rendering."""
         draw_title_block(self, drawing, floor_id, solution)
 
     def _draw_legend(self, drawing: svgwrite.Drawing, floor: FloorSolution, site_rect: Rect) -> None:
+        """Delegate legend rendering."""
         draw_legend(self, drawing, floor, site_rect)
 
     def _draw_north_arrow(self, drawing: svgwrite.Drawing, north: str) -> None:
+        """Delegate north arrow rendering."""
         draw_north_arrow(self, drawing, north)
 
     def _draw_dimensions(self, drawing: svgwrite.Drawing, site_rect: Rect, building_rect: Rect) -> None:
+        """Delegate exterior dimension rendering."""
         draw_dimensions(self, drawing, site_rect, building_rect)
 
     def _draw_dimension_line(
@@ -367,6 +386,7 @@ class SvgRenderer:
         label: str,
         vertical: bool = False,
     ) -> None:
+        """Delegate single dimension line rendering."""
         draw_dimension_line(self, drawing, p1, p2, offset_px=offset_px, label=label, vertical=vertical)
 
     def _draw_stair_steps(
@@ -377,12 +397,15 @@ class SvgRenderer:
         components: list[Rect],
         visible_indices: set[int] | None = None,
     ) -> None:
+        """Delegate stair step rendering."""
         draw_stair_steps(self, drawing, stair_type, tread_count, components, visible_indices=visible_indices)
 
     def _draw_void_hatch(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
+        """Delegate void hatch pattern rendering."""
         draw_void_hatch(self, drawing, rect)
 
     def _draw_void_guardrail(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
+        """Delegate void guardrail rendering."""
         draw_void_guardrail(self, drawing, rect)
 
     def _draw_door_symbol(
@@ -395,6 +418,7 @@ class SvgRenderer:
         reverse_swing: bool,
         draw_arc: bool = True,
     ) -> None:
+        """Delegate door symbol rendering."""
         draw_door_symbol(
             drawing=drawing,
             p1=p1,
@@ -415,6 +439,7 @@ class SvgRenderer:
         p2: tuple[int, int],
         offset_ratio: float = 0.5,
     ) -> None:
+        """Delegate window symbol rendering."""
         draw_window_symbol(
             drawing=drawing,
             p1=p1,
@@ -425,10 +450,13 @@ class SvgRenderer:
         )
 
     def _x(self, mm: float) -> float:
+        """Convert mm coordinate to pixel x-position."""
         return self.margin_px + (mm * self.scale)
 
     def _y(self, mm: float) -> float:
+        """Convert mm coordinate to pixel y-position."""
         return self.margin_px + (mm * self.scale)
 
     def _export_png(self, svg_path: Path, png_path: Path) -> None:
+        """Convert an SVG file to PNG using CairoSVG."""
         cairosvg.svg2png(url=str(svg_path), write_to=str(png_path))

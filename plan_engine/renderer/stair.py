@@ -18,6 +18,7 @@ def draw_stair(
     floor_index: int,
     total_floors: int,
 ) -> None:
+    """Draw the complete stair visualization including components, steps, void indicators, and labels."""
     if floor.stair is None:
         return
     stair = floor.stair
@@ -113,6 +114,7 @@ def draw_stair_connection_opening(
     floor_index: int,
     total_floors: int,
 ) -> None:
+    """Draw a wall opening between the stair portal and the connected hall."""
     if floor.stair is None:
         return
     hall_id = floor.stair.connects.get(floor.id)
@@ -156,6 +158,7 @@ def draw_stair_steps(
     components: list[Rect],
     visible_indices: set[int] | None = None,
 ) -> None:
+    """Draw tread lines for straight or L-shaped stair flights."""
     if tread_count <= 0 or not components:
         return
     if visible_indices is None:
@@ -207,6 +210,7 @@ def draw_stair_steps(
 
 
 def draw_void_hatch(renderer, drawing: svgwrite.Drawing, rect: Rect) -> None:
+    """Draw horizontal hatch lines indicating a floor void area."""
     spacing = 160
     y = rect.y + 80
     while y < rect.y2:
@@ -222,6 +226,7 @@ def draw_void_hatch(renderer, drawing: svgwrite.Drawing, rect: Rect) -> None:
 
 
 def draw_void_guardrail(renderer, drawing: svgwrite.Drawing, rect: Rect) -> None:
+    """Draw a dashed guardrail rectangle with label around a void area."""
     drawing.add(
         drawing.rect(
             insert=(renderer._x(rect.x), renderer._y(rect.y)),

@@ -7,6 +7,7 @@ from plan_engine.models import FloorSolution, PlanSolution, Rect, ValidationRepo
 
 
 def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> None:
+    """Validate entry-reachability via BFS and WC-LDK non-adjacency across all floors."""
     global_graph: dict[str, set[str]] = {}
     entry_nodes: list[str] = []
     primary_nodes: list[str] = []
@@ -61,6 +62,7 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
 
 
 def _floor_graph(floor: FloorSolution) -> dict[str, set[str]]:
+    """Build an adjacency graph for entities (spaces + stair) on a single floor."""
     graph: dict[str, set[str]] = {space_id: set() for space_id in floor.spaces}
     if floor.stair is not None:
         graph[floor.stair.id] = set()
@@ -79,10 +81,12 @@ def _floor_graph(floor: FloorSolution) -> dict[str, set[str]]:
 
 
 def _entities_touch(rects_a: list[Rect], rects_b: list[Rect]) -> bool:
+    """Check whether any rectangles from two groups share an edge."""
     return any(a.shares_edge_with(b) for a in rects_a for b in rects_b)
 
 
 def _bfs(graph: dict[str, set[str]], start_nodes: list[str]) -> set[str]:
+    """Breadth-first search returning all reachable nodes from the start set."""
     visited: set[str] = set()
     queue: deque[str] = deque(start_nodes)
     while queue:

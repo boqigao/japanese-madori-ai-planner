@@ -7,6 +7,7 @@ from plan_engine.renderer.helpers import _ordered_spaces
 
 
 def draw_room_dimension_guides(renderer, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+    """Draw interior width/height dimension guides for qualifying rooms."""
     for space in _ordered_spaces(floor):
         if space.type == "hall":
             continue
@@ -96,6 +97,7 @@ def draw_room_dimension_guides(renderer, drawing: svgwrite.Drawing, floor: Floor
 
 
 def draw_dimensions(renderer, drawing: svgwrite.Drawing, site_rect: Rect, building_rect: Rect) -> None:
+    """Draw exterior site and building dimension lines."""
     draw_dimension_line(
         renderer,
         drawing,
@@ -142,6 +144,7 @@ def draw_dimension_line(
     label: str,
     vertical: bool = False,
 ) -> None:
+    """Draw a single dimension line with tick marks and a label."""
     if vertical:
         x = renderer._x(p1[0]) + offset_px
         y1 = renderer._y(min(p1[1], p2[1]))

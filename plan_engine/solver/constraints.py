@@ -14,6 +14,7 @@ def touching_constraint(
     prefix: str,
     required: bool,
 ) -> cp_model.IntVar:
+    """Require (or optionally test) that two groups of rectangles touch. Returns a boolean variable."""
     if not rects_a or not rects_b:
         raise ValueError("touching constraints require non-empty rectangle sets")
 
@@ -48,6 +49,7 @@ def edge_touch_constraint(
     prefix: str,
     required: bool,
 ) -> cp_model.IntVar:
+    """Require (or test) that a portal rectangle touches another group on a specific edge."""
     if not rects_b:
         raise ValueError("edge touching constraints require non-empty counterpart rectangles")
 
@@ -80,6 +82,7 @@ def pair_edge_touch_bool(
     max_h: int,
     prefix: str,
 ) -> cp_model.IntVar:
+    """Create a boolean variable that is true when rect_a touches rect_b on the given edge."""
     overlap_x = overlap_length(
         model=model,
         a_start=rect_a.x,
@@ -124,6 +127,7 @@ def enforce_internal_portal_edge(
     max_w: int,
     max_h: int,
 ) -> None:
+    """Constrain a portal rectangle so its portal edge is not on the envelope boundary."""
     if edge == "left":
         model.Add(portal_rect.x >= 1)
         return
@@ -147,6 +151,7 @@ def pair_touch_bool(
     max_h: int,
     prefix: str,
 ) -> cp_model.IntVar:
+    """Create a boolean variable that is true when two rectangles share any edge."""
     overlap_x = overlap_length(
         model=model,
         a_start=rect_a.x,
@@ -197,6 +202,7 @@ def overlap_length(
     limit: int,
     prefix: str,
 ) -> cp_model.IntVar:
+    """Create an IntVar representing the overlap length between two intervals."""
     low = model.NewIntVar(0, limit, f"{prefix}_low")
     high = model.NewIntVar(0, limit, f"{prefix}_high")
     overlap = model.NewIntVar(-limit, limit, f"{prefix}_ov")
@@ -212,6 +218,7 @@ def enforce_non_adjacent(
     rects_b: list[RectVar],
     prefix: str,
 ) -> None:
+    """Enforce at least one cell gap between all pairs of rectangles from two groups."""
     for i, rect_a in enumerate(rects_a):
         for j, rect_b in enumerate(rects_b):
             a_right = model.NewBoolVar(f"{prefix}_{i}_{j}_a_right")
@@ -234,6 +241,7 @@ def enforce_exterior_touch(
     max_h: int,
     prefix: str,
 ) -> None:
+    """Require that at least one rectangle in the list touches the envelope boundary."""
     if not rects:
         raise ValueError("exterior touch constraints require non-empty rectangles")
 

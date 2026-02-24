@@ -17,6 +17,7 @@ def draw_door_symbol(
     y_fn,
     scale: float,
 ) -> None:
+    """Draw a door symbol with wall cut, leaf line, and optional swing arc. Handles both vertical and horizontal orientations."""
     wall_cut_width = 7 if exterior else 6
     if p1[0] == p2[0]:
         x = p1[0]
@@ -119,6 +120,7 @@ def draw_window_symbol(
     x_fn,
     y_fn,
 ) -> None:
+    """Draw a window symbol as a colored line segment. Handles both vertical and horizontal orientations."""
     if p1[0] == p2[0]:
         x = p1[0]
         y_low = min(p1[1], p2[1])

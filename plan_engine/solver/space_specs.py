@@ -62,6 +62,7 @@ ENTRY_MIN_AREA_DEFAULT_TATAMI = 3.0
 
 
 def _component_count(space: SpaceSpec) -> int:
+    """Determine the number of rectangle components a space can use."""
     allow_l2 = "L2" in space.shape.allow
     allow_rect = "rect" in space.shape.allow
     if not allow_l2 or allow_rect:
@@ -73,6 +74,7 @@ def _component_count(space: SpaceSpec) -> int:
 
 
 def _min_area_cells(space: SpaceSpec, minor_grid: int) -> int:
+    """Calculate the minimum area in cells for a space, using spec or defaults."""
     if space.area.min_tatami is not None:
         return tatami_to_cells(space.area.min_tatami, minor_grid)
     if space.area.target_tatami is not None:
@@ -84,20 +86,24 @@ def _min_area_cells(space: SpaceSpec, minor_grid: int) -> int:
 
 
 def _target_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
+    """Get the target area in cells if specified in the space spec."""
     if space.area.target_tatami is None:
         return None
     return tatami_to_cells(space.area.target_tatami, minor_grid)
 
 
 def _shortfall_weight(space_type: str) -> int:
+    """Get the penalty weight for area undershooting by space type."""
     return SHORTFALL_WEIGHT_BY_TYPE.get(space_type, 28)
 
 
 def _overshoot_weight(space_type: str) -> int:
+    """Get the penalty weight for area overshooting by space type."""
     return OVERSHOOT_WEIGHT_BY_TYPE.get(space_type, 9)
 
 
 def _max_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
+    """Calculate the maximum allowed area in cells for a space."""
     multiplier = MAX_AREA_TARGET_MULTIPLIER_BY_TYPE.get(space.type)
     if multiplier is not None and space.area.target_tatami is not None:
         return tatami_to_cells(space.area.target_tatami * multiplier, minor_grid)
@@ -115,6 +121,7 @@ def _max_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
 
 
 def _min_width_cells(space: SpaceSpec, minor_grid: int) -> int:
+    """Calculate the minimum width in cells for a space."""
     if space.size_constraints.min_width is not None:
         return mm_to_cells(space.size_constraints.min_width, minor_grid)
     return MIN_WIDTH_CELLS_BY_TYPE.get(space.type, 1)
