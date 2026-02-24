@@ -53,13 +53,23 @@ def _find_global_stair(spec: PlanSpec) -> StairSpec | None:
 
 
 def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprint:
-    """Compute stair geometry (component layout, riser/tread counts) from a StairSpec."""
+    """Compute stair geometry (component layout, riser/tread counts) from a StairSpec.
+
+    Args:
+        stair: Stair specification from DSL.
+        minor_grid: Minor grid size in millimeters.
+
+    Returns:
+        Grid-quantized stair footprint with internally consistent riser metrics.
+    """
     width_mm = ceil_to_grid(stair.width, minor_grid)
     width_cells = mm_to_cells(width_mm, minor_grid)
-    riser_count = max(2, int(round(stair.floor_height / max(1, stair.riser_pref))))
+    riser_count, riser_mm = _resolve_riser_configuration(
+        floor_height=stair.floor_height,
+        riser_pref=max(1, stair.riser_pref),
+    )
     tread_count = max(1, riser_count - 1)
     tread_mm = max(1, stair.tread_pref)
-    riser_mm = max(1, int(round(stair.floor_height / riser_count)))
     avg_tread_mm = tread_mm
 
     if stair.type == "straight":
@@ -98,6 +108,33 @@ def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprin
         tread_mm=avg_tread_mm,
         landing_mm=landing_mm,
     )
+
+
+def _resolve_riser_configuration(floor_height: int, riser_pref: int) -> tuple[int, int]:
+    """Choose riser count/height with exact floor-height closure when possible.
+
+    Args:
+        floor_height: Vertical floor-to-floor height in mm.
+        riser_pref: Preferred riser height in mm.
+
+    Returns:
+        ``(riser_count, riser_mm)`` as integers. When possible, satisfies
+        ``riser_count * riser_mm == floor_height`` exactly.
+    """
+    best_exact: tuple[int, int, int] | None = None
+    for count in range(2, 31):
+        if floor_height % count != 0:
+            continue
+        riser_mm = floor_height // count
+        score = abs(riser_mm - riser_pref)
+        if best_exact is None or score < best_exact[0]:
+            best_exact = (score, count, riser_mm)
+    if best_exact is not None:
+        return best_exact[1], best_exact[2]
+
+    fallback_count = max(2, int(round(floor_height / max(1, riser_pref))))
+    fallback_riser = max(1, int(round(floor_height / fallback_count)))
+    return fallback_count, fallback_riser
 
 
 def _slug(value: str) -> str:

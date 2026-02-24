@@ -228,13 +228,17 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                 )
                 ctx.model.AddMinEquality(min_dim, [rect.w, rect.h])
                 ctx.model.Add(min_dim >= min_width_cells)
-                if space.type in {"bedroom", "master_bedroom"}:
+                if (
+                    space.type in {"bedroom", "master_bedroom"}
+                    and space.size_constraints.min_width is None
+                ):
+                    # Fallback default only when spec does not provide an explicit min width.
                     ctx.model.Add(min_dim >= mm_to_cells(2275, spec.grid.minor))
                 if space.type == "hall":
                     max_hall_width_cells = mm_to_cells(1820, spec.grid.minor)
                     ctx.model.Add(min_dim <= max_hall_width_cells)
-                if fixed_dims is None and space.type in {"ldk", "bedroom", "master_bedroom"}:
-                    # Prevent unrealistic full-depth/full-width strips on major habitable rooms.
+                if fixed_dims is None and space.type in {"ldk", "master_bedroom"}:
+                    # Prevent unrealistic full-depth/full-width strips on anchor rooms.
                     ctx.model.Add(rect.w <= max_strip_width_cells)
                     ctx.model.Add(rect.h <= max_strip_depth_cells)
 
@@ -393,6 +397,44 @@ def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
                 prefix=f"{_slug(floor_id)}_adj_{_slug(left_id)}_{_slug(right_id)}",
                 required=True,
             )
+
+
+def add_bath_wash_adjacency_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Require each bath module to touch at least one washroom on the same floor.
+
+    Args:
+        spec: Parsed plan specification that defines floor spaces.
+        ctx: Mutable solve context that owns CP-SAT variables and model.
+
+    Returns:
+        None. Constraints are added directly to ``ctx.model``.
+
+    Raises:
+        ValueError: If a floor defines bath spaces but no washroom spaces.
+    """
+    for floor_id, floor in spec.floors.items():
+        bath_ids = [space.id for space in floor.spaces if space.type == "bath"]
+        if not bath_ids:
+            continue
+        wash_ids = [space.id for space in floor.spaces if space.type == "washroom"]
+        if not wash_ids:
+            raise ValueError(f"floor {floor_id} has bath but no washroom")
+
+        for bath_id in bath_ids:
+            touch_vars: list[cp_model.IntVar] = []
+            for wash_id in wash_ids:
+                touch_vars.append(
+                    touching_constraint(
+                        model=ctx.model,
+                        rects_a=ctx.placements[floor_id][bath_id],
+                        rects_b=ctx.placements[floor_id][wash_id],
+                        max_w=ctx.envelope_w_cells,
+                        max_h=ctx.envelope_h_cells,
+                        prefix=f"{_slug(floor_id)}_bath_wash_{_slug(bath_id)}_{_slug(wash_id)}",
+                        required=False,
+                    )
+                )
+            ctx.model.AddBoolOr(touch_vars)
 
 
 def add_stair_connection_constraints(ctx: SolveContext) -> None:

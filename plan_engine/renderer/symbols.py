@@ -13,6 +13,7 @@ def draw_door_symbol(
     boundary: Rect | None,
     reverse_swing: bool,
     draw_arc: bool,
+    force_arc_small: bool,
     x_fn,
     y_fn,
     scale: float,
@@ -27,6 +28,7 @@ def draw_door_symbol(
         boundary: Building boundary rectangle, used to choose outward swing side.
         reverse_swing: If ``True``, mirror swing direction.
         draw_arc: If ``True``, draw the door swing arc.
+        force_arc_small: If ``True``, allow drawing arc even on short interior edges.
         x_fn: Coordinate conversion function (mm -> px for x).
         y_fn: Coordinate conversion function (mm -> px for y).
         scale: Current render scale (px per mm).
@@ -53,7 +55,7 @@ def draw_door_symbol(
                 stroke_width=wall_cut_width,
             )
         )
-        if not exterior and seg_len <= 1100:
+        if not exterior and seg_len <= 1100 and not force_arc_small:
             return opening_segment
         swing_sign = -1 if reverse_swing else 1
         if exterior and boundary is not None and x == boundary.x2 and not reverse_swing:
@@ -100,7 +102,7 @@ def draw_door_symbol(
             stroke_width=wall_cut_width,
         )
     )
-    if not exterior and seg_len <= 1100:
+    if not exterior and seg_len <= 1100 and not force_arc_small:
         return opening_segment
     swing_sign = -1 if reverse_swing else 1
     if exterior and boundary is not None and y == boundary.y2 and not reverse_swing:

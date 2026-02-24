@@ -34,12 +34,15 @@ def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution)
             dims = _space_dimensions(space.rects)
             lines = [title, f"{dims[0]}x{dims[1]}mm", f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
         else:
-            dims = _space_dimensions(space.rects)
-            component_text = _component_dims_text(space.rects)
-            lines = [title, f"L-shape ({len(space.rects)} parts)"]
-            if space.type != "hall" and min(dims[0], dims[1]) >= 2000:
-                lines.append(component_text)
-            lines.append(f"{area_sqm:.1f}sqm / {area_jo:.1f}jo")
+            if space.type == "hall":
+                lines = [title, f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
+            else:
+                dims = _space_dimensions(space.rects)
+                component_text = _component_dims_text(space.rects)
+                lines = [title, f"L-shape ({len(space.rects)} parts)"]
+                if min(dims[0], dims[1]) >= 2000:
+                    lines.append(component_text)
+                lines.append(f"{area_sqm:.1f}sqm / {area_jo:.1f}jo")
         anchor = _clamped_room_label_anchor(space.rects, lines, renderer.scale)
         for idx, line in enumerate(lines):
             drawing.add(

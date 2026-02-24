@@ -6,6 +6,7 @@ from plan_engine.models import PlanSolution, PlanSpec
 from plan_engine.solver.solution_builder import build_solution
 from plan_engine.solver.workflow import (
     SolveContext,
+    add_bath_wash_adjacency_constraints,
     add_floor_packing_constraints,
     add_stair_connection_constraints,
     add_topology_constraints,
@@ -31,6 +32,7 @@ class PlanSolver:
         create_space_variables(spec, ctx)
         add_floor_packing_constraints(ctx)
         add_topology_constraints(spec, ctx)
+        add_bath_wash_adjacency_constraints(spec, ctx)
         add_stair_connection_constraints(ctx)
         add_wc_ldk_non_adjacent_constraints(spec, ctx)
         add_wet_cluster_constraints(spec, ctx)

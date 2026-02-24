@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import svgwrite
 
+from plan_engine.constants import MINOR_GRID_MM
 from plan_engine.models import FloorSolution, Rect
 from plan_engine.renderer.helpers import _floor_rects, _ordered_spaces
 
@@ -21,7 +22,8 @@ def draw_room_dimension_guides(renderer, drawing: svgwrite.Drawing, floor: Floor
         if space.type in {"entry", "toilet", "wc"}:
             continue
         if len(space.rects) == 1:
-            _draw_rect_dimension_guide(renderer, drawing, space.rects[0], text_color="#7a7a7a")
+            # Single-rect spaces already carry ``WxH`` text in labels.
+            # Skip extra internal guides to avoid collisions.
             continue
         for rect in space.rects:
             _draw_rect_dimension_guide(renderer, drawing, rect, text_color="#8a8a8a", compact=True)
@@ -171,6 +173,7 @@ def draw_dimensions(
             offset_px=offsets_total[side],
             color="#545454",
             font_size=8.8,
+            with_unit=True,
         )
 
         perimeter_breakpoints = _collect_perimeter_breakpoints(floor, building_rect, side)
@@ -183,10 +186,11 @@ def draw_dimensions(
             offset_px=offsets_segmented[side],
             color="#666666",
             font_size=8.2,
+            with_unit=False,
         )
 
         opening_breakpoints = _collect_opening_breakpoints(opening_segments, building_rect, side)
-        if len(opening_breakpoints) > 2:
+        if 2 < len(opening_breakpoints) <= 10:
             _draw_dimension_chain(
                 renderer=renderer,
                 drawing=drawing,
@@ -196,6 +200,8 @@ def draw_dimensions(
                 offset_px=offsets_opening[side],
                 color="#7a7a7a",
                 font_size=7.8,
+                min_label_length=MINOR_GRID_MM * 2,
+                with_unit=False,
             )
 
 
@@ -208,6 +214,8 @@ def _draw_dimension_chain(
     offset_px: float,
     color: str,
     font_size: float,
+    min_label_length: int = MINOR_GRID_MM,
+    with_unit: bool = False,
 ) -> None:
     """Draw one continuous dimension chain with ticks and per-segment labels.
 
@@ -220,6 +228,8 @@ def _draw_dimension_chain(
         offset_px: Pixel offset from wall toward the outside.
         color: Stroke/text color.
         font_size: Label font size in px.
+        min_label_length: Minimum segment length (mm) for showing a label.
+        with_unit: Whether to append ``mm`` unit in the label text.
 
     Returns:
         None. The dimension chain is appended to ``drawing``.
@@ -262,11 +272,14 @@ def _draw_dimension_chain(
         for left, right in zip(points[:-1], points[1:]):
             if right <= left:
                 continue
+            segment_len = right - left
+            if segment_len < min_label_length:
+                continue
             mid_x = renderer._x((left + right) / 2)
             label_y = chain_y - 3 if offset_px < 0 else chain_y + 10
             drawing.add(
                 drawing.text(
-                    f"{right - left}",
+                    f"{segment_len}mm" if with_unit else f"{segment_len}",
                     insert=(mid_x, label_y),
                     fill=color,
                     font_size=font_size,
@@ -308,11 +321,14 @@ def _draw_dimension_chain(
     for top, bottom in zip(points[:-1], points[1:]):
         if bottom <= top:
             continue
+        segment_len = bottom - top
+        if segment_len < min_label_length:
+            continue
         mid_y = renderer._y((top + bottom) / 2)
         label_x = chain_x - 4 if offset_px < 0 else chain_x + 5
         drawing.add(
             drawing.text(
-                f"{bottom - top}",
+                f"{segment_len}mm" if with_unit else f"{segment_len}",
                 insert=(label_x, mid_y),
                 fill=color,
                 font_size=font_size,
@@ -350,7 +366,7 @@ def _collect_perimeter_breakpoints(floor: FloorSolution, building_rect: Rect, si
         if clipped_end > clipped_start:
             points.add(clipped_start)
             points.add(clipped_end)
-    return sorted(points)
+    return _normalize_breakpoints(points, axis_start, axis_end)
 
 
 def _collect_opening_breakpoints(
@@ -374,12 +390,18 @@ def _collect_opening_breakpoints(
         if not _segment_on_side(p1, p2, side, fixed):
             continue
         if side in {"top", "bottom"}:
-            points.add(min(p1[0], p2[0]))
-            points.add(max(p1[0], p2[0]))
+            start = _snap_to_minor(min(p1[0], p2[0]))
+            end = _snap_to_minor(max(p1[0], p2[0]))
         else:
-            points.add(min(p1[1], p2[1]))
-            points.add(max(p1[1], p2[1]))
-    return sorted(points)
+            start = _snap_to_minor(min(p1[1], p2[1]))
+            end = _snap_to_minor(max(p1[1], p2[1]))
+        start = max(axis_start, min(axis_end, start))
+        end = max(axis_start, min(axis_end, end))
+        if end - start < MINOR_GRID_MM:
+            continue
+        points.add(start)
+        points.add(end)
+    return _normalize_breakpoints(points, axis_start, axis_end)
 
 
 def _segment_on_side(
@@ -425,6 +447,37 @@ def _side_axis(building_rect: Rect, side: str) -> tuple[int, int, int]:
     if side == "right":
         return building_rect.y, building_rect.y2, building_rect.x2
     raise ValueError(f"unsupported side '{side}'")
+
+
+def _snap_to_minor(value: int) -> int:
+    """Snap a coordinate to the nearest minor-grid multiple.
+
+    Args:
+        value: Coordinate value in mm.
+
+    Returns:
+        Coordinate snapped to nearest ``MINOR_GRID_MM``.
+    """
+    return int(round(value / MINOR_GRID_MM) * MINOR_GRID_MM)
+
+
+def _normalize_breakpoints(points: set[int], axis_start: int, axis_end: int) -> list[int]:
+    """Normalize breakpoint set to sorted, clamped, grid-aligned values.
+
+    Args:
+        points: Raw breakpoint coordinates.
+        axis_start: Minimum axis bound.
+        axis_end: Maximum axis bound.
+
+    Returns:
+        Sorted unique breakpoints within bounds and aligned to minor grid.
+    """
+    normalized: set[int] = {axis_start, axis_end}
+    for value in points:
+        snapped = _snap_to_minor(value)
+        clamped = max(axis_start, min(axis_end, snapped))
+        normalized.add(clamped)
+    return sorted(normalized)
 
 
 def draw_dimension_line(

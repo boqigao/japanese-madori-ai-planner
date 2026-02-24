@@ -39,6 +39,15 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
                     f"{floor_id}:{space_id} bedroom short side {short_side}mm is below 2730mm livability threshold"
                 )
 
+        bath_spaces = [(sid, s) for sid, s in floor.spaces.items() if s.type == "bath"]
+        wash_spaces = [(sid, s) for sid, s in floor.spaces.items() if s.type == "washroom"]
+        if bath_spaces and not wash_spaces:
+            report.errors.append(f"{floor_id}: bath exists without washroom")
+        for bath_id, bath in bath_spaces:
+            touches_wash = any(_spaces_touch(bath.rects, wash.rects) for _, wash in wash_spaces)
+            if not touches_wash:
+                report.errors.append(f"{floor_id}:{bath_id} bath is not adjacent to any washroom")
+
         hall_ids = [sid for sid, s in floor.spaces.items() if s.type == "hall"]
         for hall_id in hall_ids:
             hall = floor.spaces[hall_id]
@@ -72,6 +81,11 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
 
         if floor.stair is not None:
             stair = floor.stair
+            height_delta = abs(stair.floor_height - stair.riser_count * stair.riser_mm)
+            if height_delta > 2:
+                report.warnings.append(
+                    f"{floor_id}:{stair.id} stair height mismatch {stair.floor_height}mm vs risers {stair.riser_count}x{stair.riser_mm}mm"
+                )
             if stair.riser_mm < 140 or stair.riser_mm > 230:
                 report.warnings.append(
                     f"{floor_id}:{stair.id} riser {stair.riser_mm}mm outside preferred range 140-230mm"
@@ -118,3 +132,17 @@ def _space_area_jo(rects: list[Rect]) -> float:
     """Convert total rectangle area from mm2 to tatami (jo) units."""
     area_mm2 = sum(rect.area for rect in rects)
     return area_mm2 / TATAMI_MM2
+
+
+def _spaces_touch(rects_a: list[Rect], rects_b: list[Rect]) -> bool:
+    """Return whether any rectangle pair from two spaces shares an edge.
+
+    Args:
+        rects_a: First space rectangle list.
+        rects_b: Second space rectangle list.
+
+    Returns:
+        ``True`` when at least one rectangle in ``rects_a`` touches one in
+        ``rects_b`` by a positive-length shared boundary.
+    """
+    return any(rect_a.shares_edge_with(rect_b) for rect_a in rects_a for rect_b in rects_b)

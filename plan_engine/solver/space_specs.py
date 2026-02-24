@@ -59,6 +59,7 @@ MAX_AREA_DEFAULT_TATAMI_BY_TYPE: dict[str, float] = {
 }
 
 ENTRY_MIN_AREA_DEFAULT_TATAMI = 3.0
+ENTRY_HARD_MAX_TATAMI = 2.5
 
 
 def _component_count(space: SpaceSpec) -> int:
@@ -103,7 +104,15 @@ def _overshoot_weight(space_type: str) -> int:
 
 
 def _max_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:
-    """Calculate the maximum allowed area in cells for a space."""
+    """Calculate the maximum allowed area in cells for a space.
+
+    Notes:
+        Entry is capped by a hard upper bound (``ENTRY_HARD_MAX_TATAMI``)
+        regardless of target area, to keep genkan size within livable norms.
+    """
+    if space.type == "entry":
+        return tatami_to_cells(ENTRY_HARD_MAX_TATAMI, minor_grid)
+
     multiplier = MAX_AREA_TARGET_MULTIPLIER_BY_TYPE.get(space.type)
     if multiplier is not None and space.area.target_tatami is not None:
         return tatami_to_cells(space.area.target_tatami * multiplier, minor_grid)

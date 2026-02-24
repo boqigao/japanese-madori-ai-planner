@@ -44,6 +44,24 @@ from plan_engine.renderer.stair import (
 from plan_engine.renderer.symbols import draw_door_symbol, draw_window_symbol
 
 
+def _should_draw_interior_door(left_type: str, right_type: str) -> bool:
+    """Decide whether a topology edge should render an interior door symbol.
+
+    Args:
+        left_type: Space type on one side of the shared boundary.
+        right_type: Space type on the other side of the shared boundary.
+
+    Returns:
+        ``True`` if a door symbol should be drawn, otherwise ``False``.
+        Bath-to-non-wash edges are suppressed so bath openings are represented
+        only via washroom connections.
+    """
+    types = {left_type, right_type}
+    if "bath" in types and "washroom" not in types:
+        return False
+    return True
+
+
 class SvgRenderer:
     """SVG/PNG renderer for floor plan solutions. Converts PlanSolution into annotated architectural drawings."""
 
@@ -282,9 +300,9 @@ class SvgRenderer:
                 continue
 
             if space.type == "ldk":
-                counter_w = min(rect.w * 0.42, 2730)
-                counter_h = min(rect.h * 0.12, 820)
-                counter_x = rect.x + rect.w * 0.48
+                counter_w = min(rect.w * 0.32, 2280)
+                counter_h = min(rect.h * 0.10, 700)
+                counter_x = rect.x + rect.w * 0.54
                 counter_y = rect.y + rect.h * 0.10
                 drawing.add(
                     drawing.rect(
@@ -293,6 +311,44 @@ class SvgRenderer:
                         fill="none",
                         stroke="#8a6b4a",
                         stroke_width=1.0,
+                    )
+                )
+                leg_w = min(counter_h * 0.9, 650)
+                leg_h = min(rect.h * 0.22, 1365)
+                leg_x = counter_x + counter_w - leg_w
+                leg_y = counter_y
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(leg_x), self._y(leg_y)),
+                        size=(leg_w * self.scale, leg_h * self.scale),
+                        fill="none",
+                        stroke="#8a6b4a",
+                        stroke_width=1.0,
+                    )
+                )
+                stove_cx = counter_x + counter_w * 0.35
+                stove_cy = counter_y + counter_h * 0.5
+                for dx in (-90, 90):
+                    drawing.add(
+                        drawing.circle(
+                            center=(self._x(stove_cx + dx), self._y(stove_cy)),
+                            r=max(3, 70 * self.scale),
+                            fill="none",
+                            stroke="#8a6b4a",
+                            stroke_width=0.9,
+                        )
+                    )
+                sink_x = leg_x + leg_w * 0.15
+                sink_y = leg_y + leg_h * 0.42
+                sink_w = leg_w * 0.68
+                sink_h = min(300, leg_h * 0.24)
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(sink_x), self._y(sink_y)),
+                        size=(sink_w * self.scale, sink_h * self.scale),
+                        fill="none",
+                        stroke="#8a6b4a",
+                        stroke_width=0.9,
                     )
                 )
                 island_w = min(rect.w * 0.22, 1365)
@@ -313,6 +369,17 @@ class SvgRenderer:
             if space.type in {"toilet", "wc"}:
                 cx = rect.x + rect.w * 0.5
                 cy = rect.y + rect.h * 0.55
+                tank_w = min(rect.w * 0.42, 380)
+                tank_h = min(rect.h * 0.14, 180)
+                drawing.add(
+                    drawing.rect(
+                        insert=(self._x(cx - tank_w / 2), self._y(rect.y + rect.h * 0.16)),
+                        size=(tank_w * self.scale, tank_h * self.scale),
+                        fill="none",
+                        stroke="#6f6f6f",
+                        stroke_width=1.0,
+                    )
+                )
                 drawing.add(
                     drawing.ellipse(
                         center=(self._x(cx), self._y(cy)),
@@ -322,22 +389,33 @@ class SvgRenderer:
                         stroke_width=1.0,
                     )
                 )
+                self._draw_vent_marker(drawing, rect)
                 continue
 
             if space.type == "washroom":
-                sink_w = min(rect.w * 0.42, 910)
+                sink_w = min(rect.w * 0.34, 760)
                 sink_h = min(rect.h * 0.22, 455)
-                sink_x = rect.x + rect.w * 0.30
+                sink_x = rect.x + rect.w * 0.18
                 sink_y = rect.y + rect.h * 0.18
+                for offset in (0.0, rect.w * 0.40):
+                    drawing.add(
+                        drawing.rect(
+                            insert=(self._x(sink_x + offset), self._y(sink_y)),
+                            size=(sink_w * self.scale, sink_h * self.scale),
+                            fill="none",
+                            stroke="#6f6f6f",
+                            stroke_width=1.0,
+                        )
+                    )
                 drawing.add(
-                    drawing.rect(
-                        insert=(self._x(sink_x), self._y(sink_y)),
-                        size=(sink_w * self.scale, sink_h * self.scale),
-                        fill="none",
-                        stroke="#6f6f6f",
-                        stroke_width=1.0,
+                    drawing.line(
+                        start=(self._x(rect.x + rect.w * 0.14), self._y(sink_y - 120)),
+                        end=(self._x(rect.x + rect.w * 0.86), self._y(sink_y - 120)),
+                        stroke="#8f8f8f",
+                        stroke_width=0.8,
                     )
                 )
+                self._draw_vent_marker(drawing, rect)
                 continue
 
             if space.type == "bath":
@@ -356,6 +434,7 @@ class SvgRenderer:
                         stroke_width=1.0,
                     )
                 )
+                self._draw_vent_marker(drawing, rect)
                 continue
 
             if space.type == "storage":
@@ -380,6 +459,45 @@ class SvgRenderer:
                     )
                 )
 
+    def _draw_vent_marker(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
+        """Draw a simple mechanical ventilation marker in a wet room.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            rect: Wet-room rectangle in mm coordinates.
+
+        Returns:
+            None.
+        """
+        cx = rect.x2 - min(220, rect.w * 0.2)
+        cy = rect.y + min(220, rect.h * 0.2)
+        radius = max(3, 70 * self.scale)
+        drawing.add(
+            drawing.circle(
+                center=(self._x(cx), self._y(cy)),
+                r=radius,
+                fill="none",
+                stroke="#7c7c7c",
+                stroke_width=0.9,
+            )
+        )
+        drawing.add(
+            drawing.line(
+                start=(self._x(cx - 90), self._y(cy)),
+                end=(self._x(cx + 90), self._y(cy)),
+                stroke="#7c7c7c",
+                stroke_width=0.8,
+            )
+        )
+        drawing.add(
+            drawing.line(
+                start=(self._x(cx), self._y(cy - 90)),
+                end=(self._x(cx), self._y(cy + 90)),
+                stroke="#7c7c7c",
+                stroke_width=0.8,
+            )
+        )
+
     def _draw_stair(
         self,
         drawing: svgwrite.Drawing,
@@ -401,8 +519,19 @@ class SvgRenderer:
         draw_stair_connection_opening(self, drawing, floor, floor_index, total_floors)
 
     def _draw_interior_doors(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
-        """Draw door symbols at shared edges between adjacent spaces."""
-        door_entries: list[tuple[int, tuple[tuple[int, int], tuple[int, int]]]] = []
+        """Draw interior door symbols at shared space boundaries.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            floor: Floor solution containing topology and space geometry.
+
+        Returns:
+            None.
+        """
+        door_entries: list[
+            tuple[int, tuple[tuple[int, int], tuple[int, int]], str, str]
+        ] = []
+        door_pairs: set[frozenset[str]] = set()
         for index, (left_id, right_id) in enumerate(floor.topology):
             if floor.stair is not None and (left_id == floor.stair.id or right_id == floor.stair.id):
                 continue
@@ -413,16 +542,40 @@ class SvgRenderer:
             segment = _shared_segment(left_rects, right_rects)
             if segment is None:
                 continue
-            door_entries.append((index, segment))
+            left_type = floor.spaces[left_id].type if left_id in floor.spaces else left_id
+            right_type = floor.spaces[right_id].type if right_id in floor.spaces else right_id
+            if not _should_draw_interior_door(left_type, right_type):
+                continue
+            door_entries.append((index, segment, left_type, right_type))
+            door_pairs.add(frozenset((left_id, right_id)))
+
+        wash_ids = [space_id for space_id, space in floor.spaces.items() if space.type == "washroom"]
+        for bath_id, bath_space in floor.spaces.items():
+            if bath_space.type != "bath":
+                continue
+            for wash_id in wash_ids:
+                pair_key = frozenset((bath_id, wash_id))
+                if pair_key in door_pairs:
+                    continue
+                segment = _shared_segment(bath_space.rects, floor.spaces[wash_id].rects)
+                if segment is None:
+                    continue
+                door_entries.append((len(door_entries), segment, "bath", "washroom"))
+                door_pairs.add(pair_key)
+                break
 
         line_counts: dict[tuple[str, int], int] = {}
-        for _, segment in door_entries:
+        for _, segment, _, _ in door_entries:
             key = _door_line_key(segment)
             line_counts[key] = line_counts.get(key, 0) + 1
 
-        for index, segment in door_entries:
+        for index, segment, left_type, right_type in door_entries:
             key = _door_line_key(segment)
             crowded_line = line_counts.get(key, 0) >= 3
+            force_arc_small = left_type in {"bedroom", "master_bedroom"} or right_type in {
+                "bedroom",
+                "master_bedroom",
+            }
             self._draw_door_symbol(
                 drawing,
                 segment[0],
@@ -431,6 +584,7 @@ class SvgRenderer:
                 boundary=None,
                 reverse_swing=(index % 2 == 1),
                 draw_arc=not crowded_line,
+                force_arc_small=force_arc_small,
             )
 
     def _draw_entry_door(
@@ -472,6 +626,7 @@ class SvgRenderer:
             boundary=building_rect,
             reverse_swing=False,
             draw_arc=True,
+            force_arc_small=True,
         )
         return best_segment, opening_segment
 
@@ -632,8 +787,23 @@ class SvgRenderer:
         boundary: Rect | None,
         reverse_swing: bool,
         draw_arc: bool = True,
+        force_arc_small: bool = False,
     ) -> tuple[tuple[int, int], tuple[int, int]]:
-        """Delegate door symbol rendering and return the opening segment."""
+        """Delegate door symbol rendering and return the opening segment.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            p1: First endpoint of host wall segment in mm.
+            p2: Second endpoint of host wall segment in mm.
+            exterior: Whether this is an exterior door.
+            boundary: Building boundary for exterior swing inference.
+            reverse_swing: Whether to mirror swing direction.
+            draw_arc: Whether to draw swing arc graphics.
+            force_arc_small: Whether to force arcs for short interior segments.
+
+        Returns:
+            Opening segment in mm coordinates.
+        """
         return draw_door_symbol(
             drawing=drawing,
             p1=p1,
@@ -642,6 +812,7 @@ class SvgRenderer:
             boundary=boundary,
             reverse_swing=reverse_swing,
             draw_arc=draw_arc,
+            force_arc_small=force_arc_small,
             x_fn=self._x,
             y_fn=self._y,
             scale=self.scale,

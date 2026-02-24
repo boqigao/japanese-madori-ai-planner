@@ -106,6 +106,15 @@ def draw_stair(
             text_anchor="middle",
         )
     )
+    drawing.add(
+        drawing.text(
+            f"H{stair.floor_height} R{stair.riser_mm} T{stair.tread_mm}",
+            insert=(renderer._x(label_x), renderer._y(label_y + 190)),
+            fill="#4a4a4a",
+            font_size=7.8,
+            text_anchor="middle",
+        )
+    )
 
 
 def draw_stair_connection_opening(
