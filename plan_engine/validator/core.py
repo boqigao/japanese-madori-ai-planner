@@ -5,6 +5,7 @@ from plan_engine.validator.connectivity import validate_connectivity
 from plan_engine.validator.geometry import validate_entry_exterior, validate_geometry, validate_space_presence
 from plan_engine.validator.livability import validate_livability
 from plan_engine.validator.stair import validate_stair
+from plan_engine.validator.structural import validate_structural
 
 
 def validate_solution(spec: PlanSpec, solution: PlanSolution) -> ValidationReport:
@@ -16,4 +17,5 @@ def validate_solution(spec: PlanSpec, solution: PlanSolution) -> ValidationRepor
     validate_connectivity(solution, report)
     validate_stair(spec, solution, report)
     validate_livability(spec, solution, report)
+    validate_structural(spec, solution, report)
     return report

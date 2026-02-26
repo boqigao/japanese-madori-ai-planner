@@ -5,6 +5,11 @@ Takes a YAML DSL specification and produces structurally valid layouts as SVG/PN
 
 Pipeline: `DSL (YAML) -> Solver (CP-SAT) -> Validator -> Renderer (SVG/PNG)`
 
+## Documentation
+
+- Beginner guide for writing your own `spec.yaml` from site dimensions:
+  `docs/how_to_use.md`
+
 ## Prerequisites
 
 - Python 3.13+
@@ -30,9 +35,16 @@ make run-default
 
 Output files:
 - `tmp/plan_output/solution.json` -- solved layout data
+  - includes extracted `walls` and `structure_report` diagnostics
 - `tmp/plan_output/report.txt` -- validation report
 - `tmp/plan_output/F1.svg`, `tmp/plan_output/F1.png` -- first floor plan
 - `tmp/plan_output/F2.svg`, `tmp/plan_output/F2.png` -- second floor plan
+
+Optional structural overlay in rendered drawings:
+
+```bash
+PLAN_ENGINE_DRAW_STRUCTURAL_WALLS=1 make run-default
+```
 
 ## Commands
 
@@ -96,6 +108,9 @@ plan_engine/
     connectivity.py             BFS reachability, WC-LDK separation
     stair.py                    Stair alignment, portal positioning, hall connectivity
     livability.py               Dimensional quality, area ratios, circulation metrics
+    structural.py               Bearing-wall proxy metrics and continuity diagnostics
+  structural/
+    walls.py                    Wall extraction + structural report computation
   renderer/
     core.py                     SvgRenderer class (orchestrates drawing)
     annotations.py              Space labels, title block, legend, north arrow

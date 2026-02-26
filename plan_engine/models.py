@@ -245,6 +245,135 @@ class StairGeometry:
 
 
 @dataclass(frozen=True)
+class WallSegment:
+    """One extracted wall segment on a grid-aligned line."""
+
+    id: str
+    floor_id: str
+    orientation: str
+    line_coord_mm: int
+    span_start_mm: int
+    span_end_mm: int
+    role: str
+    kind: str
+
+    @property
+    def length_mm(self) -> int:
+        """Return segment length in millimeters."""
+        return self.span_end_mm - self.span_start_mm
+
+    def to_dict(self) -> dict[str, object]:
+        """Return this wall segment as a plain dictionary."""
+        return {
+            "id": self.id,
+            "floor_id": self.floor_id,
+            "orientation": self.orientation,
+            "line_coord_mm": self.line_coord_mm,
+            "span_mm": [self.span_start_mm, self.span_end_mm],
+            "length_mm": self.length_mm,
+            "role": self.role,
+            "kind": self.kind,
+        }
+
+
+@dataclass(frozen=True)
+class FloorStructureMetrics:
+    """Structural wall-length metrics aggregated for one floor."""
+
+    floor_id: str
+    total_wall_length_mm: int
+    total_bearing_length_mm: int
+    bearing_vertical_mm: int
+    bearing_horizontal_mm: int
+    quadrant_bearing_mm: tuple[int, int, int, int]
+    wall_balance_ratio: float | None
+
+    def to_dict(self) -> dict[str, object]:
+        """Return floor structural metrics as a plain dictionary."""
+        return {
+            "floor_id": self.floor_id,
+            "total_wall_length_mm": self.total_wall_length_mm,
+            "total_bearing_length_mm": self.total_bearing_length_mm,
+            "bearing_vertical_mm": self.bearing_vertical_mm,
+            "bearing_horizontal_mm": self.bearing_horizontal_mm,
+            "quadrant_bearing_mm": list(self.quadrant_bearing_mm),
+            "wall_balance_ratio": self.wall_balance_ratio,
+        }
+
+
+@dataclass(frozen=True)
+class ContinuityMetrics:
+    """Cross-floor direct-below continuity metrics for one axis."""
+
+    lower_floor_id: str
+    upper_floor_id: str
+    orientation: str
+    upper_bearing_length_mm: int
+    supported_length_mm: int
+    direct_below_ratio: float | None
+
+    def to_dict(self) -> dict[str, object]:
+        """Return continuity metrics as a plain dictionary."""
+        return {
+            "lower_floor_id": self.lower_floor_id,
+            "upper_floor_id": self.upper_floor_id,
+            "orientation": self.orientation,
+            "upper_bearing_length_mm": self.upper_bearing_length_mm,
+            "supported_length_mm": self.supported_length_mm,
+            "direct_below_ratio": self.direct_below_ratio,
+        }
+
+
+@dataclass(frozen=True)
+class VerticalTransferRequirement:
+    """Unsupported upper-floor bearing span requiring transfer elements."""
+
+    upper_floor_id: str
+    segment_id: str
+    orientation: str
+    line_coord_mm: int
+    span_start_mm: int
+    span_end_mm: int
+    unsupported_length_mm: int
+
+    def to_dict(self) -> dict[str, object]:
+        """Return transfer requirement as a plain dictionary."""
+        return {
+            "upper_floor_id": self.upper_floor_id,
+            "segment_id": self.segment_id,
+            "orientation": self.orientation,
+            "line_coord_mm": self.line_coord_mm,
+            "span_mm": [self.span_start_mm, self.span_end_mm],
+            "unsupported_length_mm": self.unsupported_length_mm,
+        }
+
+
+@dataclass(frozen=True)
+class StructureReport:
+    """Computed structural diagnostics and continuity findings."""
+
+    floor_metrics: dict[str, FloorStructureMetrics]
+    continuity_metrics: list[ContinuityMetrics]
+    vertical_transfer_required: list[VerticalTransferRequirement]
+    warnings: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return structure diagnostics as a plain dictionary."""
+        return {
+            "floor_metrics": {
+                floor_id: metrics.to_dict() for floor_id, metrics in self.floor_metrics.items()
+            },
+            "continuity_metrics": [item.to_dict() for item in self.continuity_metrics],
+            "vertical_transfer_required": [
+                item.to_dict() for item in self.vertical_transfer_required
+            ],
+            "warnings": list(self.warnings),
+            "assumptions": list(self.assumptions),
+        }
+
+
+@dataclass(frozen=True)
 class FloorSolution:
     """Solved layout for a single floor."""
 
@@ -274,15 +403,25 @@ class PlanSolution:
     envelope: EnvelopeSpec
     north: str
     floors: dict[str, FloorSolution]
+    walls: dict[str, list[WallSegment]] = field(default_factory=dict)
+    structure_report: StructureReport | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Return the full plan solution as a plain dictionary."""
-        return {
+        payload: dict[str, object] = {
             "units": self.units,
             "grid": self.grid.to_dict(),
             "site": {"envelope": self.envelope.to_dict(), "north": self.north},
             "floors": {fid: floor.to_dict() for fid, floor in self.floors.items()},
         }
+        if self.walls:
+            payload["walls"] = {
+                floor_id: [wall.to_dict() for wall in walls]
+                for floor_id, walls in self.walls.items()
+            }
+        if self.structure_report is not None:
+            payload["structure_report"] = self.structure_report.to_dict()
+        return payload
 
 
 @dataclass
@@ -291,6 +430,7 @@ class ValidationReport:
 
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    structural: list[str] = field(default_factory=list)
 
     @property
     def is_valid(self) -> bool:
@@ -299,7 +439,12 @@ class ValidationReport:
 
     def to_text(self) -> str:
         """Format the report as human-readable plain text."""
-        lines = [f"valid={self.is_valid}", f"errors={len(self.errors)}", f"warnings={len(self.warnings)}"]
+        lines = [
+            f"valid={self.is_valid}",
+            f"errors={len(self.errors)}",
+            f"warnings={len(self.warnings)}",
+            f"structural={len(self.structural)}",
+        ]
         if self.errors:
             lines.append("")
             lines.append("Errors:")
@@ -309,5 +454,10 @@ class ValidationReport:
             lines.append("")
             lines.append("Warnings:")
             for item in self.warnings:
+                lines.append(f"- {item}")
+        if self.structural:
+            lines.append("")
+            lines.append("Structural:")
+            for item in self.structural:
                 lines.append(f"- {item}")
         return "\n".join(lines) + "\n"

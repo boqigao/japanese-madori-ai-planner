@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import cairosvg
@@ -111,6 +112,7 @@ class SvgRenderer:
         self._draw_grid(drawing, site_rect, solution.grid.minor, solution.grid.major)
         self._draw_site_and_footprint(drawing, site_rect, building_rect)
         self._draw_spaces(drawing, floor)
+        self._draw_structural_overlay(drawing, solution, floor_id)
         self._draw_fixtures(drawing, floor)
         self._draw_stair(drawing, floor, floor_index, total_floors)
         self._draw_stair_connection_opening(drawing, floor, floor_index, total_floors)
@@ -257,6 +259,51 @@ class SvgRenderer:
                 if stroke_dash:
                     line_attrs["stroke_dasharray"] = stroke_dash
                 drawing.add(drawing.line(**line_attrs))
+
+    def _draw_structural_overlay(
+        self,
+        drawing: svgwrite.Drawing,
+        solution: PlanSolution,
+        floor_id: str,
+    ) -> None:
+        """Draw a structural wall-role overlay when enabled by environment flag.
+
+        Args:
+            drawing: Floor drawing to mutate.
+            solution: Full solved plan containing extracted wall metadata.
+            floor_id: Floor id currently being rendered.
+
+        Returns:
+            None. Overlay is drawn only when
+            ``PLAN_ENGINE_DRAW_STRUCTURAL_WALLS=1``.
+        """
+        if os.getenv("PLAN_ENGINE_DRAW_STRUCTURAL_WALLS", "0") != "1":
+            return
+        floor_walls = solution.walls.get(floor_id, [])
+        if not floor_walls:
+            return
+        for wall in floor_walls:
+            if wall.role == "partition":
+                continue
+            if wall.orientation == "vertical":
+                start = (self._x(wall.line_coord_mm), self._y(wall.span_start_mm))
+                end = (self._x(wall.line_coord_mm), self._y(wall.span_end_mm))
+            else:
+                start = (self._x(wall.span_start_mm), self._y(wall.line_coord_mm))
+                end = (self._x(wall.span_end_mm), self._y(wall.line_coord_mm))
+            stroke = "#a80000" if wall.role == "load_bearing" else "#cf6f00"
+            stroke_width = 2.8 if wall.role == "load_bearing" else 2.2
+            dash = None if wall.role == "load_bearing" else "6,4"
+            line_attrs: dict[str, object] = {
+                "start": start,
+                "end": end,
+                "stroke": stroke,
+                "stroke_width": stroke_width,
+                "opacity": 0.9,
+            }
+            if dash is not None:
+                line_attrs["stroke_dasharray"] = dash
+            drawing.add(drawing.line(**line_attrs))
 
     def _draw_fixtures(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
         """Draw lightweight furniture/fixture symbols for readability.

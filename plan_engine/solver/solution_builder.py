@@ -4,6 +4,7 @@ from ortools.sat.python import cp_model
 
 from plan_engine.constants import cells_to_mm
 from plan_engine.models import FloorSolution, PlanSolution, PlanSpec, Rect, SpaceGeometry, StairGeometry, StairSpec
+from plan_engine.structural import build_structure_report, extract_solution_walls
 from plan_engine.solver.rect_var import RectVar, StairFootprint
 from plan_engine.stair_logic import stair_portal_for_floor
 
@@ -17,7 +18,21 @@ def build_solution(
     floor_rank: dict[str, int],
     ordered_floors: list[str],
 ) -> PlanSolution:
-    """Convert solved CP-SAT variables back into a PlanSolution with mm coordinates."""
+    """Convert solved CP-SAT variables into a PlanSolution with structural diagnostics.
+
+    Args:
+        solver: CP-SAT solver containing selected variable values.
+        spec: Parsed plan specification.
+        placements: Per-floor/per-entity rectangle variable sets.
+        stair_spec: Shared stair specification, when present.
+        stair_footprint: Stair footprint metadata in grid cells.
+        floor_rank: Floor index mapping for portal direction resolution.
+        ordered_floors: Floor IDs in vertical order.
+
+    Returns:
+        Immutable solved plan including extracted wall segments and
+        structural-report metrics.
+    """
     floor_solutions: dict[str, FloorSolution] = {}
     for floor_id, floor in spec.floors.items():
         solved_spaces: dict[str, SpaceGeometry] = {}
@@ -82,10 +97,26 @@ def build_solution(
             topology=list(floor.topology.adjacency),
         )
 
+    base_solution = PlanSolution(
+        units=spec.units,
+        grid=spec.grid,
+        envelope=spec.site.envelope,
+        north=spec.site.north,
+        floors=floor_solutions,
+    )
+    walls_by_floor = extract_solution_walls(base_solution)
+    structure_report = build_structure_report(
+        solution=base_solution,
+        walls_by_floor=walls_by_floor,
+        direct_below_target=0.5,
+        wall_balance_target=0.5,
+    )
     return PlanSolution(
         units=spec.units,
         grid=spec.grid,
         envelope=spec.site.envelope,
         north=spec.site.north,
         floors=floor_solutions,
+        walls=walls_by_floor,
+        structure_report=structure_report,
     )
