@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-import svgwrite
+import itertools
+from typing import TYPE_CHECKING
 
 from plan_engine.constants import MINOR_GRID_MM
-from plan_engine.models import FloorSolution, Rect
 from plan_engine.renderer.helpers import _floor_rects, _ordered_spaces
+
+if TYPE_CHECKING:
+    import svgwrite
+
+    from plan_engine.models import FloorSolution, Rect
 
 
 def draw_room_dimension_guides(renderer, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
@@ -269,7 +274,7 @@ def _draw_dimension_chain(
                     stroke_width=1.0,
                 )
             )
-        for left, right in zip(points[:-1], points[1:]):
+        for left, right in itertools.pairwise(points):
             if right <= left:
                 continue
             segment_len = right - left
@@ -318,7 +323,7 @@ def _draw_dimension_chain(
                 stroke_width=1.0,
             )
         )
-    for top, bottom in zip(points[:-1], points[1:]):
+    for top, bottom in itertools.pairwise(points):
         if bottom <= top:
             continue
         segment_len = bottom - top
@@ -350,13 +355,9 @@ def _collect_perimeter_breakpoints(floor: FloorSolution, building_rect: Rect, si
     axis_start, axis_end, _ = _side_axis(building_rect, side)
     intervals: list[tuple[int, int]] = []
     for rect in _floor_rects(floor):
-        if side == "top" and rect.y == building_rect.y:
+        if (side == "top" and rect.y == building_rect.y) or (side == "bottom" and rect.y2 == building_rect.y2):
             intervals.append((rect.x, rect.x2))
-        elif side == "bottom" and rect.y2 == building_rect.y2:
-            intervals.append((rect.x, rect.x2))
-        elif side == "left" and rect.x == building_rect.x:
-            intervals.append((rect.y, rect.y2))
-        elif side == "right" and rect.x2 == building_rect.x2:
+        elif (side == "left" and rect.x == building_rect.x) or (side == "right" and rect.x2 == building_rect.x2):
             intervals.append((rect.y, rect.y2))
 
     points = {axis_start, axis_end}

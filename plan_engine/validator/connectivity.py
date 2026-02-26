@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from collections import deque
+from typing import TYPE_CHECKING
 
 from plan_engine.constants import WET_SPACE_TYPES
-from plan_engine.models import FloorSolution, PlanSolution, Rect, ValidationReport
+
+if TYPE_CHECKING:
+    from plan_engine.models import FloorSolution, PlanSolution, Rect, ValidationReport
 
 
 def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> None:

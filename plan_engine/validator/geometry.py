@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from plan_engine.models import PlanSolution, PlanSpec, Rect, ValidationReport
+from typing import TYPE_CHECKING
+
 from plan_engine.stair_logic import ordered_floor_ids
+
+if TYPE_CHECKING:
+    from plan_engine.models import PlanSolution, PlanSpec, Rect, ValidationReport
 
 
 def validate_space_presence(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:

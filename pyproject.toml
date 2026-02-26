@@ -9,3 +9,63 @@ dependencies = [
     "pyyaml>=6.0.1",
     "svgwrite>=1.4.3",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.3.4",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+extend-select = [
+    "E",
+    "W",    # pycodestyle
+    "F",    # Pyflakes
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "C90",  # complexity
+    "C4",
+    "PIE",
+    "T20",
+    "SIM",
+    "ERA",
+    "FIX",
+    "INT",
+    "TCH",
+    "TID",
+    "SLOT",
+    "RSE",
+    "Q",
+    "PYI",
+    "INP",
+    "B",
+    "PTH",
+    "SLF",
+    "PT",
+    "RET",
+    "I",    # isort
+    "PL",   # pylint
+    "RUF",  # ruff
+]
+ignore = [
+    "E501",     # line too long
+    "PLR2004",  # magic value comparison
+    "PLR0914",  # too many local variables
+    "PLR0913",  # too many arguments
+    "PLR0912",  # too many branches
+    "PLR0911",  # too many return statements
+    "RUF001",   # ambiguous characters
+    "FIX002",   # found TODO
+    "T201",     # print found
+    "SLF001",   # private member accessed (renderer sub-modules share _x/_y)
+    "PLR0915",  # too many statements
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["plan_engine"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 30

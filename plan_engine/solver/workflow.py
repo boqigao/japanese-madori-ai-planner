@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
 from plan_engine.constants import MAJOR_ROOM_TYPES, WET_MODULE_SIZES_MM, WET_SPACE_TYPES, mm_to_cells
-from plan_engine.models import PlanSpec, StairSpec
 from plan_engine.solver.constraints import (
     edge_touch_constraint,
     enforce_exterior_touch,
@@ -32,6 +32,9 @@ from plan_engine.solver.space_specs import (
     _target_area_cells,
 )
 from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
+
+if TYPE_CHECKING:
+    from plan_engine.models import PlanSpec, StairSpec
 
 
 @dataclass
@@ -107,9 +110,7 @@ def build_context(spec: PlanSpec) -> SolveContext:
             forced_stair_y_cells=forced_stair_y_cells,
         )
         floors_with_stair = set(stair_spec.connects.keys())
-        floors_with_stair.update(
-            floor_id for floor_id, floor in spec.floors.items() if floor.core.stair is not None
-        )
+        floors_with_stair.update(floor_id for floor_id, floor in spec.floors.items() if floor.core.stair is not None)
         floors_with_stair.intersection_update(spec.floors.keys())
 
     return SolveContext(
@@ -228,10 +229,7 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                 )
                 ctx.model.AddMinEquality(min_dim, [rect.w, rect.h])
                 ctx.model.Add(min_dim >= min_width_cells)
-                if (
-                    space.type in {"bedroom", "master_bedroom"}
-                    and space.size_constraints.min_width is None
-                ):
+                if space.type in {"bedroom", "master_bedroom"} and space.size_constraints.min_width is None:
                     # Fallback default only when spec does not provide an explicit min width.
                     ctx.model.Add(min_dim >= mm_to_cells(2275, spec.grid.minor))
                 if space.type == "hall":
@@ -517,9 +515,7 @@ def add_wet_cluster_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
             ctx.model.Add(sum(adjacency_edges.values()) >= len(wet_ids) - 1)
             for wet_id in wet_ids:
                 incident = [
-                    edge
-                    for (left_id, right_id), edge in adjacency_edges.items()
-                    if left_id == wet_id or right_id == wet_id
+                    edge for (left_id, right_id), edge in adjacency_edges.items() if wet_id in (left_id, right_id)
                 ]
                 if incident:
                     ctx.model.AddBoolOr(incident)

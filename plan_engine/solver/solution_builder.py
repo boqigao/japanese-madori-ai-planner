@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from ortools.sat.python import cp_model
+from typing import TYPE_CHECKING
 
 from plan_engine.constants import cells_to_mm
 from plan_engine.models import FloorSolution, PlanSolution, PlanSpec, Rect, SpaceGeometry, StairGeometry, StairSpec
-from plan_engine.structural import build_structure_report, extract_solution_walls
-from plan_engine.solver.rect_var import RectVar, StairFootprint
 from plan_engine.stair_logic import stair_portal_for_floor
+from plan_engine.structural import build_structure_report, extract_solution_walls
+
+if TYPE_CHECKING:
+    from ortools.sat.python import cp_model
+
+    from plan_engine.solver.rect_var import RectVar, StairFootprint
 
 
 def build_solution(

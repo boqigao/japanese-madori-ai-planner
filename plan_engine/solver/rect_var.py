@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-
-from ortools.sat.python import cp_model
+from typing import TYPE_CHECKING
 
 from plan_engine.constants import ceil_to_grid, mm_to_cells
-from plan_engine.models import PlanSpec, StairSpec
+
+if TYPE_CHECKING:
+    from ortools.sat.python import cp_model
+
+    from plan_engine.models import PlanSpec, StairSpec
 
 
 @dataclass
@@ -75,16 +78,16 @@ def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprin
     if stair.type == "straight":
         run_mm = ceil_to_grid(tread_count * tread_mm, minor_grid)
         run_cells = max(1, mm_to_cells(run_mm, minor_grid))
-        avg_tread_mm = max(1, int(round(run_mm / tread_count)))
+        avg_tread_mm = max(1, round(run_mm / tread_count))
         components = [("flight1", 0, 0, width_cells, run_cells)]
         bbox_w_cells = width_cells
         bbox_h_cells = run_cells
     elif stair.type == "L_landing":
-        run1_treads = max(1, int(math.ceil(tread_count / 2)))
+        run1_treads = max(1, math.ceil(tread_count / 2))
         run2_treads = max(1, tread_count - run1_treads)
         run1_mm = ceil_to_grid(run1_treads * tread_mm, minor_grid)
         run2_mm = ceil_to_grid(run2_treads * tread_mm, minor_grid)
-        avg_tread_mm = max(1, int(round((run1_mm + run2_mm) / tread_count)))
+        avg_tread_mm = max(1, round((run1_mm + run2_mm) / tread_count))
         run1_cells = max(1, mm_to_cells(run1_mm, minor_grid))
         run2_cells = max(1, mm_to_cells(run2_mm, minor_grid))
         components = [
@@ -132,8 +135,8 @@ def _resolve_riser_configuration(floor_height: int, riser_pref: int) -> tuple[in
     if best_exact is not None:
         return best_exact[1], best_exact[2]
 
-    fallback_count = max(2, int(round(floor_height / max(1, riser_pref))))
-    fallback_riser = max(1, int(round(floor_height / fallback_count)))
+    fallback_count = max(2, round(floor_height / max(1, riser_pref)))
+    fallback_riser = max(1, round(floor_height / fallback_count))
     return fallback_count, fallback_riser
 
 

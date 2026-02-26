@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from plan_engine.constants import mm_to_cells, tatami_to_cells
-from plan_engine.models import SpaceSpec
+
+if TYPE_CHECKING:
+    from plan_engine.models import SpaceSpec
 
 DEFAULT_MIN_TATAMI_BY_TYPE: dict[str, float] = {
     "entry": 2.0,

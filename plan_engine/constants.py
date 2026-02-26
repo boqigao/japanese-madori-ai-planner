@@ -39,4 +39,4 @@ def cells_to_mm(cells: int, minor_grid: int) -> int:
 def tatami_to_cells(tatami: float, minor_grid: int) -> int:
     """Convert tatami area to minimum cell count (rounded up)."""
     cell_area = minor_grid * minor_grid
-    return int(math.ceil((tatami * TATAMI_MM2) / cell_area))
+    return math.ceil((tatami * TATAMI_MM2) / cell_area)

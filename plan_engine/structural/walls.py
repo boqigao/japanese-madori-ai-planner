@@ -30,7 +30,7 @@ def extract_solution_walls(solution: PlanSolution) -> dict[str, list[WallSegment
         Mapping from floor id to extracted wall segments.
     """
     walls_by_floor: dict[str, list[WallSegment]] = {}
-    for floor_id, floor in solution.floors.items():
+    for floor_id, _floor in solution.floors.items():
         cell_owner = _build_cell_ownership(solution=solution, floor_id=floor_id)
         raw_segments = _collect_raw_segments(
             cell_owner=cell_owner,
@@ -146,9 +146,7 @@ def build_structure_report(
                 )
 
     if transfer_required:
-        warnings.append(
-            f"vertical transfer required on {len(transfer_required)} upper-floor bearing segments"
-        )
+        warnings.append(f"vertical transfer required on {len(transfer_required)} upper-floor bearing segments")
 
     assumptions = [
         "Bearing roles are heuristic proxies (not final structural certification).",
@@ -208,8 +206,7 @@ def _collect_raw_segments(
         Raw segment tuples as `(orientation, line_coord, start, end, kind)`.
     """
     raw: list[tuple[str, int, int, int, str]] = []
-    for x, y in cell_owner:
-        owner = cell_owner[(x, y)]
+    for (x, y), owner in cell_owner.items():
         if x == 0:
             raw.append(("vertical", x, y, y + minor, "exterior"))
         if y == 0:

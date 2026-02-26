@@ -152,16 +152,11 @@ class Rect:
         """Return the rectangle as a plain dictionary."""
         return {"x": self.x, "y": self.y, "w": self.w, "h": self.h}
 
-    def overlaps(self, other: "Rect") -> bool:
+    def overlaps(self, other: Rect) -> bool:
         """Return True if this rectangle overlaps with *other*."""
-        return not (
-            self.x2 <= other.x
-            or other.x2 <= self.x
-            or self.y2 <= other.y
-            or other.y2 <= self.y
-        )
+        return not (self.x2 <= other.x or other.x2 <= self.x or self.y2 <= other.y or other.y2 <= self.y)
 
-    def shares_edge_with(self, other: "Rect") -> bool:
+    def shares_edge_with(self, other: Rect) -> bool:
         """Return True if this rectangle shares a non-zero-length edge with *other*."""
         if self.x2 == other.x or other.x2 == self.x:
             y_overlap = min(self.y2, other.y2) - max(self.y, other.y)
@@ -171,9 +166,7 @@ class Rect:
             return x_overlap > 0
         return False
 
-    def shared_edge_segment(
-        self, other: "Rect"
-    ) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    def shared_edge_segment(self, other: Rect) -> tuple[tuple[int, int], tuple[int, int]] | None:
         """Return the shared edge as a pair of endpoints, or None if no edge is shared."""
         if self.x2 == other.x or other.x2 == self.x:
             y1 = max(self.y, other.y)
@@ -361,13 +354,9 @@ class StructureReport:
     def to_dict(self) -> dict[str, object]:
         """Return structure diagnostics as a plain dictionary."""
         return {
-            "floor_metrics": {
-                floor_id: metrics.to_dict() for floor_id, metrics in self.floor_metrics.items()
-            },
+            "floor_metrics": {floor_id: metrics.to_dict() for floor_id, metrics in self.floor_metrics.items()},
             "continuity_metrics": [item.to_dict() for item in self.continuity_metrics],
-            "vertical_transfer_required": [
-                item.to_dict() for item in self.vertical_transfer_required
-            ],
+            "vertical_transfer_required": [item.to_dict() for item in self.vertical_transfer_required],
             "warnings": list(self.warnings),
             "assumptions": list(self.assumptions),
         }
@@ -415,10 +404,7 @@ class PlanSolution:
             "floors": {fid: floor.to_dict() for fid, floor in self.floors.items()},
         }
         if self.walls:
-            payload["walls"] = {
-                floor_id: [wall.to_dict() for wall in walls]
-                for floor_id, walls in self.walls.items()
-            }
+            payload["walls"] = {floor_id: [wall.to_dict() for wall in walls] for floor_id, walls in self.walls.items()}
         if self.structure_report is not None:
             payload["structure_report"] = self.structure_report.to_dict()
         return payload

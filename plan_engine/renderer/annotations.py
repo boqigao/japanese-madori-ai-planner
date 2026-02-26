@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import svgwrite
+from typing import TYPE_CHECKING
 
 from plan_engine.constants import TATAMI_MM2
-from plan_engine.models import FloorSolution, PlanSolution, Rect
 from plan_engine.renderer.helpers import (
     LEGEND_ORDER,
     SPACE_COLORS,
@@ -12,6 +11,11 @@ from plan_engine.renderer.helpers import (
     _ordered_spaces,
     _space_dimensions,
 )
+
+if TYPE_CHECKING:
+    import svgwrite
+
+    from plan_engine.models import FloorSolution, PlanSolution, Rect
 
 
 def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
@@ -33,16 +37,15 @@ def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution)
         if len(space.rects) == 1:
             dims = _space_dimensions(space.rects)
             lines = [title, f"{dims[0]}x{dims[1]}mm", f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
+        elif space.type == "hall":
+            lines = [title, f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
         else:
-            if space.type == "hall":
-                lines = [title, f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
-            else:
-                dims = _space_dimensions(space.rects)
-                component_text = _component_dims_text(space.rects)
-                lines = [title, f"L-shape ({len(space.rects)} parts)"]
-                if min(dims[0], dims[1]) >= 2000:
-                    lines.append(component_text)
-                lines.append(f"{area_sqm:.1f}sqm / {area_jo:.1f}jo")
+            dims = _space_dimensions(space.rects)
+            component_text = _component_dims_text(space.rects)
+            lines = [title, f"L-shape ({len(space.rects)} parts)"]
+            if min(dims[0], dims[1]) >= 2000:
+                lines.append(component_text)
+            lines.append(f"{area_sqm:.1f}sqm / {area_jo:.1f}jo")
         anchor = _clamped_room_label_anchor(space.rects, lines, renderer.scale)
         for idx, line in enumerate(lines):
             drawing.add(
@@ -245,8 +248,7 @@ def draw_floor_area_summary(
     sqm_per_tsubo = 3.305785
 
     lines = [
-        f"{fid}: {floor_area_sqm[fid]:.1f} sqm ({floor_area_sqm[fid] / sqm_per_tsubo:.1f} tsubo)"
-        for fid in ordered_ids
+        f"{fid}: {floor_area_sqm[fid]:.1f} sqm ({floor_area_sqm[fid] / sqm_per_tsubo:.1f} tsubo)" for fid in ordered_ids
     ]
     lines.append(f"Total: {total_sqm:.1f} sqm ({total_sqm / sqm_per_tsubo:.1f} tsubo)")
 

@@ -127,9 +127,7 @@ def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def _shared_segment(
-    rects_a: list[Rect], rects_b: list[Rect]
-) -> tuple[tuple[int, int], tuple[int, int]] | None:
+def _shared_segment(rects_a: list[Rect], rects_b: list[Rect]) -> tuple[tuple[int, int], tuple[int, int]] | None:
     """Find the longest shared edge segment between two groups of rectangles."""
     best_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
     best_length = 0
@@ -227,14 +225,8 @@ def _clamped_room_label_anchor(
     min_y = bbox.y + y_margin_mm
     max_y = bbox.y2 - y_margin_mm
 
-    if min_x <= max_x:
-        anchor_x = min(max(anchor_x, min_x), max_x)
-    else:
-        anchor_x = bbox.x + bbox.w / 2
-    if min_y <= max_y:
-        anchor_y = min(max(anchor_y, min_y), max_y)
-    else:
-        anchor_y = bbox.y + bbox.h / 2
+    anchor_x = min(max(anchor_x, min_x), max_x) if min_x <= max_x else bbox.x + bbox.w / 2
+    anchor_y = min(max(anchor_y, min_y), max_y) if min_y <= max_y else bbox.y + bbox.h / 2
     return anchor_x, anchor_y
 
 
@@ -267,9 +259,7 @@ def _segment_length(p1: tuple[int, int], p2: tuple[int, int]) -> int:
     return abs(p2[0] - p1[0]) + abs(p2[1] - p1[1])
 
 
-def _segment_key(
-    segment: tuple[tuple[int, int], tuple[int, int]]
-) -> tuple[tuple[int, int], tuple[int, int]]:
+def _segment_key(segment: tuple[tuple[int, int], tuple[int, int]]) -> tuple[tuple[int, int], tuple[int, int]]:
     """Normalize a segment to a canonical (min, max) ordering for deduplication."""
     p1, p2 = segment
     if p1 <= p2:

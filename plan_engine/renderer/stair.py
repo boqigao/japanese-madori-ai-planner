@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-import svgwrite
+from typing import TYPE_CHECKING
 
-from plan_engine.models import FloorSolution, Rect
 from plan_engine.renderer.helpers import (
     _bounding_rect,
     _portal_for_floor,
     _portal_hall_opening_segment,
     _stair_label_point,
 )
+
+if TYPE_CHECKING:
+    import svgwrite
+
+    from plan_engine.models import FloorSolution, Rect
 
 
 def draw_stair(
@@ -59,9 +63,7 @@ def draw_stair(
     if is_top_floor:
         visible_step_indices = set(access_indices)
         void_components = [
-            stair.components[index]
-            for index in range(len(stair.components))
-            if index not in access_indices
+            stair.components[index] for index in range(len(stair.components)) if index not in access_indices
         ]
         if void_components:
             void_bbox = _bounding_rect(void_components)

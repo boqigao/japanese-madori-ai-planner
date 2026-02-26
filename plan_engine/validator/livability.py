@@ -24,10 +24,7 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
                 report.warnings.append(
                     f"{floor_id}:{space_id} entry short side {short_side}mm is narrow (recommend >=1365mm)"
                 )
-            if (
-                space.type in {"storage", "ldk", "master_bedroom", "bedroom", "hall", "entry"}
-                and target is not None
-            ):
+            if space.type in {"storage", "ldk", "master_bedroom", "bedroom", "hall", "entry"} and target is not None:
                 overshoot_limit = 1.5 if space.type == "hall" else 1.3
                 if area_jo <= target * overshoot_limit:
                     continue
@@ -54,7 +51,7 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
             hall_short = min(_bounding_rect(hall.rects).w, _bounding_rect(hall.rects).h)
             door_degree = 0
             for left_id, right_id in floor.topology:
-                if left_id == hall_id or right_id == hall_id:
+                if hall_id in (left_id, right_id):
                     door_degree += 1
             if hall_short < 1365 and door_degree >= 3:
                 report.warnings.append(
@@ -91,9 +88,7 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
                     f"{floor_id}:{stair.id} riser {stair.riser_mm}mm outside preferred range 140-230mm"
                 )
             if stair.tread_mm < 210:
-                report.warnings.append(
-                    f"{floor_id}:{stair.id} tread {stair.tread_mm}mm is below preferred 210mm"
-                )
+                report.warnings.append(f"{floor_id}:{stair.id} tread {stair.tread_mm}mm is below preferred 210mm")
             if stair.landing_size[0] < 910 or stair.landing_size[1] < 910:
                 report.warnings.append(
                     f"{floor_id}:{stair.id} landing {stair.landing_size[0]}x{stair.landing_size[1]}mm is below 910mm"
@@ -111,9 +106,7 @@ def validate_livability(spec: PlanSpec, solution: PlanSolution, report: Validati
             )
             if len(top_floor.stair.components) >= 2:
                 void_area = sum(
-                    rect.area
-                    for idx, rect in enumerate(top_floor.stair.components)
-                    if idx != portal.component_index
+                    rect.area for idx, rect in enumerate(top_floor.stair.components) if idx != portal.component_index
                 )
                 if void_area <= 0:
                     report.warnings.append(f"{ordered[-1]}: stair void/opening is missing on top floor")

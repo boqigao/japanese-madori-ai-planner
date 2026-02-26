@@ -6,7 +6,6 @@ from pathlib import Path
 import cairosvg
 import svgwrite
 
-from plan_engine.constants import MINOR_GRID_MM
 from plan_engine.models import FloorSolution, PlanSolution, Rect
 from plan_engine.renderer.annotations import (
     draw_floor_area_summary,
@@ -29,8 +28,8 @@ from plan_engine.renderer.helpers import (
     _exterior_segments,
     _floor_rects,
     _ordered_spaces,
-    _segment_length,
     _segment_key,
+    _segment_length,
     _shared_segment,
     _sorted_floor_ids,
     _space_boundary_segments,
@@ -58,9 +57,7 @@ def _should_draw_interior_door(left_type: str, right_type: str) -> bool:
         only via washroom connections.
     """
     types = {left_type, right_type}
-    if "bath" in types and "washroom" not in types:
-        return False
-    return True
+    return not ("bath" in types and "washroom" not in types)
 
 
 class SvgRenderer:
@@ -186,9 +183,7 @@ class SvgRenderer:
                 )
             )
 
-    def _draw_site_and_footprint(
-        self, drawing: svgwrite.Drawing, site_rect: Rect, building_rect: Rect
-    ) -> None:
+    def _draw_site_and_footprint(self, drawing: svgwrite.Drawing, site_rect: Rect, building_rect: Rect) -> None:
         """Draw the site envelope outline and building footprint."""
         drawing.add(
             drawing.rect(
@@ -575,12 +570,10 @@ class SvgRenderer:
         Returns:
             None.
         """
-        door_entries: list[
-            tuple[int, tuple[tuple[int, int], tuple[int, int]], str, str]
-        ] = []
+        door_entries: list[tuple[int, tuple[tuple[int, int], tuple[int, int]], str, str]] = []
         door_pairs: set[frozenset[str]] = set()
         for index, (left_id, right_id) in enumerate(floor.topology):
-            if floor.stair is not None and (left_id == floor.stair.id or right_id == floor.stair.id):
+            if floor.stair is not None and (floor.stair.id in (left_id, right_id)):
                 continue
             left_rects = _entity_rects(floor, left_id)
             right_rects = _entity_rects(floor, right_id)
@@ -636,10 +629,13 @@ class SvgRenderer:
 
     def _draw_entry_door(
         self, drawing: svgwrite.Drawing, floor: FloorSolution, building_rect: Rect
-    ) -> tuple[
-        tuple[tuple[int, int], tuple[int, int]],
-        tuple[tuple[int, int], tuple[int, int]],
-    ] | None:
+    ) -> (
+        tuple[
+            tuple[tuple[int, int], tuple[int, int]],
+            tuple[tuple[int, int], tuple[int, int]],
+        ]
+        | None
+    ):
         """Draw the primary entry door and return wall/opening segments.
 
         Args:
@@ -730,9 +726,7 @@ class SvgRenderer:
                         self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.72)
                     )
                 else:
-                    opening_segments.append(
-                        self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5)
-                    )
+                    opening_segments.append(self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5))
         return opening_segments
 
     def _draw_space_labels(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:

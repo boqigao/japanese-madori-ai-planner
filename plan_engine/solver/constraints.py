@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from ortools.sat.python import cp_model
+from typing import TYPE_CHECKING
 
-from plan_engine.solver.rect_var import RectVar
+if TYPE_CHECKING:
+    from ortools.sat.python import cp_model
+
+    from plan_engine.solver.rect_var import RectVar
 
 
 def touching_constraint(

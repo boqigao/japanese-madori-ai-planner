@@ -58,4 +58,3 @@ def stair_portal_for_floor(
         return StairPortal(component_index=0, edge="left")
     # Upper floor: access final run end.
     return StairPortal(component_index=2, edge="bottom")
-

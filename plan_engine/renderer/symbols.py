@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import svgwrite
+from typing import TYPE_CHECKING
 
-from plan_engine.models import Rect
+if TYPE_CHECKING:
+    import svgwrite
+
+    from plan_engine.models import Rect
 
 
 def draw_door_symbol(
@@ -46,7 +49,7 @@ def draw_door_symbol(
         center = (y_low + y_high) / 2
         y1 = center - opening / 2
         y2 = center + opening / 2
-        opening_segment = ((int(round(x)), int(round(y1))), (int(round(x)), int(round(y2))))
+        opening_segment = ((round(x), round(y1)), (round(x), round(y2)))
         drawing.add(
             drawing.line(
                 start=(x_fn(x), y_fn(y1)),
@@ -93,7 +96,7 @@ def draw_door_symbol(
     center = (x_low + x_high) / 2
     x1 = center - opening / 2
     x2 = center + opening / 2
-    opening_segment = ((int(round(x1)), int(round(y))), (int(round(x2)), int(round(y))))
+    opening_segment = ((round(x1), round(y)), (round(x2), round(y)))
     drawing.add(
         drawing.line(
             start=(x_fn(x1), y_fn(y)),
@@ -179,7 +182,7 @@ def draw_window_symbol(
                 stroke_width=2.2,
             )
         )
-        return ((int(round(x)), int(round(y1))), (int(round(x)), int(round(y2))))
+        return ((round(x), round(y1)), (round(x), round(y2)))
 
     y = p1[1]
     x_low = min(p1[0], p2[0])
@@ -205,4 +208,4 @@ def draw_window_symbol(
             stroke_width=2.2,
         )
     )
-    return ((int(round(x1)), int(round(y))), (int(round(x2)), int(round(y))))
+    return ((round(x1), round(y)), (round(x2), round(y)))

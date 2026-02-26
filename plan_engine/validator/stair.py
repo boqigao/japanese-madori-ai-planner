@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from plan_engine.constants import EDGE_NAMES
-from plan_engine.models import PlanSolution, PlanSpec, Rect, ValidationReport
 from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
+
+if TYPE_CHECKING:
+    from plan_engine.models import PlanSolution, PlanSpec, Rect, ValidationReport
 
 
 def validate_stair(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
@@ -110,9 +114,7 @@ def _shared_segments_on_portal_edge(
     return segments
 
 
-def _segment_key(
-    segment: tuple[tuple[int, int], tuple[int, int]]
-) -> tuple[tuple[int, int], tuple[int, int]]:
+def _segment_key(segment: tuple[tuple[int, int], tuple[int, int]]) -> tuple[tuple[int, int], tuple[int, int]]:
     """Normalize a segment to canonical ordering for deduplication."""
     p1, p2 = segment
     if p1 <= p2:
@@ -139,9 +141,7 @@ def _segment_on_portal_edge(
         return True
     if edge == "top" and y1 == y2 == portal_component.y:
         return True
-    if edge == "bottom" and y1 == y2 == portal_component.y2:
-        return True
-    return False
+    return bool(edge == "bottom" and y1 == y2 == portal_component.y2)
 
 
 def _validate_portal_internal(

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from plan_engine.models import PlanSolution, PlanSpec, ValidationReport
+from typing import TYPE_CHECKING
+
 from plan_engine.structural.walls import build_structure_report, extract_solution_walls
+
+if TYPE_CHECKING:
+    from plan_engine.models import PlanSolution, PlanSpec, ValidationReport
 
 
 def validate_structural(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
@@ -28,10 +32,10 @@ def validate_structural(spec: PlanSpec, solution: PlanSolution, report: Validati
             wall_balance_target=0.5,
         )
 
-    report.structural.append("bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)")
     report.structural.append(
-        "threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)"
+        "bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)"
     )
+    report.structural.append("threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)")
     for floor_id, metrics in sorted(structure_report.floor_metrics.items()):
         ratio = "n/a" if metrics.wall_balance_ratio is None else f"{metrics.wall_balance_ratio:.2f}"
         report.structural.append(
@@ -45,9 +49,7 @@ def validate_structural(spec: PlanSpec, solution: PlanSolution, report: Validati
         )
 
     if structure_report.vertical_transfer_required:
-        report.structural.append(
-            f"vertical_transfer_required={len(structure_report.vertical_transfer_required)}"
-        )
+        report.structural.append(f"vertical_transfer_required={len(structure_report.vertical_transfer_required)}")
         for item in structure_report.vertical_transfer_required[:8]:
             report.structural.append(
                 f"{item.upper_floor_id}:{item.segment_id} unsupported={item.unsupported_length_mm}mm at {item.orientation}@{item.line_coord_mm}"
@@ -58,4 +60,3 @@ def validate_structural(spec: PlanSpec, solution: PlanSolution, report: Validati
 
     for warning in structure_report.warnings:
         report.warnings.append(f"structural: {warning}")
-

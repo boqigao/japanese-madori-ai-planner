@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from plan_engine.models import PlanSolution, ValidationReport
+if TYPE_CHECKING:
+    from plan_engine.models import PlanSolution, ValidationReport
 
 
 def write_solution_json(solution: PlanSolution, target: str | Path) -> Path:

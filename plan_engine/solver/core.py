@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ortools.sat.python import cp_model
 
-from plan_engine.models import PlanSolution, PlanSpec
 from plan_engine.solver.solution_builder import build_solution
 from plan_engine.solver.workflow import (
     SolveContext,
@@ -16,6 +17,9 @@ from plan_engine.solver.workflow import (
     build_objective,
     create_space_variables,
 )
+
+if TYPE_CHECKING:
+    from plan_engine.models import PlanSolution, PlanSpec
 
 
 class PlanSolver:
