@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from plan_engine.models import PlanSpec, SpaceSpec
 
 BEDROOM_SPACE_TYPES = frozenset({"bedroom", "master_bedroom"})
+TOILET_SPACE_TYPES = frozenset({"toilet", "wc"})
+WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath"})
+CIRCULATION_SPACE_TYPES = frozenset({"hall", "entry"})
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,8 @@ def run_preflight(spec: PlanSpec) -> PreflightResult:
             )
 
         _check_room_min_width(spec, floor_id, envelope_w, envelope_h, report)
+        _check_toilet_circulation_topology(spec, floor_id, report)
+        _check_wet_core_circulation_topology(spec, floor_id, report)
         _check_wet_cluster_fit(spec, floor_id, envelope_w, envelope_h, report)
 
         if hall_fanout >= 8:
@@ -303,8 +308,8 @@ def _check_topology_reachability(
     """Run reachability checks and detect bedroom-only transit paths.
 
     The check has two layers:
-    1) Generic connectivity: every non-wet target node must be reachable from
-       an entry (existing hard preflight check).
+    1) Generic connectivity: every non-wet node plus each toilet/wc node must
+       be reachable from an entry (existing hard preflight check).
     2) Bedroom pass-through guard: bedroom-like rooms are treated as terminal
        nodes and are not allowed to act as intermediate transit nodes.
 
@@ -334,7 +339,11 @@ def _check_topology_reachability(
             graph.setdefault(node, set())
             if space.type == "entry":
                 start_nodes.append(node)
-            if space.type not in WET_SPACE_TYPES:
+            if (
+                space.type not in WET_SPACE_TYPES
+                or space.type in TOILET_SPACE_TYPES
+                or space.type in WET_CORE_SPACE_TYPES
+            ):
                 target_nodes.append(node)
             if space.type in BEDROOM_SPACE_TYPES:
                 bedroom_nodes.add(node)
@@ -412,28 +421,144 @@ def _check_wet_cluster_fit(
     envelope_h: int,
     report: ValidationReport,
 ) -> None:
-    """Check wet-module fixed dimensions can fit the floor envelope."""
+    """Check wet-module dimensions fit and wet-core modules can be connected.
+
+    The wet core is defined as washroom+bath modules. Toilet/WC modules are
+    validated for independent fit but are not forced into the wet-core packing
+    cluster at preflight stage.
+    """
     floor = spec.floors[floor_id]
-    wet_modules: list[tuple[int, int]] = []
+    wet_core_modules: list[tuple[int, int]] = []
     for space in floor.spaces:
         dims = WET_MODULE_SIZES_MM.get(space.type)
         if dims is None:
             continue
         w_cells = mm_to_cells(dims[0], spec.grid.minor)
         h_cells = mm_to_cells(dims[1], spec.grid.minor)
-        wet_modules.append((w_cells, h_cells))
+        if space.type in WET_CORE_SPACE_TYPES:
+            wet_core_modules.append((w_cells, h_cells))
         if w_cells > envelope_w or h_cells > envelope_h:
             report.errors.append(
                 f"preflight: {floor_id}:{space.id} wet module {dims[0]}x{dims[1]}mm "
                 f"does not fit envelope {envelope_w * spec.grid.minor}x{envelope_h * spec.grid.minor}mm"
             )
 
-    if len(wet_modules) <= 1:
+    if len(wet_core_modules) <= 1:
         return
-    if not _can_pack_connected_wet_modules(wet_modules, envelope_w, envelope_h):
+    if not _can_pack_connected_wet_modules(wet_core_modules, envelope_w, envelope_h):
         report.errors.append(
-            f"preflight: {floor_id} wet modules cannot form a connected cluster inside envelope"
+            f"preflight: {floor_id} washroom+bath wet core cannot form a connected cluster inside envelope"
         )
+
+
+def _check_toilet_circulation_topology(spec: PlanSpec, floor_id: str, report: ValidationReport) -> None:
+    """Validate that each toilet/wc has declared circulation adjacency edges.
+
+    Args:
+        spec: Parsed plan specification.
+        floor_id: Floor identifier to validate.
+        report: Mutable report receiving errors and suggestions.
+
+    Returns:
+        None.
+    """
+    floor = spec.floors[floor_id]
+    space_type_by_id = {space.id: space.type for space in floor.spaces}
+    toilet_ids = [space_id for space_id, space_type in space_type_by_id.items() if space_type in TOILET_SPACE_TYPES]
+    if not toilet_ids:
+        return
+
+    global_stair = _find_global_stair(spec)
+    floor_stair_id = floor.core.stair.id if floor.core.stair is not None else global_stair.id if global_stair else None
+    has_floor_stair = floor.core.stair is not None or (global_stair is not None and floor_id in global_stair.connects)
+
+    circulation_ids = {
+        space_id for space_id, space_type in space_type_by_id.items() if space_type in CIRCULATION_SPACE_TYPES
+    }
+    if has_floor_stair and floor_stair_id is not None:
+        circulation_ids.add(floor_stair_id)
+
+    if not circulation_ids:
+        report.errors.append(
+            f"preflight: {floor_id} defines toilet/wc but has no hall/entry/stair circulation node"
+        )
+        return
+
+    neighbor_map: dict[str, set[str]] = {toilet_id: set() for toilet_id in toilet_ids}
+    for edge in floor.topology.adjacency:
+        left_id, right_id = _edge_ids(edge)
+        if left_id in neighbor_map:
+            neighbor_map[left_id].add(right_id)
+        if right_id in neighbor_map:
+            neighbor_map[right_id].add(left_id)
+
+    for toilet_id in toilet_ids:
+        if any(neighbor in circulation_ids for neighbor in neighbor_map[toilet_id]):
+            continue
+        report.errors.append(
+            f"preflight: {floor_id}:{toilet_id} has no circulation topology edge to hall/entry/stair"
+        )
+        report.suggestions.append(
+            f"Add topology adjacency like [{toilet_id}, <hall_or_entry_or_stair>, required] on {floor_id}."
+        )
+
+
+def _check_wet_core_circulation_topology(spec: PlanSpec, floor_id: str, report: ValidationReport) -> None:
+    """Validate wet-core topology has at least one circulation connection.
+
+    Args:
+        spec: Parsed plan specification.
+        floor_id: Floor identifier to validate.
+        report: Mutable report receiving errors and suggestions.
+
+    Returns:
+        None.
+    """
+    floor = spec.floors[floor_id]
+    space_type_by_id = {space.id: space.type for space in floor.spaces}
+    wet_core_ids = [
+        space_id
+        for space_id, space_type in space_type_by_id.items()
+        if space_type in WET_CORE_SPACE_TYPES
+    ]
+    if not wet_core_ids:
+        return
+
+    global_stair = _find_global_stair(spec)
+    floor_stair_id = floor.core.stair.id if floor.core.stair is not None else global_stair.id if global_stair else None
+    has_floor_stair = floor.core.stair is not None or (global_stair is not None and floor_id in global_stair.connects)
+
+    circulation_ids = {
+        space_id for space_id, space_type in space_type_by_id.items() if space_type in CIRCULATION_SPACE_TYPES
+    }
+    if has_floor_stair and floor_stair_id is not None:
+        circulation_ids.add(floor_stair_id)
+
+    if not circulation_ids:
+        report.errors.append(
+            f"preflight: {floor_id} defines wet core but has no hall/entry/stair circulation node"
+        )
+        return
+
+    has_wet_core_circulation_edge = False
+    for edge in floor.topology.adjacency:
+        left_id, right_id = _edge_ids(edge)
+        left_is_wet = left_id in wet_core_ids
+        right_is_wet = right_id in wet_core_ids
+        if (left_is_wet and right_id in circulation_ids) or (right_is_wet and left_id in circulation_ids):
+            has_wet_core_circulation_edge = True
+            break
+
+    if has_wet_core_circulation_edge:
+        return
+
+    report.errors.append(
+        f"preflight: {floor_id} wet core has no circulation topology edge to hall/entry/stair"
+    )
+    report.suggestions.append(
+        "Add at least one topology adjacency like "
+        f"[<wash_or_bath>, <hall_or_entry_or_stair>, required] on {floor_id}."
+    )
 
 
 def _can_pack_connected_wet_modules(

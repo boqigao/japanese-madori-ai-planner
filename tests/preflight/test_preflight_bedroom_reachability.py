@@ -46,3 +46,31 @@ def test_preflight_does_not_flag_when_direct_hall_path_exists() -> None:
     assert "preflight: F2:bed2 is only reachable through bedroom transit" not in result.report.errors
     assert "preflight: F2:bed3 is only reachable through bedroom transit" not in result.report.errors
     assert result.bedroom_violations == ()
+
+
+def test_preflight_reports_missing_toilet_circulation_topology() -> None:
+    spec = load_plan_spec(_fixture_path("preflight_toilet_missing_circulation.yaml"))
+
+    result = run_preflight(spec)
+
+    assert any("toilet1 has no circulation topology edge to hall/entry/stair" in err for err in result.report.errors)
+    assert any("topology does not connect entry to 'F1:toilet1'" in err for err in result.report.errors)
+
+
+def test_preflight_accepts_toilet_independent_from_wet_core() -> None:
+    spec = load_plan_spec(_fixture_path("preflight_toilet_independent_valid.yaml"))
+
+    result = run_preflight(spec)
+
+    assert not any("toilet1 has no circulation topology edge to hall/entry/stair" in err for err in result.report.errors)
+    assert not any("washroom+bath wet core cannot form a connected cluster" in err for err in result.report.errors)
+
+
+def test_preflight_reports_missing_wet_core_circulation_topology() -> None:
+    spec = load_plan_spec(_fixture_path("preflight_wet_core_missing_circulation.yaml"))
+
+    result = run_preflight(spec)
+
+    assert any("wet core has no circulation topology edge to hall/entry/stair" in err for err in result.report.errors)
+    assert any("topology does not connect entry to 'F1:wash1'" in err for err in result.report.errors)
+    assert any("topology does not connect entry to 'F1:bath1'" in err for err in result.report.errors)

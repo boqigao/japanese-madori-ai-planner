@@ -124,6 +124,87 @@ def test_validate_connectivity_reports_wc_ldk_direct_connection() -> None:
     assert any("wc1" in item and "ldk" in item for item in report.errors)
 
 
+def test_validate_connectivity_flags_missing_toilet_circulation_topology() -> None:
+    solution = PlanSolution(
+        units="mm",
+        grid=GridSpec(455, 910),
+        envelope=EnvelopeSpec(type="rectangle", width=2730, depth=1820),
+        north="top",
+        floors={
+            "F1": FloorSolution(
+                id="F1",
+                spaces={
+                    "entry": SpaceGeometry("entry", "entry", [Rect(0, 0, 910, 1820)]),
+                    "hall1": SpaceGeometry("hall1", "hall", [Rect(910, 0, 910, 1820)]),
+                    "toilet1": SpaceGeometry("toilet1", "toilet", [Rect(1820, 0, 910, 1820)]),
+                },
+                stair=None,
+                topology=[("entry", "hall1")],
+            )
+        },
+    )
+
+    report = ValidationReport()
+    validate_connectivity(solution, report)
+    assert any("toilet circulation topology is missing" in item for item in report.errors)
+    assert any("entry does not reach primary space 'F1:toilet1'" in item for item in report.errors)
+
+
+def test_validate_connectivity_flags_toilet_bedroom_pass_through() -> None:
+    solution = PlanSolution(
+        units="mm",
+        grid=GridSpec(455, 910),
+        envelope=EnvelopeSpec(type="rectangle", width=3640, depth=910),
+        north="top",
+        floors={
+            "F1": FloorSolution(
+                id="F1",
+                spaces={
+                    "entry": SpaceGeometry("entry", "entry", [Rect(0, 0, 910, 910)]),
+                    "hall1": SpaceGeometry("hall1", "hall", [Rect(910, 0, 910, 910)]),
+                    "bed1": SpaceGeometry("bed1", "bedroom", [Rect(1820, 0, 910, 910)]),
+                    "toilet1": SpaceGeometry("toilet1", "toilet", [Rect(2730, 0, 910, 910)]),
+                },
+                stair=None,
+                topology=[("entry", "hall1"), ("hall1", "bed1"), ("bed1", "toilet1"), ("hall1", "toilet1")],
+            )
+        },
+    )
+
+    report = ValidationReport()
+    validate_connectivity(solution, report)
+    assert any("toilet circulation topology is declared but not physically realized" in item for item in report.errors)
+    assert any("toilet is only reachable through bedroom transit" in item for item in report.errors)
+
+
+def test_validate_connectivity_flags_missing_wet_core_circulation_topology() -> None:
+    solution = PlanSolution(
+        units="mm",
+        grid=GridSpec(455, 910),
+        envelope=EnvelopeSpec(type="rectangle", width=3640, depth=1820),
+        north="top",
+        floors={
+            "F1": FloorSolution(
+                id="F1",
+                spaces={
+                    "entry": SpaceGeometry("entry", "entry", [Rect(0, 0, 910, 1820)]),
+                    "hall1": SpaceGeometry("hall1", "hall", [Rect(910, 0, 910, 1820)]),
+                    "wash1": SpaceGeometry("wash1", "washroom", [Rect(1820, 0, 1820, 910)]),
+                    "bath1": SpaceGeometry("bath1", "bath", [Rect(1820, 910, 1820, 910)]),
+                },
+                stair=None,
+                topology=[("entry", "hall1"), ("wash1", "bath1")],
+            )
+        },
+    )
+
+    report = ValidationReport()
+    validate_connectivity(solution, report)
+    assert any("wet core circulation topology is missing" in item for item in report.errors)
+    assert any("entry does not reach primary space 'F1:wash1'" in item for item in report.errors)
+    assert any("entry does not reach primary space 'F1:bath1'" in item for item in report.errors)
+
+
 def test_validate_stair_detects_portal_mismatch(sample_spec, solved_solution) -> None:
     floor1 = solved_solution.floors["F1"]
     assert floor1.stair is not None

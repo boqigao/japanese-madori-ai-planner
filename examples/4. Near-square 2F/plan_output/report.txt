@@ -1,26 +1,26 @@
 valid=True
 errors=0
-warnings=3
-structural=12
+warnings=2
+structural=13
 
 Warnings:
-- F2:bed2 bedroom area 9.2jo exceeds 1.3x target (7.0jo)
-- F2: secondary bedroom area (9.2jo) exceeds master bedroom (8.2jo)
-- structural: vertical transfer required on 5 upper-floor bearing segments
+- F2: secondary bedroom area (8.9jo) exceeds master bedroom (8.2jo)
+- structural: vertical transfer required on 6 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=69160mm (V/H=36400/32760), balance=0.53
-- F2: bearing=60970mm (V/H=30940/30030), balance=0.81
-- F2->F1 vertical: supported=21840/30940mm, direct_below=0.71
-- F2->F1 horizontal: supported=22750/30030mm, direct_below=0.76
-- vertical_transfer_required=5
-- F2:w_F2_v_3640_0_3640 unsupported=3640mm at vertical@3640
-- F2:w_F2_v_3640_5460_8190 unsupported=2730mm at vertical@3640
-- F2:w_F2_v_5460_0_5460 unsupported=2730mm at vertical@5460
-- F2:w_F2_h_3640_0_3640 unsupported=3640mm at horizontal@3640
-- F2:w_F2_h_5460_0_8190 unsupported=3640mm at horizontal@5460
+- F1: bearing=69160mm (V/H=37310/31850), balance=0.62
+- F2: bearing=59605mm (V/H=32305/27300), balance=0.50
+- F2->F1 vertical: supported=20930/32305mm, direct_below=0.65
+- F2->F1 horizontal: supported=19110/27300mm, direct_below=0.70
+- vertical_transfer_required=6
+- F2:w_F2_v_910_3640_7280 unsupported=910mm at vertical@910
+- F2:w_F2_v_3640_0_7280 unsupported=7280mm at vertical@3640
+- F2:w_F2_v_4550_3185_8190 unsupported=3185mm at vertical@4550
+- F2:w_F2_h_3640_0_3640 unsupported=1820mm at horizontal@3640
+- F2:w_F2_h_4550_4550_8190 unsupported=3640mm at horizontal@4550
+- F2:w_F2_h_7280_910_3640 unsupported=2730mm at horizontal@7280
 
 Diagnostics:
 - F1: envelope=324 cells, min=281, max=495, rooms=9, hall_fanout=5

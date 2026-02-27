@@ -5,7 +5,21 @@ from dataclasses import replace
 import pytest
 from ortools.sat.python import cp_model
 
-from plan_engine.models import AreaConstraint, ShapeSpec, SpaceSpec, StairSpec
+from plan_engine.models import (
+    AdjacencyRule,
+    AreaConstraint,
+    CoreSpec,
+    EnvelopeSpec,
+    FloorSpec,
+    GridSpec,
+    PlanSpec,
+    ShapeSpec,
+    SiteSpec,
+    SpaceSpec,
+    StairSpec,
+    TopologySpec,
+)
+from plan_engine.solver import PlanSolver
 from plan_engine.solver.constraints import (
     edge_touch_constraint,
     enforce_exterior_touch,
@@ -123,3 +137,59 @@ def test_pair_touch_bool_detects_non_touching_rects() -> None:
     status = solver.Solve(model)
     assert status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
     assert solver.Value(touch) == 0
+
+
+def _single_floor_wet_spec(include_toilet_hall_edge: bool, include_wet_hall_edge: bool = True) -> PlanSpec:
+    adjacency = [
+        AdjacencyRule(left_id="wash1", right_id="bath1", strength="required"),
+        AdjacencyRule(left_id="hall1", right_id="storage1", strength="required"),
+    ]
+    if include_wet_hall_edge:
+        adjacency.insert(0, AdjacencyRule(left_id="hall1", right_id="wash1", strength="required"))
+    if include_toilet_hall_edge:
+        adjacency.insert(0, AdjacencyRule(left_id="toilet1", right_id="hall1", strength="required"))
+    return PlanSpec(
+        version="0.2",
+        units="mm",
+        grid=GridSpec(minor=455, major=910),
+        site=SiteSpec(envelope=EnvelopeSpec(type="rectangle", width=5460, depth=4550), north="top"),
+        floors={
+            "F1": FloorSpec(
+                id="F1",
+                core=CoreSpec(stair=None),
+                spaces=[
+                    SpaceSpec(id="hall1", type="hall", shape=ShapeSpec(allow=["L2"], rect_components_max=4)),
+                    SpaceSpec(id="toilet1", type="toilet"),
+                    SpaceSpec(id="wash1", type="washroom"),
+                    SpaceSpec(id="bath1", type="bath"),
+                    SpaceSpec(id="storage1", type="storage"),
+                ],
+                topology=TopologySpec(adjacency=adjacency),
+            )
+        },
+    )
+
+
+def test_solver_realizes_declared_toilet_circulation_edge() -> None:
+    spec = _single_floor_wet_spec(include_toilet_hall_edge=True)
+
+    solution = PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)
+
+    floor = solution.floors["F1"]
+    toilet_rects = floor.spaces["toilet1"].rects
+    hall_rects = floor.spaces["hall1"].rects
+    assert any(toilet.shares_edge_with(hall) for toilet in toilet_rects for hall in hall_rects)
+
+
+def test_solver_rejects_toilet_without_circulation_topology_edge() -> None:
+    spec = _single_floor_wet_spec(include_toilet_hall_edge=False)
+
+    with pytest.raises(ValueError, match="requires topology adjacency to hall/entry/stair"):
+        PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)
+
+
+def test_solver_rejects_wet_core_without_circulation_topology_edge() -> None:
+    spec = _single_floor_wet_spec(include_toilet_hall_edge=True, include_wet_hall_edge=False)
+
+    with pytest.raises(ValueError, match="wet core requires topology adjacency to hall/entry/stair"):
+        PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)

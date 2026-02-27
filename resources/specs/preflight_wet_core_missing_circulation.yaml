@@ -1,0 +1,26 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 5460
+    depth: 4550
+  north: top
+floors:
+  F1:
+    spaces:
+      - id: entry
+        type: entry
+      - id: hall1
+        type: hall
+      - id: wash1
+        type: washroom
+      - id: bath1
+        type: bath
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [wash1, bath1, required]

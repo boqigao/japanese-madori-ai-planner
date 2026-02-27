@@ -36,6 +36,10 @@ from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
 if TYPE_CHECKING:
     from plan_engine.models import PlanSpec, StairSpec
 
+TOILET_SPACE_TYPES = frozenset({"toilet", "wc"})
+WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath"})
+CIRCULATION_SPACE_TYPES = frozenset({"hall", "entry"})
+
 
 @dataclass
 class SolveContext:
@@ -530,15 +534,20 @@ def add_wc_ldk_non_adjacent_constraints(spec: PlanSpec, ctx: SolveContext) -> No
 
 
 def add_wet_cluster_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
-    """Enforce wet module clustering and hall adjacency."""
+    """Enforce wet-core clustering and hall adjacency.
+
+    Wet-core clustering is defined over washroom/bath spaces only. Toilet/WC
+    circulation is handled separately by ``add_toilet_circulation_constraints``.
+    """
     for floor_id, floor in spec.floors.items():
         wet_ids = [s.id for s in floor.spaces if s.type in WET_SPACE_TYPES]
         if not wet_ids:
             continue
 
+        wet_core_ids = [s.id for s in floor.spaces if s.type in WET_CORE_SPACE_TYPES]
         adjacency_edges: dict[tuple[str, str], cp_model.IntVar] = {}
-        for index, left_id in enumerate(wet_ids):
-            for right_id in wet_ids[index + 1 :]:
+        for index, left_id in enumerate(wet_core_ids):
+            for right_id in wet_core_ids[index + 1 :]:
                 edge = touching_constraint(
                     model=ctx.model,
                     rects_a=ctx.placements[floor_id][left_id],
@@ -550,9 +559,9 @@ def add_wet_cluster_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
                 )
                 adjacency_edges[(left_id, right_id)] = edge
 
-        if len(wet_ids) >= 2 and adjacency_edges:
-            ctx.model.Add(sum(adjacency_edges.values()) >= len(wet_ids) - 1)
-            for wet_id in wet_ids:
+        if len(wet_core_ids) >= 2 and adjacency_edges:
+            ctx.model.Add(sum(adjacency_edges.values()) >= len(wet_core_ids) - 1)
+            for wet_id in wet_core_ids:
                 incident = [
                     edge for (left_id, right_id), edge in adjacency_edges.items() if wet_id in (left_id, right_id)
                 ]
@@ -577,6 +586,143 @@ def add_wet_cluster_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
                     )
                 )
         ctx.model.AddBoolOr(hall_touch_vars)
+
+
+def add_toilet_circulation_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Require each toilet/WC to realize circulation topology adjacency.
+
+    Each floor toilet must declare at least one topology edge to a circulation
+    entity (hall/entry/stair). At solve time, at least one declared toilet
+    circulation edge is enforced as physically realized touching.
+
+    Args:
+        spec: Parsed plan specification containing floor topology and spaces.
+        ctx: Mutable solve context carrying CP-SAT variables and placements.
+
+    Returns:
+        None. Constraints are added to ``ctx.model``.
+
+    Raises:
+        ValueError: If a toilet has no declared circulation topology edge.
+    """
+    for floor_id, floor in spec.floors.items():
+        space_type_by_id = {space.id: space.type for space in floor.spaces}
+        toilet_ids = [space_id for space_id, space_type in space_type_by_id.items() if space_type in TOILET_SPACE_TYPES]
+        if not toilet_ids:
+            continue
+
+        circulation_ids = {
+            space_id for space_id, space_type in space_type_by_id.items() if space_type in CIRCULATION_SPACE_TYPES
+        }
+        if (
+            ctx.stair_spec is not None
+            and floor_id in ctx.floors_with_stair
+            and ctx.stair_spec.id in ctx.placements[floor_id]
+        ):
+            circulation_ids.add(ctx.stair_spec.id)
+        if not circulation_ids:
+            raise ValueError(f"floor {floor_id} has toilet/wc but no hall/entry/stair circulation entity")
+
+        topology_neighbors: dict[str, set[str]] = {toilet_id: set() for toilet_id in toilet_ids}
+        for edge in floor.topology.adjacency:
+            left_id = edge.left_id
+            right_id = edge.right_id
+            if left_id in topology_neighbors and right_id in circulation_ids:
+                topology_neighbors[left_id].add(right_id)
+            if right_id in topology_neighbors and left_id in circulation_ids:
+                topology_neighbors[right_id].add(left_id)
+
+        for toilet_id in toilet_ids:
+            circulation_neighbors = sorted(topology_neighbors[toilet_id])
+            if not circulation_neighbors:
+                raise ValueError(
+                    f"floor {floor_id} toilet '{toilet_id}' requires topology adjacency to hall/entry/stair"
+                )
+
+            touch_vars: list[cp_model.IntVar] = []
+            for neighbor_id in circulation_neighbors:
+                touch_vars.append(
+                    touching_constraint(
+                        model=ctx.model,
+                        rects_a=ctx.placements[floor_id][toilet_id],
+                        rects_b=ctx.placements[floor_id][neighbor_id],
+                        max_w=ctx.envelope_w_cells,
+                        max_h=ctx.envelope_h_cells,
+                        prefix=f"{_slug(floor_id)}_toilet_circ_{_slug(toilet_id)}_{_slug(neighbor_id)}",
+                        required=False,
+                    )
+                )
+            ctx.model.AddBoolOr(touch_vars)
+
+
+def add_wet_core_circulation_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Require wet core to realize at least one circulation topology adjacency.
+
+    Wet core means washroom+bath spaces. This function ensures there is at
+    least one declared topology edge from wet core to hall/entry/stair and
+    that at least one such edge is physically realized.
+
+    Args:
+        spec: Parsed plan specification containing floor topology and spaces.
+        ctx: Mutable solve context carrying CP-SAT variables and placements.
+
+    Returns:
+        None. Constraints are added to ``ctx.model``.
+
+    Raises:
+        ValueError: If wet core exists but no circulation topology edge is
+            declared on a floor.
+    """
+    for floor_id, floor in spec.floors.items():
+        space_type_by_id = {space.id: space.type for space in floor.spaces}
+        wet_core_ids = [
+            space_id
+            for space_id, space_type in space_type_by_id.items()
+            if space_type in WET_CORE_SPACE_TYPES
+        ]
+        if not wet_core_ids:
+            continue
+
+        circulation_ids = {
+            space_id for space_id, space_type in space_type_by_id.items() if space_type in CIRCULATION_SPACE_TYPES
+        }
+        if (
+            ctx.stair_spec is not None
+            and floor_id in ctx.floors_with_stair
+            and ctx.stair_spec.id in ctx.placements[floor_id]
+        ):
+            circulation_ids.add(ctx.stair_spec.id)
+        if not circulation_ids:
+            raise ValueError(f"floor {floor_id} has wet core but no hall/entry/stair circulation entity")
+
+        declared_pairs: list[tuple[str, str]] = []
+        for edge in floor.topology.adjacency:
+            left_id = edge.left_id
+            right_id = edge.right_id
+            if left_id in wet_core_ids and right_id in circulation_ids:
+                declared_pairs.append((left_id, right_id))
+            if right_id in wet_core_ids and left_id in circulation_ids:
+                declared_pairs.append((right_id, left_id))
+
+        if not declared_pairs:
+            raise ValueError(
+                f"floor {floor_id} wet core requires topology adjacency to hall/entry/stair"
+            )
+
+        touch_vars: list[cp_model.IntVar] = []
+        for wet_id, circulation_id in sorted(set(declared_pairs)):
+            touch_vars.append(
+                touching_constraint(
+                    model=ctx.model,
+                    rects_a=ctx.placements[floor_id][wet_id],
+                    rects_b=ctx.placements[floor_id][circulation_id],
+                    max_w=ctx.envelope_w_cells,
+                    max_h=ctx.envelope_h_cells,
+                    prefix=f"{_slug(floor_id)}_wet_core_circ_{_slug(wet_id)}_{_slug(circulation_id)}",
+                    required=False,
+                )
+            )
+        ctx.model.AddBoolOr(touch_vars)
 
 
 def build_objective(ctx: SolveContext) -> None:

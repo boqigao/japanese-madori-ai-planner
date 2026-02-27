@@ -1,0 +1,23 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 5460
+    depth: 4550
+  north: top
+floors:
+  F1:
+    spaces:
+      - id: entry
+        type: entry
+      - id: hall1
+        type: hall
+      - id: toilet1
+        type: toilet
+    topology:
+      adjacency:
+        - [entry, hall1, required]

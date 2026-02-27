@@ -59,6 +59,8 @@ floors:
         - [entry, hall1, required]
         - [hall1, ldk, required]
         - [hall1, stair, required]
+        - [hall1, toilet1, required]
+        - [hall1, wash1, required]
         - [wash1, bath1, required]
   F2:
     spaces:
