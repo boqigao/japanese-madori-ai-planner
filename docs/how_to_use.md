@@ -196,6 +196,9 @@ Guidelines:
 - Add only truly necessary edges.
 - Over-constraining adjacency is a common cause of `solve_failed`.
 - Always include stair-hall adjacency in topology (`[hallX, stair]`).
+- Every bedroom must have a path from `entry` that does not pass through another bedroom.
+  - Good: `entry -> hall -> bedroom`
+  - Bad: `entry -> hall -> bedroom A -> bedroom B`
 
 ## 10. Hard Constraints Enforced by Solver/Validator
 
@@ -216,6 +219,8 @@ These are non-negotiable:
 - Hall short side must be <= `1820 mm`.
 - Stair portal edge must connect to configured hall on each connected floor.
 - Stair portal edge cannot sit on exterior boundary.
+- Bedroom pass-through is forbidden in preflight:
+  - `bedroom` / `master_bedroom` may be destination rooms, but must not be required as transit to reach another bedroom.
 
 ## 11. Recommended Area/Width Ranges (Practical Defaults)
 

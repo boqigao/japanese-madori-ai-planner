@@ -1,0 +1,125 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 9100
+    depth: 6370
+  north: top
+floors:
+  F1:
+    core:
+      stair:
+        id: stair
+        type: straight
+        width: 910
+        floor_height: 2730
+        riser_pref: 230
+        tread_pref: 210
+        connects:
+          F1: hall1
+          F2: hall2
+    spaces:
+      - id: entry
+        type: entry
+        size_constraints:
+          min_width: 1365
+        area:
+          min_tatami: 1.8
+          target_tatami: 2.0
+      - id: hall1
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 2.5
+          target_tatami: 4.0
+        shape:
+          allow: [L2]
+          rect_components_max: 3
+      - id: ldk
+        type: ldk
+        area:
+          min_tatami: 12.0
+          target_tatami: 16.0
+      - id: bed1
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 4.5
+          target_tatami: 5.5
+      - id: pantry1
+        type: storage
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 1.5
+          target_tatami: 2.5
+      - id: toilet1
+        type: toilet
+      - id: wash1
+        type: washroom
+      - id: bath1
+        type: bath
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [hall1, ldk, required]
+        - [hall1, toilet1, required]
+        - [hall1, wash1, required]
+        - [hall1, stair, required]
+        - [wash1, bath1, required]
+        - [bed1, ldk, required]
+        - [pantry1, ldk, preferred]
+  F2:
+    spaces:
+      - id: hall2
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 2.5
+          target_tatami: 4.0
+        shape:
+          allow: [L2]
+          rect_components_max: 3
+      - id: master
+        type: master_bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 6.5
+          target_tatami: 8.0
+      - id: bed2
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 5.0
+          target_tatami: 6.0
+      - id: bed3
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 5.0
+          target_tatami: 6.0
+      - id: roof_buffer
+        type: storage
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 1.5
+          target_tatami: 2.5
+    topology:
+      adjacency:
+        - [hall2, stair, required]
+        - [hall2, master, required]
+        - [hall2, bed2, required]
+        - [hall2, bed3, required]
+        - [bed3, bed2, required]
+        - [roof_buffer, master, preferred]

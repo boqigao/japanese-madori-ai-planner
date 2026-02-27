@@ -1,7 +1,7 @@
 # Solver Specification
 
 ## Purpose
-Defines the constraint-based layout solver that uses Google OR-Tools CP-SAT to generate structurally valid floor plans. The solver creates decision variables for each space, enforces hard constraints, and minimizes a soft objective function.
+Defines the constraint-based layout solver that uses Google OR-Tools CP-SAT to generate structurally valid floor plans. The solver creates decision variables for each space, enforces hard constraints, and minimizes a soft objective function. Implementation is split across `core.py` (orchestration), `workflow.py` (constraint pipeline), `rect_var.py` (variable factory), `constraints.py` (low-level constraint builders), `space_specs.py` (space-type lookup tables), and `solution_builder.py` (result conversion).
 
 ## Requirements
 
@@ -30,9 +30,9 @@ The system MUST enforce that no two spaces on the same floor overlap.
 The system MUST enforce that the total area of all spaces on a floor equals the envelope area.
 
 #### Scenario: Full coverage
-- GIVEN a floor with envelope area of 66,430,000 mm²
+- GIVEN a floor with envelope area of 66,430,000 mm2
 - WHEN the solver completes
-- THEN the sum of all space areas on that floor equals 66,430,000 mm²
+- THEN the sum of all space areas on that floor equals 66,430,000 mm2
 
 ### Requirement: Adjacency Constraints
 The system MUST enforce adjacency between spaces that are specified as adjacent in the DSL.
@@ -63,11 +63,11 @@ The system MUST ensure all solver output coordinates and dimensions align to the
 
 #### Scenario: Cell-to-mm conversion
 - GIVEN the solver works in cell units (1 cell = 455mm)
-- WHEN building the `PlanSolution`
+- WHEN building the `PlanSolution` via `solution_builder.py`
 - THEN all mm values satisfy value % 455 == 0
 
 ### Requirement: Major Grid Preference
-The system SHOULD prefer 910mm major grid alignment for major room types (LDK, bedroom, master_bedroom).
+The system MUST prefer 910mm major grid alignment for major room types (LDK, bedroom, master_bedroom).
 
 #### Scenario: Major room alignment
 - GIVEN a bedroom space
@@ -75,7 +75,7 @@ The system SHOULD prefer 910mm major grid alignment for major room types (LDK, b
 - THEN the solver's soft objective penalizes positions not aligned to the 910mm grid
 
 ### Requirement: Soft Objective Minimization
-The system SHOULD minimize a combined objective covering area targets, alignment, and compactness.
+The system MUST minimize a combined objective covering area targets, alignment, and compactness.
 
 #### Scenario: Area target optimization
 - GIVEN a space with target_tatami=6.0
@@ -89,3 +89,24 @@ The system MUST respect the configured solver timeout and return the best soluti
 - GIVEN a solver timeout of 10 seconds
 - WHEN the solver cannot find an optimal solution within 10 seconds
 - THEN the best feasible solution found so far is returned
+
+### Requirement: L-Shaped Room Support
+The system MUST support L-shaped rooms (L2 shape) for LDK and hall spaces when permitted by the spec.
+
+#### Scenario: L-shaped LDK
+- GIVEN an LDK space with shape allow=["rect", "L2"]
+- WHEN the solver runs
+- THEN the solver may place the LDK as 2 non-overlapping rectangles forming an L-shape
+
+#### Scenario: L-shaped hall
+- GIVEN a hall space with shape allow=["rect", "L2"] and max_components=4
+- WHEN the solver runs
+- THEN the solver may place the hall using up to 4 rectangular components
+
+### Requirement: Stair Connection Constraints
+The system MUST enforce that stair portal edges connect to the configured hall on each floor.
+
+#### Scenario: Stair-hall connection
+- GIVEN a stair with connects map {F1: hall_1f, F2: hall_2f}
+- WHEN the solver completes
+- THEN the stair portal edge is adjacent to the specified hall on each floor

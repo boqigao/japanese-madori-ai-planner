@@ -1,0 +1,48 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 9100
+    depth: 5460
+  north: top
+floors:
+  F1:
+    spaces:
+      - id: entry
+        type: entry
+        size_constraints:
+          min_width: 1365
+        area:
+          target_tatami: 2.0
+      - id: hall1
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 3.0
+      - id: bed1
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          target_tatami: 6.0
+      - id: bed2
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          target_tatami: 6.0
+      - id: ldk
+        type: ldk
+        area:
+          target_tatami: 12.0
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [hall1, ldk, required]
+        - [hall1, bed1, required]
+        - [bed1, bed2, required]

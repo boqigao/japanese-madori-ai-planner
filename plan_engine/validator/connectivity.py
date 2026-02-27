@@ -10,7 +10,13 @@ if TYPE_CHECKING:
 
 
 def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> None:
-    """Validate entry-reachability via BFS and WC-LDK non-adjacency across all floors."""
+    """Validate passable connectivity and WC-LDK separation.
+
+    Connectivity is evaluated over *realized topology edges* only: a topology
+    edge is passable when the two entities physically touch on the solved plan.
+    This prevents false positives where rooms touch by geometry but no door/topology
+    relation exists.
+    """
     global_graph: dict[str, set[str]] = {}
     entry_nodes: list[str] = []
     primary_nodes: list[str] = []
@@ -19,7 +25,7 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
     floor_graphs: dict[str, dict[str, set[str]]] = {}
 
     for floor_id, floor in solution.floors.items():
-        graph = _floor_graph(floor)
+        graph = _floor_graph_from_realized_topology(floor=floor, floor_id=floor_id, report=report)
         floor_graphs[floor_id] = graph
         for local_node, neighbors in graph.items():
             global_node = f"{floor_id}:{local_node}"
@@ -55,30 +61,52 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
             report.errors.append(f"entry does not reach primary space '{node}'")
 
     for floor_id, floor in solution.floors.items():
-        graph = floor_graphs[floor_id]
         toilets = [sid for sid, s in floor.spaces.items() if s.type in {"toilet", "wc"}]
         ldks = [sid for sid, s in floor.spaces.items() if s.type == "ldk"]
         for wc_id in toilets:
             for ldk_id in ldks:
-                if ldk_id in graph.get(wc_id, set()):
+                wc_rects = floor.spaces[wc_id].rects
+                ldk_rects = floor.spaces[ldk_id].rects
+                if _entities_touch(wc_rects, ldk_rects):
                     report.errors.append(f"{floor_id}:{wc_id} is directly connected to {ldk_id}")
 
 
-def _floor_graph(floor: FloorSolution) -> dict[str, set[str]]:
-    """Build an adjacency graph for entities (spaces + stair) on a single floor."""
+def _floor_graph_from_realized_topology(
+    floor: FloorSolution,
+    floor_id: str,
+    report: ValidationReport,
+) -> dict[str, set[str]]:
+    """Build passable graph from topology edges that are physically realized.
+
+    Args:
+        floor: Solved floor containing geometry and declared topology.
+        floor_id: Current floor ID used in warning messages.
+        report: Validation report updated with topology realization warnings.
+
+    Returns:
+        Undirected graph keyed by entity ID (spaces + stair when present).
+    """
     graph: dict[str, set[str]] = {space_id: set() for space_id in floor.spaces}
     if floor.stair is not None:
         graph[floor.stair.id] = set()
 
-    nodes: list[tuple[str, list[Rect]]] = [(space.id, space.rects) for space in floor.spaces.values()]
+    geometry_by_id: dict[str, list[Rect]] = {space.id: space.rects for space in floor.spaces.values()}
     if floor.stair is not None:
-        nodes.append((floor.stair.id, floor.stair.components))
+        geometry_by_id[floor.stair.id] = floor.stair.components
 
-    for i, (left_id, left_rects) in enumerate(nodes):
-        for right_id, right_rects in nodes[i + 1 :]:
-            if _entities_touch(left_rects, right_rects):
-                graph[left_id].add(right_id)
-                graph[right_id].add(left_id)
+    for left_id, right_id in floor.topology:
+        if left_id not in geometry_by_id or right_id not in geometry_by_id:
+            report.warnings.append(
+                f"{floor_id}: topology edge {left_id}<->{right_id} references missing solved entity"
+            )
+            continue
+        if _entities_touch(geometry_by_id[left_id], geometry_by_id[right_id]):
+            graph[left_id].add(right_id)
+            graph[right_id].add(left_id)
+        else:
+            report.warnings.append(
+                f"{floor_id}: topology edge {left_id}<->{right_id} is not physically realized"
+            )
 
     return graph
 

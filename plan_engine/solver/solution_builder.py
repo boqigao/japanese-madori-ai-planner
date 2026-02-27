@@ -98,7 +98,7 @@ def build_solution(
             id=floor_id,
             spaces=solved_spaces,
             stair=stair_geometry,
-            topology=list(floor.topology.adjacency),
+            topology=[edge.to_tuple() for edge in floor.topology.adjacency],
         )
 
     base_solution = PlanSolution(

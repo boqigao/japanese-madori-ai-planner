@@ -12,6 +12,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
     "ruff>=0.3.4",
 ]
 
@@ -69,3 +71,13 @@ known-first-party = ["plan_engine"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 30
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["plan_engine"]
+
+[tool.coverage.report]
+fail_under = 80

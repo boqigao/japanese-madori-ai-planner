@@ -1,0 +1,16 @@
+valid=True
+errors=0
+warnings=2
+structural=3
+
+Warnings:
+- no stair declared
+- structural: F1: wall-balance ratio 0.42 below target 0.50
+
+Structural:
+- bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
+- threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
+- F1: bearing=53235mm (V/H=25935/27300), balance=0.42
+
+Diagnostics:
+- F1: envelope=280 cells, min=261, max=472, rooms=9, hall_fanout=7

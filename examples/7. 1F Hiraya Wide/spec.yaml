@@ -1,0 +1,91 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 10920
+    depth: 6370
+  north: top
+floors:
+  F1:
+    spaces:
+      - id: entry
+        type: entry
+        size_constraints:
+          min_width: 1365
+        area:
+          min_tatami: 1.8
+          target_tatami: 2.0
+      - id: hall1
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 2.5
+          target_tatami: 4.5
+        shape:
+          allow: [L2]
+          rect_components_max: 3
+      - id: ldk
+        type: ldk
+        area:
+          min_tatami: 14.0
+          target_tatami: 18.0
+      - id: master
+        type: master_bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 6.0
+          target_tatami: 8.0
+      - id: bed2
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 4.5
+          target_tatami: 6.0
+      - id: bed3
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 4.5
+          target_tatami: 6.0
+      - id: toilet1
+        type: toilet
+      - id: wash1
+        type: washroom
+      - id: bath1
+        type: bath
+      - id: pantry1
+        type: storage
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 1.5
+          target_tatami: 2.5
+      - id: wic1
+        type: storage
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 1.5
+          target_tatami: 2.5
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [hall1, ldk, required]
+        - [hall1, toilet1, required]
+        - [hall1, wash1, required]
+        - [wash1, bath1, required]
+        - [master, ldk, required]
+        - [hall1, bed2, required]
+        - [hall1, bed3, required]
+        - [bed2, master, required]
+        - [bed3, bed2, required]
+        - [pantry1, ldk, preferred]
+        - [wic1, master, preferred]

@@ -6,6 +6,7 @@ import yaml
 
 from plan_engine.constants import MAJOR_GRID_MM, MINOR_GRID_MM, STAIR_TYPES
 from plan_engine.models import (
+    AdjacencyRule,
     AreaConstraint,
     CoreSpec,
     EnvelopeSpec,
@@ -119,12 +120,28 @@ def _parse_floor(floor_id: str, payload: dict[str, object], minor: int) -> Floor
         spaces.append(_parse_space(raw_space, minor))
 
     topology_raw = payload.get("topology") or {}
-    adjacency_pairs: list[tuple[str, str]] = []
+    adjacency_pairs: list[AdjacencyRule] = []
     if isinstance(topology_raw, dict):
         for pair in topology_raw.get("adjacency", []):
-            if not isinstance(pair, list) or len(pair) != 2:
-                raise ValueError(f"topology adjacency entries must be 2-item lists in floor {floor_id}")
-            adjacency_pairs.append((str(pair[0]), str(pair[1])))
+            if not isinstance(pair, list) or len(pair) not in {2, 3}:
+                raise ValueError(
+                    f"topology adjacency entries must be 2-item or 3-item lists in floor {floor_id}"
+                )
+            strength = "auto"
+            if len(pair) == 3:
+                strength = str(pair[2]).strip().lower()
+                if strength not in {"required", "preferred", "optional"}:
+                    raise ValueError(
+                        f"unsupported adjacency strength '{pair[2]}' in floor {floor_id}; "
+                        "use required/preferred/optional"
+                    )
+            adjacency_pairs.append(
+                AdjacencyRule(
+                    left_id=str(pair[0]),
+                    right_id=str(pair[1]),
+                    strength=strength,
+                )
+            )
 
     return FloorSpec(id=floor_id, core=core, spaces=spaces, topology=TopologySpec(adjacency=adjacency_pairs))
 

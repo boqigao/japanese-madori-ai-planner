@@ -85,6 +85,18 @@ make clean-tmp
 uv run python main.py --spec tmp/spec.yaml --outdir tmp/plan_output --solver-timeout 90
 ```
 
+## Topology Rule: Bedroom Reachability
+
+Preflight enforces a residential circulation rule:
+
+- Every `bedroom` / `master_bedroom` must be reachable from `entry`
+  without using another bedroom as a transit room.
+- If violated, generation stops before solve with an error like:
+  `preflight: F2:bed3 is only reachable through bedroom transit (...)`
+
+Typical fix: connect blocked bedrooms to `hall` (or stair-linked hall) in
+`topology.adjacency`.
+
 ## Project Structure
 
 ```
@@ -126,4 +138,5 @@ local-dev/                      Requirements docs, feedback, and refactor plans
 
 - **`dsl_parse_failed`**: Check `spec.yaml` field names, indentation, and grid alignment (455mm).
 - **`solve_failed`**: Constraints are too tight or conflicting. Try reducing room count or adjacency relationships, then add back incrementally.
+- **`preflight: ... only reachable through bedroom transit`**: update `topology.adjacency` so each bedroom has a non-bedroom access route (usually hall).
 - **`Plan rejected by validation`**: Review `report.txt` for `Errors` and `Warnings`.

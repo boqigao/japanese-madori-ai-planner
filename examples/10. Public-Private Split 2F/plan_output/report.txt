@@ -1,0 +1,26 @@
+valid=True
+errors=0
+warnings=2
+structural=12
+
+Warnings:
+- structural: F1: wall-balance ratio 0.42 below target 0.50
+- structural: vertical transfer required on 5 upper-floor bearing segments
+
+Structural:
+- bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
+- threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
+- F1: bearing=62790mm (V/H=24570/38220), balance=0.42
+- F2: bearing=60060mm (V/H=26390/33670), balance=0.79
+- F2->F1 vertical: supported=18200/26390mm, direct_below=0.69
+- F2->F1 horizontal: supported=27300/33670mm, direct_below=0.81
+- vertical_transfer_required=5
+- F2:w_F2_v_2730_1820_5460 unsupported=910mm at vertical@2730
+- F2:w_F2_v_4550_0_3640 unsupported=1820mm at vertical@4550
+- F2:w_F2_v_8190_0_5460 unsupported=5460mm at vertical@8190
+- F2:w_F2_h_1820_0_4550 unsupported=2730mm at horizontal@1820
+- F2:w_F2_h_3640_4550_8190 unsupported=3640mm at horizontal@3640
+
+Diagnostics:
+- F1: envelope=288 cells, min=245, max=424, rooms=8, hall_fanout=5
+- F2: envelope=288 cells, min=211, max=389, rooms=6, hall_fanout=5

@@ -7,6 +7,7 @@ from pathlib import Path
 from plan_engine.dsl import load_plan_spec
 from plan_engine.io import write_report, write_solution_json
 from plan_engine.models import ValidationReport
+from plan_engine.preflight import build_solver_failure_report, run_preflight
 from plan_engine.renderer import SvgRenderer
 from plan_engine.solver import PlanSolver
 from plan_engine.validator import validate_solution
@@ -65,16 +66,39 @@ def main() -> int:
         LOGGER.error("Failed to parse plan spec. See %s", outdir / "report.txt")
         return EXIT_PARSE_FAILED
 
+    preflight_result = run_preflight(spec)
+    if preflight_result.report.errors:
+        if preflight_result.bedroom_violations:
+            preflight_result.report.diagnostics.append(
+                f"bedroom_pass_through_violations={len(preflight_result.bedroom_violations)}"
+            )
+            for violation in preflight_result.bedroom_violations:
+                preflight_result.report.diagnostics.append(
+                    f"{violation.floor_id}:{violation.bedroom_id} path={' -> '.join(violation.path)}"
+                )
+        write_report(preflight_result.report, outdir / "report.txt")
+        LOGGER.error("Preflight feasibility checks failed. See %s", outdir / "report.txt")
+        return EXIT_SOLVE_FAILED
+
     solver = PlanSolver(max_time_seconds=args.solver_timeout)
     try:
         solution = solver.solve(spec)
     except Exception as exc:
-        report = ValidationReport(errors=[f"solve_failed: {exc}"])
+        report = build_solver_failure_report(
+            base_warnings=preflight_result.report.warnings,
+            error_message=str(exc),
+            floor_stats=preflight_result.floor_stats,
+            timeout_seconds=solver.last_timeout_seconds or args.solver_timeout,
+        )
+        report.diagnostics = preflight_result.report.diagnostics + report.diagnostics
         write_report(report, outdir / "report.txt")
         LOGGER.error("No feasible plan could be solved. See %s", outdir / "report.txt")
         return EXIT_SOLVE_FAILED
 
     report = validate_solution(spec, solution)
+    report.warnings = preflight_result.report.warnings + report.warnings
+    report.diagnostics = preflight_result.report.diagnostics + report.diagnostics
+    report.suggestions = preflight_result.report.suggestions + report.suggestions
     write_solution_json(solution, outdir / "solution.json")
     write_report(report, outdir / "report.txt")
 

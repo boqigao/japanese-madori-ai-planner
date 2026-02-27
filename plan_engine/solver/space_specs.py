@@ -64,6 +64,7 @@ MAX_AREA_DEFAULT_TATAMI_BY_TYPE: dict[str, float] = {
 
 ENTRY_MIN_AREA_DEFAULT_TATAMI = 3.0
 ENTRY_HARD_MAX_TATAMI = 2.5
+TARGET_TO_MIN_RATIO = 0.70
 
 
 def _component_count(space: SpaceSpec) -> int:
@@ -79,11 +80,18 @@ def _component_count(space: SpaceSpec) -> int:
 
 
 def _min_area_cells(space: SpaceSpec, minor_grid: int) -> int:
-    """Calculate the minimum area in cells for a space, using spec or defaults."""
+    """Calculate the minimum area in cells for a space.
+
+    Priority order:
+    1) Explicit ``min_tatami`` from spec (hard requirement).
+    2) ``target_tatami`` scaled by ``TARGET_TO_MIN_RATIO`` to keep target as a
+       soft goal while preserving area shrink flexibility.
+    3) Type default minimum.
+    """
     if space.area.min_tatami is not None:
         return tatami_to_cells(space.area.min_tatami, minor_grid)
     if space.area.target_tatami is not None:
-        return tatami_to_cells(space.area.target_tatami, minor_grid)
+        return tatami_to_cells(space.area.target_tatami * TARGET_TO_MIN_RATIO, minor_grid)
     default_tatami = DEFAULT_MIN_TATAMI_BY_TYPE.get(space.type)
     if default_tatami is not None:
         return tatami_to_cells(default_tatami, minor_grid)

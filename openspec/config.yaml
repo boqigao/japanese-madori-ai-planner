@@ -3,40 +3,58 @@ schema: spec-driven
 context: |
   Project: AI-Driven Madori Plan Engine
   Domain: Generates structurally valid Japanese detached house floor plans from YAML DSL specifications.
-  Tech stack: Python 3.13+, Google OR-Tools CP-SAT solver, CairoSVG
-  Pipeline: DSL (YAML) → Solver (CP-SAT) → Validator → Renderer (SVG/PNG)
+  Tech stack: Python 3.13+, Google OR-Tools CP-SAT solver, svgwrite, CairoSVG
+  Pipeline: DSL (YAML) → Preflight → Solver (CP-SAT) → Validator → Renderer (SVG/PNG)
   Build tool: uv (package manager)
+  Test framework: pytest + pytest-cov (80% coverage threshold)
+  Linter/Formatter: ruff
   Coding style: PEP 8, 4-space indent, explicit type hints on public APIs
   Naming: snake_case for functions/variables, PascalCase for classes, UPPER_SNAKE_CASE for constants
   Model dataclasses are frozen=True (immutable) except ValidationReport
+  All functions and public methods must have English docstrings
   Commit style: Conventional Commits (feat:, fix:, refactor:)
   Key domain concepts:
     - Grid system: 455mm minor grid (hard), 910mm major grid (soft preference). All coordinates must satisfy value % 455 == 0.
     - Solver works in cell units (1 cell = 455mm), converts back to mm for output.
-    - Wet modules (toilet, washroom, bath) have fixed sizes and must form a connected cluster adjacent to a hall.
-    - Stair is a shared structural element across floors.
-    - L-shaped rooms: LDK can use 2 rectangles (L2 shape) when spec allows.
+    - Wet modules (toilet, washroom, bath) have fixed sizes from WET_MODULE_SIZES_MM and must form a connected cluster adjacent to a hall.
+    - Stair is a shared structural element across floors. Supports straight and L_landing types.
+    - L-shaped rooms: LDK and hall can use multiple rectangles (L2 shape) when spec allows.
     - 100% coverage: total space area must equal envelope area per floor.
     - Adjacency modeled via touching constraints (shared edge with positive overlap length).
+    - Non-adjacency (WC away from LDK) enforced by requiring a 1-cell gap.
   Architecture boundaries (never cross):
+    - Preflight must not solve or render
     - Solver must not render
     - Renderer must not alter geometry
     - Validator runs only on solved output
+  Module layout:
+    - main.py: CLI entrypoint
+    - plan_engine/models.py: Frozen dataclasses (PlanSpec, PlanSolution, Rect, etc.)
+    - plan_engine/constants.py: Grid constants, room types, unit conversions
+    - plan_engine/dsl.py: YAML spec parser
+    - plan_engine/preflight.py: Pre-solve feasibility checks
+    - plan_engine/stair_logic.py: Stair portal mapping
+    - plan_engine/io.py: JSON/text file output
+    - plan_engine/solver/: Constraint-based layout solver (core, workflow, rect_var, constraints, space_specs, solution_builder)
+    - plan_engine/validator/: Post-solve validation (core, geometry, connectivity, stair, livability, structural)
+    - plan_engine/renderer/: SVG/PNG rendering (core, annotations, dimensions, stair, symbols, helpers)
+    - plan_engine/structural/: Wall extraction and structural report (walls)
+    - tests/: pytest test suite
 
 rules:
   proposal:
     - Always include a "Non-goals" section
     - Reference which module(s) in plan_engine/ are affected
-    - State whether the change affects the solver, renderer, or validator (or multiple)
+    - State whether the change affects the preflight, solver, renderer, validator, or structural module (or multiple)
   specs:
     - Use Given/When/Then format for scenarios
     - Reference grid alignment constraints (455mm) when applicable
     - Specify units (mm, cells, tatami) explicitly
   design:
-    - Respect the strict module separation (solver/renderer/validator)
+    - Respect the strict module separation (preflight/solver/renderer/validator/structural)
     - Document any new constraints added to the CP-SAT model
     - Note performance implications for solver timeout
   tasks:
     - Break tasks into chunks of max 2 hours
-    - Include a verification step (run main.py with a sample spec) in the final task
+    - Include a verification step (make verify or make test) in the final task
     - Reference specific files in plan_engine/ that need modification

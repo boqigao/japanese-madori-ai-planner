@@ -1,0 +1,102 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 7280
+    depth: 5460
+  north: top
+floors:
+  F1:
+    core:
+      stair:
+        id: stair
+        type: L_landing
+        width: 910
+        floor_height: 2730
+        riser_pref: 230
+        tread_pref: 210
+        connects:
+          F1: hall1
+          F2: hall2
+    spaces:
+      - id: entry
+        type: entry
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 1.5
+          target_tatami: 1.8
+      - id: hall1
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 2.0
+          target_tatami: 3.0
+        shape:
+          allow: [L2]
+          rect_components_max: 2
+      - id: ldk
+        type: ldk
+        area:
+          min_tatami: 8.0
+          target_tatami: 11.0
+        shape:
+          allow: [L2]
+          rect_components_max: 2
+      - id: toilet1
+        type: toilet
+      - id: wash1
+        type: washroom
+      - id: bath1
+        type: bath
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [hall1, ldk, required]
+        - [hall1, stair, required]
+        - [wash1, bath1, required]
+  F2:
+    spaces:
+      - id: hall2
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 2.0
+          target_tatami: 3.0
+        shape:
+          allow: [L2]
+          rect_components_max: 2
+      - id: master
+        type: master_bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 5.5
+          target_tatami: 7.0
+      - id: bed2
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 4.5
+          target_tatami: 5.5
+      - id: storage2
+        type: storage
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 1.0
+          target_tatami: 3.0
+    topology:
+      adjacency:
+        - [hall2, stair, required]
+        - [hall2, master, required]
+        - [hall2, bed2, required]
+        - [bed2, master, required]
+        - [storage2, master, preferred]

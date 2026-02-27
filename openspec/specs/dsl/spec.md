@@ -48,6 +48,22 @@ The system MUST parse per-floor space definitions including area constraints, sh
 - THEN `AreaConstraint` is created with the specified tatami values
 
 #### Scenario: L-shaped room allowance
-- GIVEN a space (e.g., LDK) with shape allow=["rect", "L2"]
+- GIVEN a space (e.g., LDK or hall) with shape allow=["rect", "L2"]
 - WHEN the DSL parser processes the space
 - THEN `ShapeSpec` permits both rectangular and L-shaped layouts
+
+### Requirement: Stair Specification
+The system MUST parse stair definitions including type, dimensions, connects map, and placement constraints.
+
+#### Scenario: Stair with connects map
+- GIVEN a stair with type "straight", connects mapping floor_id to hall_id
+- WHEN the DSL parser processes the stair
+- THEN a `StairSpec` is created with width, floor_height, riser_pref, tread_pref, connects, and placement fields
+
+### Requirement: Topology Definition
+The system MUST parse adjacency relationships between spaces on each floor.
+
+#### Scenario: Adjacency edges
+- GIVEN a topology section with edges [["hall_1f", "ldk"], ["hall_1f", "entry"]]
+- WHEN the DSL parser processes the topology
+- THEN adjacency constraints are created for the specified space pairs

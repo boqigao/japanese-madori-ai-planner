@@ -1,0 +1,26 @@
+valid=True
+errors=0
+warnings=4
+structural=10
+
+Warnings:
+- F2:bed2 bedroom area 8.2jo exceeds 1.3x target (6.0jo)
+- F2:bed3 bedroom area 8.4jo exceeds 1.3x target (6.0jo)
+- structural: F1: wall-balance ratio 0.44 below target 0.50
+- structural: vertical transfer required on 3 upper-floor bearing segments
+
+Structural:
+- bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
+- threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
+- F1: bearing=50050mm (V/H=24570/25480), balance=0.44
+- F2: bearing=53235mm (V/H=21840/31395), balance=0.76
+- F2->F1 vertical: supported=18200/21840mm, direct_below=0.83
+- F2->F1 horizontal: supported=21840/31395mm, direct_below=0.70
+- vertical_transfer_required=3
+- F2:w_F2_v_5460_0_3640 unsupported=3640mm at vertical@5460
+- F2:w_F2_h_2730_0_5460 unsupported=4550mm at horizontal@2730
+- F2:w_F2_h_3640_4095_9100 unsupported=5005mm at horizontal@3640
+
+Diagnostics:
+- F1: envelope=280 cells, min=229, max=395, rooms=8, hall_fanout=5
+- F2: envelope=280 cells, min=175, max=324, rooms=5, hall_fanout=4

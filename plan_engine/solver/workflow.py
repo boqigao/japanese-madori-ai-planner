@@ -52,6 +52,7 @@ class SolveContext:
     shape_balance_penalties: list[cp_model.IntVar]
     hall_area_penalties: list[cp_model.IntVar]
     floor_compactness_terms: list[cp_model.IntVar]
+    topology_soft_penalties: list[tuple[cp_model.IntVar, int]]
     floor_area_vars: dict[str, list[cp_model.IntVar]]
     ordered_floors: list[str]
     floor_rank: dict[str, int]
@@ -89,6 +90,7 @@ def build_context(spec: PlanSpec) -> SolveContext:
     shape_balance_penalties: list[cp_model.IntVar] = []
     hall_area_penalties: list[cp_model.IntVar] = []
     floor_compactness_terms: list[cp_model.IntVar] = []
+    topology_soft_penalties: list[tuple[cp_model.IntVar, int]] = []
     floor_area_vars: dict[str, list[cp_model.IntVar]] = {fid: [] for fid in spec.floors}
 
     ordered_floors = ordered_floor_ids(spec.floors.keys())
@@ -125,6 +127,7 @@ def build_context(spec: PlanSpec) -> SolveContext:
         shape_balance_penalties=shape_balance_penalties,
         hall_area_penalties=hall_area_penalties,
         floor_compactness_terms=floor_compactness_terms,
+        topology_soft_penalties=topology_soft_penalties,
         floor_area_vars=floor_area_vars,
         ordered_floors=ordered_floors,
         floor_rank=floor_rank,
@@ -379,22 +382,58 @@ def add_floor_packing_constraints(ctx: SolveContext) -> None:
 
 
 def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
-    """Enforce adjacency relationships from the spec's topology."""
+    """Enforce topology adjacency with required/soft strengths.
+
+    Required edges are hard constraints. Preferred/optional edges are modelled
+    as soft penalties that encourage touching without forcing infeasibility.
+    """
     for floor_id, floor in spec.floors.items():
-        for left_id, right_id in floor.topology.adjacency:
+        space_type_by_id = {space.id: space.type for space in floor.spaces}
+        if ctx.stair_spec is not None and floor_id in ctx.floors_with_stair:
+            space_type_by_id[ctx.stair_spec.id] = "stair"
+        incident_touches: dict[str, list[cp_model.IntVar]] = {entity_id: [] for entity_id in ctx.placements[floor_id]}
+
+        for edge in floor.topology.adjacency:
+            left_id = edge.left_id
+            right_id = edge.right_id
             if left_id not in ctx.placements[floor_id]:
                 raise ValueError(f"unknown topology id '{left_id}' in floor {floor_id}")
             if right_id not in ctx.placements[floor_id]:
                 raise ValueError(f"unknown topology id '{right_id}' in floor {floor_id}")
-            touching_constraint(
+            strength = _resolve_adjacency_strength(
+                declared_strength=edge.strength,
+                left_type=space_type_by_id.get(left_id, "unknown"),
+                right_type=space_type_by_id.get(right_id, "unknown"),
+            )
+            touch_any = touching_constraint(
                 model=ctx.model,
                 rects_a=ctx.placements[floor_id][left_id],
                 rects_b=ctx.placements[floor_id][right_id],
                 max_w=ctx.envelope_w_cells,
                 max_h=ctx.envelope_h_cells,
                 prefix=f"{_slug(floor_id)}_adj_{_slug(left_id)}_{_slug(right_id)}",
-                required=True,
+                required=False,
             )
+            incident_touches[left_id].append(touch_any)
+            incident_touches[right_id].append(touch_any)
+            if strength == "required":
+                ctx.model.Add(touch_any == 1)
+            else:
+                missing_touch = ctx.model.NewBoolVar(
+                    f"{_slug(floor_id)}_adj_{_slug(left_id)}_{_slug(right_id)}_missing"
+                )
+                ctx.model.Add(missing_touch + touch_any == 1)
+                penalty_weight = 26 if strength == "preferred" else 12
+                ctx.topology_soft_penalties.append((missing_touch, penalty_weight))
+
+        for entity_id, entity_type in space_type_by_id.items():
+            if entity_type in WET_SPACE_TYPES or entity_type == "hall":
+                continue
+            neighbors = incident_touches.get(entity_id, [])
+            if not neighbors:
+                continue
+            # Every primary space must realize at least one declared adjacency edge.
+            ctx.model.AddBoolOr(neighbors)
 
 
 def add_bath_wash_adjacency_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
@@ -548,5 +587,33 @@ def build_objective(ctx: SolveContext) -> None:
     objective_terms.extend(12 * v for v in ctx.shape_balance_penalties)
     objective_terms.extend(8 * v for v in ctx.floor_compactness_terms)
     objective_terms.extend(10 * v for v in ctx.hall_area_penalties)
+    objective_terms.extend(weight * var for var, weight in ctx.topology_soft_penalties)
     if objective_terms:
         ctx.model.Minimize(sum(objective_terms))
+
+
+def _resolve_adjacency_strength(declared_strength: str, left_type: str, right_type: str) -> str:
+    """Resolve adjacency strength from declared value and domain defaults.
+
+    Args:
+        declared_strength: Raw strength from DSL. ``auto`` means infer from
+            space-type pair rules.
+        left_type: Semantic type of the left entity.
+        right_type: Semantic type of the right entity.
+
+    Returns:
+        One of ``required``, ``preferred``, or ``optional``.
+    """
+    strength = declared_strength.strip().lower()
+    if strength in {"required", "preferred", "optional"}:
+        return strength
+
+    pair = tuple(sorted((left_type, right_type)))
+    if pair in {
+        ("bedroom", "hall"),
+        ("hall", "master_bedroom"),
+        ("hall", "storage"),
+        ("master_bedroom", "storage"),
+    }:
+        return "preferred"
+    return "required"

@@ -4,7 +4,7 @@ SPEC ?= tmp/spec.yaml
 OUTDIR ?= tmp/plan_output
 TIMEOUT ?= 90
 
-.PHONY: help sync run run-default clean-tmp clean-output check-syntax verify fmt lint
+.PHONY: help sync run run-default clean-tmp clean-output check-syntax verify fmt lint test
 
 help:
 	@echo "AI-Driven Plan Engine - Common Commands"
@@ -19,6 +19,7 @@ help:
 	@echo "  make check-syntax  Python syntax check for main.py and plan_engine/"
 	@echo "  make verify        check-syntax + run-default"
 	@echo "  make fmt           Auto-format Python files with ruff"
+	@echo "  make test          Run tests with pytest (80% coverage required)"
 	@echo "  make lint          Lint Python files with ruff (format check + lint rules)"
 	@echo "  make clean-output  Remove generated output directory (OUTDIR)"
 	@echo "  make clean-tmp     Remove everything under tmp/"
@@ -39,6 +40,9 @@ fmt:
 lint:
 	uv run ruff format --diff main.py plan_engine
 	uv run ruff check main.py plan_engine
+
+test:
+	uv run pytest --cov=plan_engine --cov-branch --cov-report=term-missing --cov-fail-under=80
 
 check-syntax:
 	python -m compileall main.py plan_engine
