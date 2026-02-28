@@ -5,12 +5,15 @@ structural=3
 
 Warnings:
 - no stair declared
-- structural: F1: wall-balance ratio 0.45 below target 0.50
+- structural: F1: wall-balance ratio 0.42 below target 0.50
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=53235mm (V/H=25935/27300), balance=0.45
+- F1: bearing=53235mm (V/H=25935/27300), balance=0.42
 
 Diagnostics:
-- F1: envelope=280 cells, min=261, max=472, rooms=9, hall_fanout=7
+- F1: envelope=280 cells, buildable=280 cells, min=261, max=472, rooms=9, hall_fanout=7
+- F1: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
+- F1: area indoor=57.97sqm outdoor=0.00sqm
+- total_area: indoor=57.97sqm outdoor=0.00sqm

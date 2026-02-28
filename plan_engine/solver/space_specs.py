@@ -23,7 +23,7 @@ SHORTFALL_WEIGHT_BY_TYPE: dict[str, int] = {
 }
 
 OVERSHOOT_WEIGHT_BY_TYPE: dict[str, int] = {
-    "hall": 34,
+    "hall": 82,
     "entry": 38,
     "bedroom": 42,
     "master_bedroom": 48,

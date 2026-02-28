@@ -18,6 +18,7 @@
         {
           "id": "bath1",
           "type": "bath",
+          "class": "indoor",
           "rects": [
             {
               "x": 3185,
@@ -30,6 +31,7 @@
         {
           "id": "entry",
           "type": "entry",
+          "class": "indoor",
           "rects": [
             {
               "x": 5005,
@@ -42,11 +44,12 @@
         {
           "id": "hall1",
           "type": "hall",
+          "class": "indoor",
           "rects": [
             {
-              "x": 3640,
+              "x": 4095,
               "y": 0,
-              "w": 1365,
+              "w": 910,
               "h": 1820
             },
             {
@@ -60,6 +63,7 @@
         {
           "id": "ldk",
           "type": "ldk",
+          "class": "indoor",
           "rects": [
             {
               "x": 0,
@@ -70,7 +74,7 @@
             {
               "x": 0,
               "y": 0,
-              "w": 3640,
+              "w": 4095,
               "h": 1820
             }
           ]
@@ -78,6 +82,7 @@
         {
           "id": "toilet1",
           "type": "toilet",
+          "class": "indoor",
           "rects": [
             {
               "x": 6370,
@@ -90,6 +95,7 @@
         {
           "id": "wash1",
           "type": "washroom",
+          "class": "indoor",
           "rects": [
             {
               "x": 3185,
@@ -172,13 +178,23 @@
           "component_index": 0,
           "edge": "left"
         }
-      }
+      },
+      "buildable_mask": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 7280,
+          "h": 5460
+        }
+      ],
+      "indoor_buildable_area_mm2": 39748800
     },
     "F2": {
       "spaces": [
         {
           "id": "bed2",
           "type": "bedroom",
+          "class": "indoor",
           "rects": [
             {
               "x": 1820,
@@ -191,6 +207,7 @@
         {
           "id": "hall2",
           "type": "hall",
+          "class": "indoor",
           "rects": [
             {
               "x": 6370,
@@ -209,6 +226,7 @@
         {
           "id": "master",
           "type": "master_bedroom",
+          "class": "indoor",
           "rects": [
             {
               "x": 0,
@@ -221,6 +239,7 @@
         {
           "id": "storage2",
           "type": "storage",
+          "class": "indoor",
           "rects": [
             {
               "x": 0,
@@ -299,7 +318,16 @@
           "component_index": 2,
           "edge": "bottom"
         }
-      }
+      },
+      "buildable_mask": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 7280,
+          "h": 5460
+        }
+      ],
+      "indoor_buildable_area_mm2": 39748800
     }
   },
   "walls": {
@@ -331,16 +359,16 @@
         "kind": "interior"
       },
       {
-        "id": "w_F1_v_3640_0_1820",
+        "id": "w_F1_v_4095_0_1820",
         "floor_id": "F1",
         "orientation": "vertical",
-        "line_coord_mm": 3640,
+        "line_coord_mm": 4095,
         "span_mm": [
           0,
           1820
         ],
         "length_mm": 1820,
-        "role": "candidate_bearing",
+        "role": "partition",
         "kind": "interior"
       },
       {
@@ -638,16 +666,16 @@
       "F1": {
         "floor_id": "F1",
         "total_wall_length_mm": 46865,
-        "total_bearing_length_mm": 35490,
-        "bearing_vertical_mm": 15925,
+        "total_bearing_length_mm": 33670,
+        "bearing_vertical_mm": 14105,
         "bearing_horizontal_mm": 19565,
         "quadrant_bearing_mm": [
-          7735,
-          11830,
+          6825,
+          10920,
           6825,
           9100
         ],
-        "wall_balance_ratio": 0.5769230769230769
+        "wall_balance_ratio": 0.625
       },
       "F2": {
         "floor_id": "F2",

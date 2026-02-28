@@ -70,3 +70,94 @@ def test_validate_connectivity_reports_unrealized_outdoor_access() -> None:
     validate_connectivity(solution, report)
 
     assert any("outdoor access topology is declared but not physically realized" in item for item in report.errors)
+
+
+def test_validate_geometry_reports_major_room_without_exterior_touch() -> None:
+    spec = PlanSpec(
+        version="0.2",
+        units="mm",
+        grid=GridSpec(455, 910),
+        site=SiteSpec(envelope=EnvelopeSpec(type="rectangle", width=3640, depth=3640), north="top"),
+        floors={},
+    )
+    solution = PlanSolution(
+        units="mm",
+        grid=spec.grid,
+        envelope=spec.site.envelope,
+        north=spec.site.north,
+        floors={
+            "F1": FloorSolution(
+                id="F1",
+                spaces={
+                    "hall1": SpaceGeometry(
+                        "hall1",
+                        "hall",
+                        [
+                            Rect(0, 0, 3640, 910),
+                            Rect(0, 2730, 3640, 910),
+                            Rect(0, 910, 910, 1820),
+                            Rect(2730, 910, 910, 1820),
+                        ],
+                    ),
+                    "bed1": SpaceGeometry("bed1", "bedroom", [Rect(910, 910, 1820, 1820)]),
+                },
+                stair=None,
+                topology=[("hall1", "bed1")],
+            )
+        },
+    )
+
+    report = ValidationReport()
+    validate_geometry(spec, solution, report)
+
+    assert any(
+        "F1:bed1 (bedroom) must touch exterior boundary with positive edge length" in item
+        for item in report.errors
+    )
+
+
+def test_validate_geometry_accepts_multi_rect_ldk_when_any_component_touches_exterior() -> None:
+    spec = PlanSpec(
+        version="0.2",
+        units="mm",
+        grid=GridSpec(455, 910),
+        site=SiteSpec(envelope=EnvelopeSpec(type="rectangle", width=3640, depth=1820), north="top"),
+        floors={},
+    )
+    solution = PlanSolution(
+        units="mm",
+        grid=spec.grid,
+        envelope=spec.site.envelope,
+        north=spec.site.north,
+        floors={
+            "F1": FloorSolution(
+                id="F1",
+                spaces={
+                    "ldk": SpaceGeometry(
+                        "ldk",
+                        "ldk",
+                        [
+                            Rect(0, 0, 1820, 910),
+                            Rect(910, 910, 910, 910),
+                        ],
+                    ),
+                    "hall1": SpaceGeometry(
+                        "hall1",
+                        "hall",
+                        [
+                            Rect(1820, 0, 1820, 910),
+                            Rect(0, 910, 910, 910),
+                            Rect(1820, 910, 1820, 910),
+                        ],
+                    ),
+                },
+                stair=None,
+                topology=[("hall1", "ldk")],
+            )
+        },
+    )
+
+    report = ValidationReport()
+    validate_geometry(spec, solution, report)
+
+    assert not any("(ldk) must touch exterior boundary with positive edge length" in item for item in report.errors)

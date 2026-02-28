@@ -1,27 +1,33 @@
 valid=True
 errors=0
-warnings=2
+warnings=3
 structural=13
 
 Warnings:
-- structural: F1: wall-balance ratio 0.40 below target 0.50
+- F2:master master_bedroom area 10.7jo exceeds 1.3x target (8.0jo)
+- structural: F1: wall-balance ratio 0.42 below target 0.50
 - structural: vertical transfer required on 6 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=63700mm (V/H=25480/38220), balance=0.40
-- F2: bearing=60060mm (V/H=26390/33670), balance=0.63
-- F2->F1 vertical: supported=18200/26390mm, direct_below=0.69
-- F2->F1 horizontal: supported=24570/33670mm, direct_below=0.73
+- F1: bearing=62790mm (V/H=24570/38220), balance=0.42
+- F2: bearing=58695mm (V/H=22750/35945), balance=0.62
+- F2->F1 vertical: supported=18200/22750mm, direct_below=0.80
+- F2->F1 horizontal: supported=24570/35945mm, direct_below=0.68
 - vertical_transfer_required=6
 - F2:w_F2_v_2730_1820_5460 unsupported=910mm at vertical@2730
-- F2:w_F2_v_4550_0_3640 unsupported=1820mm at vertical@4550
-- F2:w_F2_v_7280_0_3640 unsupported=3640mm at vertical@7280
-- F2:w_F2_v_8190_3640_5460 unsupported=1820mm at vertical@8190
+- F2:w_F2_v_4550_0_2730 unsupported=910mm at vertical@4550
+- F2:w_F2_v_7280_2730_5460 unsupported=2730mm at vertical@7280
 - F2:w_F2_h_1820_0_4550 unsupported=2730mm at horizontal@1820
-- F2:w_F2_h_3640_4550_10920 unsupported=6370mm at horizontal@3640
+- F2:w_F2_h_2730_4550_10920 unsupported=6370mm at horizontal@2730
+- F2:w_F2_h_4550_5005_7280 unsupported=2275mm at horizontal@4550
 
 Diagnostics:
-- F1: envelope=288 cells, min=245, max=424, rooms=8, hall_fanout=5
-- F2: envelope=288 cells, min=211, max=389, rooms=6, hall_fanout=5
+- F1: envelope=288 cells, buildable=288 cells, min=245, max=424, rooms=8, hall_fanout=5
+- F2: envelope=288 cells, buildable=288 cells, min=211, max=389, rooms=6, hall_fanout=5
+- F1: area_breakdown indoor=59623200mm2 outdoor=0mm2 buildable=59623200mm2
+- F2: area_breakdown indoor=59623200mm2 outdoor=0mm2 buildable=59623200mm2
+- F1: area indoor=59.62sqm outdoor=0.00sqm
+- F2: area indoor=59.62sqm outdoor=0.00sqm
+- total_area: indoor=119.25sqm outdoor=0.00sqm

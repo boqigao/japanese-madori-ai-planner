@@ -1,0 +1,42 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 5460
+    depth: 5460
+  north: top
+floors:
+  F1:
+    buildable:
+      - x: 0
+        y: 455
+        w: 4550
+        h: 4550
+    spaces:
+      - id: entry
+        type: entry
+        area:
+          min_tatami: 2.0
+          target_tatami: 2.0
+      - id: hall1
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 2.0
+          target_tatami: 3.0
+      - id: bed1
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          min_tatami: 6.0
+          target_tatami: 7.0
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [hall1, bed1, required]

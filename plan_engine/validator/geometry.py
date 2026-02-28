@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from plan_engine.constants import is_indoor_space_type
+from plan_engine.constants import MAJOR_ROOM_TYPES, is_indoor_space_type
 from plan_engine.models import Rect
 from plan_engine.stair_logic import ordered_floor_ids
 
@@ -37,7 +37,12 @@ def validate_space_presence(spec: PlanSpec, solution: PlanSolution, report: Vali
 
 
 def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
-    """Validate grid alignment, boundary containment, no overlaps, and indoor buildable coverage."""
+    """Validate geometry invariants for solved floor layouts.
+
+    Checks include grid alignment, envelope containment, non-overlap,
+    100% indoor buildable coverage, and exterior-touch requirements for
+    major rooms (bedroom/master_bedroom/ldk).
+    """
     minor = spec.grid.minor
     width = spec.site.envelope.width
     depth = spec.site.envelope.depth
@@ -56,6 +61,12 @@ def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: Validation
                         report.errors.append(f"{floor_id}:{space.id} must be inside floor buildable mask")
                 else:
                     outdoor_area += rect.area
+            if space.type in MAJOR_ROOM_TYPES and not any(
+                _touches_exterior(rect, width, depth) for rect in space.rects
+            ):
+                report.errors.append(
+                    f"{floor_id}:{space.id} ({space.type}) must touch exterior boundary with positive edge length"
+                )
         if floor.stair is not None:
             for index, component in enumerate(floor.stair.components):
                 all_rects.append((f"{floor.stair.id}_component_{index}", component))

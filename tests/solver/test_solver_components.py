@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from ortools.sat.python import cp_model
 
+from plan_engine.dsl import load_plan_spec
 from plan_engine.models import (
     AdjacencyRule,
     AreaConstraint,
+    BuildableRectSpec,
     CoreSpec,
     EnvelopeSpec,
     FloorSpec,
@@ -15,6 +18,7 @@ from plan_engine.models import (
     PlanSpec,
     ShapeSpec,
     SiteSpec,
+    SizeConstraints,
     SpaceSpec,
     StairSpec,
     TopologySpec,
@@ -170,6 +174,41 @@ def _single_floor_wet_spec(include_toilet_hall_edge: bool, include_wet_hall_edge
     )
 
 
+def _major_room_exterior_spec(buildable_x_mm: int) -> PlanSpec:
+    """Build a single-floor spec for exterior-touch feasibility testing.
+
+    Args:
+        buildable_x_mm: X offset of the indoor buildable rectangle in mm.
+            ``0`` means touching exterior; ``>0`` means detached from exterior.
+
+    Returns:
+        PlanSpec with one hall and one bedroom covering a constrained floor.
+    """
+    return PlanSpec(
+        version="0.2",
+        units="mm",
+        grid=GridSpec(minor=455, major=910),
+        site=SiteSpec(envelope=EnvelopeSpec(type="rectangle", width=5460, depth=5460), north="top"),
+        floors={
+            "F1": FloorSpec(
+                id="F1",
+                core=CoreSpec(stair=None),
+                buildable_mask=[BuildableRectSpec(buildable_x_mm, 455, 4550, 4550)],
+                spaces=[
+                    SpaceSpec(id="hall1", type="hall", area=AreaConstraint(min_tatami=3.0, target_tatami=4.0)),
+                    SpaceSpec(
+                        id="bed1",
+                        type="bedroom",
+                        size_constraints=SizeConstraints(min_width=1820),
+                        area=AreaConstraint(min_tatami=6.0, target_tatami=7.0),
+                    ),
+                ],
+                topology=TopologySpec(adjacency=[AdjacencyRule("hall1", "bed1", "required")]),
+            )
+        },
+    )
+
+
 def test_solver_realizes_declared_toilet_circulation_edge() -> None:
     spec = _single_floor_wet_spec(include_toilet_hall_edge=True)
 
@@ -193,3 +232,36 @@ def test_solver_rejects_wet_core_without_circulation_topology_edge() -> None:
 
     with pytest.raises(ValueError, match="wet core requires topology adjacency to hall/entry/stair"):
         PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)
+
+
+def test_solver_rejects_interior_only_major_room_buildable() -> None:
+    spec = _major_room_exterior_spec(buildable_x_mm=455)
+
+    with pytest.raises(RuntimeError, match="unable to produce a valid plan"):
+        PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)
+
+
+def test_solver_places_major_room_on_exterior_when_feasible() -> None:
+    spec = _major_room_exterior_spec(buildable_x_mm=0)
+
+    solution = PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)
+
+    floor = solution.floors["F1"]
+    bedroom = floor.spaces["bed1"]
+    assert any(
+        rect.x == 0
+        or rect.y == 0
+        or rect.x2 == spec.site.envelope.width
+        or rect.y2 == spec.site.envelope.depth
+        for rect in bedroom.rects
+    )
+
+
+def test_solver_major_room_exterior_success_fixture_is_satisfiable() -> None:
+    fixture = Path(__file__).resolve().parents[2] / "resources" / "specs" / "major_room_exterior_valid.yaml"
+    spec = load_plan_spec(fixture)
+
+    solution = PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)
+
+    bedroom = solution.floors["F1"].spaces["bed1"]
+    assert any(rect.x == 0 or rect.y == 0 for rect in bedroom.rects)

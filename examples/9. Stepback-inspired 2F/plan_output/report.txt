@@ -1,26 +1,32 @@
 valid=True
 errors=0
 warnings=4
-structural=10
+structural=11
 
 Warnings:
-- F2:bed2 bedroom area 8.2jo exceeds 1.3x target (6.0jo)
-- F2:bed3 bedroom area 8.4jo exceeds 1.3x target (6.0jo)
-- structural: F1: wall-balance ratio 0.44 below target 0.50
-- structural: vertical transfer required on 3 upper-floor bearing segments
+- F2:bed3 bedroom area 8.9jo exceeds 1.3x target (6.0jo)
+- F2:roof_buffer storage area 3.6jo exceeds 1.3x target (2.5jo)
+- structural: F1: wall-balance ratio 0.40 below target 0.50
+- structural: vertical transfer required on 4 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=50050mm (V/H=24570/25480), balance=0.44
-- F2: bearing=53235mm (V/H=21840/31395), balance=0.76
-- F2->F1 vertical: supported=18200/21840mm, direct_below=0.83
-- F2->F1 horizontal: supported=21840/31395mm, direct_below=0.70
-- vertical_transfer_required=3
-- F2:w_F2_v_3640_0_3640 unsupported=3640mm at vertical@3640
-- F2:w_F2_h_2730_3640_9100 unsupported=4550mm at horizontal@2730
-- F2:w_F2_h_3640_0_5005 unsupported=5005mm at horizontal@3640
+- F1: bearing=58240mm (V/H=25480/32760), balance=0.40
+- F2: bearing=50505mm (V/H=18200/32305), balance=0.56
+- F2->F1 vertical: supported=17290/18200mm, direct_below=0.95
+- F2->F1 horizontal: supported=23205/32305mm, direct_below=0.72
+- vertical_transfer_required=4
+- F2:w_F2_v_7280_3640_6370 unsupported=910mm at vertical@7280
+- F2:w_F2_h_1820_0_3185 unsupported=3185mm at horizontal@1820
+- F2:w_F2_h_2730_3185_9100 unsupported=1820mm at horizontal@2730
+- F2:w_F2_h_3640_3185_7280 unsupported=4095mm at horizontal@3640
 
 Diagnostics:
-- F1: envelope=280 cells, min=229, max=395, rooms=8, hall_fanout=5
-- F2: envelope=280 cells, min=175, max=324, rooms=5, hall_fanout=4
+- F1: envelope=280 cells, buildable=280 cells, min=229, max=395, rooms=8, hall_fanout=5
+- F2: envelope=280 cells, buildable=280 cells, min=175, max=324, rooms=5, hall_fanout=4
+- F1: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
+- F2: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
+- F1: area indoor=57.97sqm outdoor=0.00sqm
+- F2: area indoor=57.97sqm outdoor=0.00sqm
+- total_area: indoor=115.93sqm outdoor=0.00sqm

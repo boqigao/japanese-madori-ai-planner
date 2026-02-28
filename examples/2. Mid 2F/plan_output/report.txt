@@ -1,26 +1,31 @@
 valid=True
 errors=0
-warnings=3
-structural=11
+warnings=4
+structural=10
 
 Warnings:
 - F2:bed2 bedroom area 8.4jo exceeds 1.3x target (6.0jo)
+- F2:bed3 bedroom area 8.4jo exceeds 1.3x target (6.0jo)
 - structural: F1: wall-balance ratio 0.39 below target 0.50
-- structural: vertical transfer required on 4 upper-floor bearing segments
+- structural: vertical transfer required on 3 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
 - F1: bearing=54600mm (V/H=27300/27300), balance=0.39
-- F2: bearing=52780mm (V/H=24570/28210), balance=0.53
+- F2: bearing=50050mm (V/H=24570/25480), balance=0.63
 - F2->F1 vertical: supported=18200/24570mm, direct_below=0.74
-- F2->F1 horizontal: supported=21840/28210mm, direct_below=0.77
-- vertical_transfer_required=4
+- F2->F1 horizontal: supported=20020/25480mm, direct_below=0.79
+- vertical_transfer_required=3
 - F2:w_F2_v_2730_0_5460 unsupported=2730mm at vertical@2730
 - F2:w_F2_v_4550_2730_6370 unsupported=3640mm at vertical@4550
 - F2:w_F2_h_2730_2730_9100 unsupported=5460mm at horizontal@2730
-- F2:w_F2_h_4550_0_2730 unsupported=910mm at horizontal@4550
 
 Diagnostics:
-- F1: envelope=280 cells, min=229, max=395, rooms=8, hall_fanout=5
-- F2: envelope=280 cells, min=175, max=318, rooms=5, hall_fanout=4
+- F1: envelope=280 cells, buildable=280 cells, min=229, max=395, rooms=8, hall_fanout=5
+- F2: envelope=280 cells, buildable=280 cells, min=175, max=318, rooms=5, hall_fanout=4
+- F1: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
+- F2: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
+- F1: area indoor=57.97sqm outdoor=0.00sqm
+- F2: area indoor=57.97sqm outdoor=0.00sqm
+- total_area: indoor=115.93sqm outdoor=0.00sqm

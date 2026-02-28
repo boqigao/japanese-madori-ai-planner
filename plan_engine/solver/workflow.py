@@ -380,6 +380,14 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                     max_h=ctx.envelope_h_cells,
                     prefix=f"{_slug(floor_id)}_{_slug(space.id)}_ext",
                 )
+            elif space.type in MAJOR_ROOM_TYPES:
+                enforce_exterior_touch(
+                    model=ctx.model,
+                    rects=rects,
+                    max_w=ctx.envelope_w_cells,
+                    max_h=ctx.envelope_h_cells,
+                    prefix=f"{_slug(floor_id)}_{_slug(space.id)}_major_ext",
+                )
 
             if space.type in MAJOR_ROOM_TYPES:
                 for idx, rect in enumerate(rects):

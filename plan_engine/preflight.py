@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from plan_engine.constants import (
+    MAJOR_ROOM_TYPES,
     WET_MODULE_SIZES_MM,
     is_indoor_space_type,
     mm_to_cells,
@@ -127,6 +128,13 @@ def run_preflight(spec: PlanSpec) -> PreflightResult:
             )
 
         _check_room_min_width(spec, floor_id, envelope_w, envelope_h, report)
+        _check_major_room_exterior_touch_feasibility(
+            spec=spec,
+            floor_id=floor_id,
+            envelope_w_cells=envelope_w,
+            envelope_h_cells=envelope_h,
+            report=report,
+        )
         _check_toilet_circulation_topology(spec, floor_id, report)
         _check_wet_core_circulation_topology(spec, floor_id, report)
         _check_wet_cluster_fit(spec, floor_id, envelope_w, envelope_h, report)
@@ -277,6 +285,95 @@ def _check_room_min_width(
                 f"preflight: {floor_id}:{space.id} min_width={min_width}mm exceeds envelope short side "
                 f"({short_edge_mm}mm)"
             )
+
+
+def _check_major_room_exterior_touch_feasibility(
+    spec: PlanSpec,
+    floor_id: str,
+    envelope_w_cells: int,
+    envelope_h_cells: int,
+    report: ValidationReport,
+) -> None:
+    """Validate buildable mask can support exterior-touch major rooms.
+
+    Args:
+        spec: Parsed plan specification.
+        floor_id: Floor identifier to validate.
+        envelope_w_cells: Envelope width in minor-grid cells.
+        envelope_h_cells: Envelope depth in minor-grid cells.
+        report: Mutable report receiving preflight errors and suggestions.
+
+    Returns:
+        None.
+    """
+    floor = spec.floors[floor_id]
+    major_space_ids = [space.id for space in floor.spaces if space.type in MAJOR_ROOM_TYPES]
+    if not major_space_ids:
+        return
+
+    mask_rects = floor.buildable_mask
+    # Empty mask means full-envelope buildable, which always has exterior contact.
+    if not mask_rects:
+        return
+
+    has_exterior_contact = any(
+        _rect_touches_envelope_edge(
+            x_cells=mm_to_cells(rect.x, spec.grid.minor),
+            y_cells=mm_to_cells(rect.y, spec.grid.minor),
+            w_cells=mm_to_cells(rect.w, spec.grid.minor),
+            h_cells=mm_to_cells(rect.h, spec.grid.minor),
+            envelope_w_cells=envelope_w_cells,
+            envelope_h_cells=envelope_h_cells,
+        )
+        for rect in mask_rects
+    )
+    if has_exterior_contact:
+        return
+
+    major_list = ", ".join(sorted(major_space_ids))
+    report.errors.append(
+        f"preflight: {floor_id} major-room exterior-touch is impossible because buildable mask has no exterior contact "
+        f"(rooms: {major_list})"
+    )
+    report.suggestions.append(
+        f"Adjust {floor_id} buildable_mask so at least one rectangle reaches envelope edge for "
+        "bedroom/master_bedroom/ldk exterior-touch."
+    )
+    report.suggestions.append(
+        f"Or move one of [{major_list}] to another floor where buildable mask contacts exterior."
+    )
+
+
+def _rect_touches_envelope_edge(
+    x_cells: int,
+    y_cells: int,
+    w_cells: int,
+    h_cells: int,
+    envelope_w_cells: int,
+    envelope_h_cells: int,
+) -> bool:
+    """Return True when a rectangle shares positive-length edge with envelope.
+
+    Args:
+        x_cells: Rectangle origin X in cells.
+        y_cells: Rectangle origin Y in cells.
+        w_cells: Rectangle width in cells.
+        h_cells: Rectangle height in cells.
+        envelope_w_cells: Envelope width in cells.
+        envelope_h_cells: Envelope depth in cells.
+
+    Returns:
+        True when rectangle touches left/right/top/bottom boundary with
+        non-zero overlap length.
+    """
+    if w_cells <= 0 or h_cells <= 0:
+        return False
+    return (
+        x_cells == 0
+        or y_cells == 0
+        or x_cells + w_cells == envelope_w_cells
+        or y_cells + h_cells == envelope_h_cells
+    )
 
 
 def _check_buildable_mask_consistency(
