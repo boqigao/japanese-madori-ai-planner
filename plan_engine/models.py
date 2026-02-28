@@ -64,11 +64,26 @@ class ShapeSpec:
 
 
 @dataclass(frozen=True)
+class BuildableRectSpec:
+    """One floor-local buildable-mask rectangle in millimeters."""
+
+    x: int
+    y: int
+    w: int
+    h: int
+
+    def to_dict(self) -> dict[str, int]:
+        """Return buildable-mask rectangle as a plain dictionary."""
+        return {"x": self.x, "y": self.y, "w": self.w, "h": self.h}
+
+
+@dataclass(frozen=True)
 class SpaceSpec:
     """Complete specification for a single space/room."""
 
     id: str
     type: str
+    space_class: str = "indoor"
     area: AreaConstraint = field(default_factory=AreaConstraint)
     size_constraints: SizeConstraints = field(default_factory=SizeConstraints)
     shape: ShapeSpec = field(default_factory=ShapeSpec)
@@ -131,6 +146,7 @@ class FloorSpec:
     core: CoreSpec = field(default_factory=CoreSpec)
     spaces: list[SpaceSpec] = field(default_factory=list)
     topology: TopologySpec = field(default_factory=TopologySpec)
+    buildable_mask: list[BuildableRectSpec] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -210,10 +226,16 @@ class SpaceGeometry:
     id: str
     type: str
     rects: list[Rect]
+    space_class: str = "indoor"
 
     def to_dict(self) -> dict[str, object]:
         """Return the space geometry as a plain dictionary."""
-        return {"id": self.id, "type": self.type, "rects": [r.to_dict() for r in self.rects]}
+        return {
+            "id": self.id,
+            "type": self.type,
+            "class": self.space_class,
+            "rects": [r.to_dict() for r in self.rects],
+        }
 
 
 @dataclass(frozen=True)
@@ -390,6 +412,8 @@ class FloorSolution:
     spaces: dict[str, SpaceGeometry]
     stair: StairGeometry | None
     topology: list[tuple[str, str]]
+    buildable_mask: list[Rect] = field(default_factory=list)
+    indoor_buildable_area_mm2: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Return the floor solution as a plain dictionary."""
@@ -400,6 +424,10 @@ class FloorSolution:
         }
         if self.stair is not None:
             payload["stair"] = self.stair.to_dict()
+        if self.buildable_mask:
+            payload["buildable_mask"] = [rect.to_dict() for rect in self.buildable_mask]
+        if self.indoor_buildable_area_mm2 is not None:
+            payload["indoor_buildable_area_mm2"] = self.indoor_buildable_area_mm2
         return payload
 
 

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from plan_engine.constants import is_indoor_space_type
+from plan_engine.models import Rect
 from plan_engine.stair_logic import ordered_floor_ids
 
 if TYPE_CHECKING:
-    from plan_engine.models import PlanSolution, PlanSpec, Rect, ValidationReport
+    from plan_engine.models import PlanSolution, PlanSpec, ValidationReport
 
 
 def validate_space_presence(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
@@ -35,19 +37,31 @@ def validate_space_presence(spec: PlanSpec, solution: PlanSolution, report: Vali
 
 
 def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
-    """Validate grid alignment, boundary containment, no overlaps, and 100% area coverage."""
+    """Validate grid alignment, boundary containment, no overlaps, and indoor buildable coverage."""
     minor = spec.grid.minor
     width = spec.site.envelope.width
     depth = spec.site.envelope.depth
 
     for floor_id, floor in solution.floors.items():
         all_rects: list[tuple[str, Rect]] = []
+        indoor_area = 0
+        outdoor_area = 0
+        buildable_mask = floor.buildable_mask or [Rect(0, 0, width, depth)]
         for space in floor.spaces.values():
             for rect in space.rects:
                 all_rects.append((space.id, rect))
+                if is_indoor_space_type(space.type):
+                    indoor_area += rect.area
+                    if not _is_inside_any(rect, buildable_mask):
+                        report.errors.append(f"{floor_id}:{space.id} must be inside floor buildable mask")
+                else:
+                    outdoor_area += rect.area
         if floor.stair is not None:
             for index, component in enumerate(floor.stair.components):
                 all_rects.append((f"{floor.stair.id}_component_{index}", component))
+                indoor_area += component.area
+                if not _is_inside_any(component, buildable_mask):
+                    report.errors.append(f"{floor_id}:{floor.stair.id} must be inside floor buildable mask")
 
         for entity_id, rect in all_rects:
             for value_name, value in (("x", rect.x), ("y", rect.y), ("w", rect.w), ("h", rect.h)):
@@ -63,12 +77,20 @@ def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: Validation
                 if left_rect.overlaps(right_rect):
                     report.errors.append(f"{floor_id}:{left_id} overlaps {right_id}")
 
-        covered_area = sum(rect.area for _, rect in all_rects)
-        envelope_area = width * depth
-        if covered_area != envelope_area:
+        buildable_area = (
+            floor.indoor_buildable_area_mm2
+            if floor.indoor_buildable_area_mm2 is not None
+            else sum(rect.area for rect in buildable_mask)
+        )
+        if indoor_area != buildable_area:
             report.errors.append(
-                f"{floor_id}: area coverage must be 100% (covered={covered_area}, envelope={envelope_area})"
+                f"{floor_id}: indoor area coverage must be 100% of buildable mask "
+                f"(indoor={indoor_area}, buildable={buildable_area})"
             )
+        report.diagnostics.append(
+            f"{floor_id}: area_breakdown indoor={indoor_area}mm2 outdoor={outdoor_area}mm2 "
+            f"buildable={buildable_area}mm2"
+        )
 
 
 def validate_entry_exterior(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
@@ -95,3 +117,14 @@ def validate_entry_exterior(spec: PlanSpec, solution: PlanSolution, report: Vali
 def _touches_exterior(rect: Rect, width: int, depth: int) -> bool:
     """Check whether a rectangle touches the site envelope boundary."""
     return rect.x == 0 or rect.y == 0 or rect.x2 == width or rect.y2 == depth
+
+
+def _is_inside_any(rect: Rect, containers: list[Rect]) -> bool:
+    """Return True when ``rect`` is fully contained in at least one container."""
+    return any(
+        rect.x >= container.x
+        and rect.y >= container.y
+        and rect.x2 <= container.x2
+        and rect.y2 <= container.y2
+        for container in containers
+    )

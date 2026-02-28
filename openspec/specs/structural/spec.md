@@ -2,21 +2,19 @@
 
 ## Purpose
 Defines the structural analysis module that extracts wall segments from solved geometry and computes proxy structural diagnostics. The structural module (`plan_engine/structural/walls.py`) operates on solved `PlanSolution` data and produces `StructureReport` with bearing-wall metrics, vertical continuity analysis, and balance ratios. Results are consumed by the validator (warn-only) and optionally by the renderer (structural wall overlay).
-
 ## Requirements
-
 ### Requirement: Wall Extraction
-The system MUST extract merged wall segments from solved room and stair geometry using cell-level occupancy grid analysis.
+The system MUST extract merged wall segments from solved indoor geometry and stair geometry. Outdoor-only boundaries MUST NOT be treated as interior room partitions for structural diagnostics.
 
-#### Scenario: Cell boundary detection
-- GIVEN a solved floor with rooms assigned to grid cells
-- WHEN `extract_solution_walls` is called
-- THEN boundaries between different cell owners produce interior wall segments, and boundaries between occupied cells and exterior produce exterior wall segments
+#### Scenario: Indoor boundary extraction
+- **GIVEN** a solved floor with indoor rooms and a balcony zone
+- **WHEN** `extract_solution_walls` is called
+- **THEN** boundaries between indoor spaces and boundaries between indoor occupied cells and exterior produce structural wall candidates
 
-#### Scenario: Segment merging
-- GIVEN cell-level segments along the same line with consecutive spans
-- WHEN walls are extracted
-- THEN adjacent segments of the same kind are merged into longer spans
+#### Scenario: Outdoor-only boundary exclusion
+- **GIVEN** two adjacent outdoor cells within a balcony/veranda region
+- **WHEN** walls are extracted
+- **THEN** no structural partition wall is created between those outdoor cells
 
 ### Requirement: Wall Classification
 The system MUST classify each wall segment by role: `load_bearing` (exterior walls), `candidate_bearing` (interior walls aligned to major grid), or `partition` (other interior walls).
@@ -37,12 +35,12 @@ The system MUST classify each wall segment by role: `load_bearing` (exterior wal
 - THEN it is assigned role `partition`
 
 ### Requirement: Floor Structure Metrics
-The system MUST compute per-floor metrics: total bearing length, bearing length by orientation (vertical/horizontal), and wall balance ratio.
+The system MUST compute per-floor structural metrics from indoor/bearing wall segments only, excluding outdoor-only perimeter effects that would inflate bearing-length proxies.
 
-#### Scenario: Wall balance ratio
-- GIVEN a floor with vertical bearing length of 5000mm and horizontal bearing length of 4000mm
-- WHEN floor metrics are computed
-- THEN the wall balance ratio is min(4000, 5000) / max(4000, 5000) = 0.80
+#### Scenario: Outdoor strip does not inflate bearing length
+- **GIVEN** a floor with a wide balcony strip on one side
+- **WHEN** floor metrics are computed
+- **THEN** bearing-length metrics are based on indoor structural boundary extraction and are not artificially increased by outdoor-only geometry
 
 ### Requirement: Vertical Continuity Analysis
 The system MUST compute continuity metrics between adjacent floors, measuring how much upper-floor bearing wall length is directly supported by lower-floor bearing walls.
@@ -80,3 +78,4 @@ The system MUST produce a `StructureReport` containing floor metrics, continuity
 - GIVEN a 2-floor plan with extracted walls
 - WHEN `build_structure_report` is called
 - THEN a `StructureReport` is returned with metrics for each floor, continuity between F1/F2, transfer requirements, and any warnings
+

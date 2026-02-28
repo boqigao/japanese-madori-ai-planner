@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 from plan_engine.dsl import load_plan_spec
-from plan_engine.io import write_report, write_solution_json
+from plan_engine.io import append_area_summary_diagnostics, write_report, write_solution_json
 from plan_engine.models import ValidationReport
 from plan_engine.preflight import build_solver_failure_report, run_preflight
 from plan_engine.renderer import SvgRenderer
@@ -99,6 +99,7 @@ def main() -> int:
     report.warnings = preflight_result.report.warnings + report.warnings
     report.diagnostics = preflight_result.report.diagnostics + report.diagnostics
     report.suggestions = preflight_result.report.suggestions + report.suggestions
+    append_area_summary_diagnostics(report, solution)
     write_solution_json(solution, outdir / "solution.json")
     write_report(report, outdir / "report.txt")
 

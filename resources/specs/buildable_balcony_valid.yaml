@@ -1,0 +1,40 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 3640
+    depth: 2730
+  north: top
+floors:
+  F1:
+    buildable:
+      - x: 0
+        y: 0
+        w: 2730
+        h: 2730
+    spaces:
+      - id: entry
+        type: entry
+        area:
+          min_tatami: 1.8
+          target_tatami: 2.0
+      - id: storage1
+        type: storage
+        area:
+          min_tatami: 1.5
+          target_tatami: 4.0
+      - id: balcony1
+        type: balcony
+        size_constraints:
+          min_width: 910
+        area:
+          min_tatami: 1.5
+          target_tatami: 1.5
+    topology:
+      adjacency:
+        - [entry, storage1, required]
+        - [entry, balcony1, required]

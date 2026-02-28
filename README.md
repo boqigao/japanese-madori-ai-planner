@@ -1,144 +1,146 @@
 # AI-Driven Plan Engine
 
-Constraint-based Japanese detached house floor plan generator.
-Takes a YAML DSL specification and produces structurally valid layouts as SVG/PNG using Google OR-Tools CP-SAT.
+Constraint-based Japanese detached-house floor plan generator.
 
-Pipeline: `DSL (YAML) -> Solver (CP-SAT) -> Validator -> Renderer (SVG/PNG)`
+This project reads a YAML DSL (`spec.yaml`), solves layout geometry with OR-Tools CP-SAT, validates hard rules, and renders floor plans as SVG/PNG.
+
+Pipeline: `DSL -> Solver -> Validator -> Renderer`
+
+## What It Supports
+
+- 455mm grid-based planning (`minor=455`, `major=910`)
+- 1F / 2F layouts with shared stair shaft
+- Fixed wet modules (`toilet`, `washroom`, `bath`)
+- Hall/LDK multi-rectangle support (`L2`)
+- Floor-level indoor buildable masks
+- Outdoor spaces (`balcony`, `veranda`) with explicit indoor-access rules
+- Output artifacts: `solution.json`, `report.txt`, `{floor}.svg`, `{floor}.png`
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python 3.13+
-- [`uv`](https://github.com/astral-sh/uv) for dependency management
+- [`uv`](https://github.com/astral-sh/uv)
 
-### Install & Run
-
-```bash
-make sync    # install dependencies
-
-# generate a two-story compact house from the bundled examples
-make run SPEC="examples/1. Compact 2F/spec.yaml" OUTDIR=out
-```
-
-Output files in `out/`:
-
-| File | Description |
-|---|---|
-| `solution.json` | Solved layout data (includes extracted walls and structure report) |
-| `report.txt` | Validation report |
-| `F1.svg` / `F1.png` | First floor plan |
-| `F2.svg` / `F2.png` | Second floor plan |
-
-Optional structural wall overlay:
+### Install
 
 ```bash
-PLAN_ENGINE_DRAW_STRUCTURAL_WALLS=1 make run SPEC="examples/1. Compact 2F/spec.yaml" OUTDIR=out
+uv sync
 ```
 
-### Running Without Make
+### Run (default tmp spec)
+
+```bash
+make run-default
+```
+
+### Run a specific spec
+
+```bash
+make run SPEC="examples/1. Compact 2F/spec.yaml" OUTDIR="tmp/plan_output" TIMEOUT=90
+```
+
+Or without Make:
 
 ```bash
 uv run python main.py \
   --spec "examples/1. Compact 2F/spec.yaml" \
-  --outdir out \
+  --outdir "tmp/plan_output" \
   --solver-timeout 90
+```
+
+## Common Commands
+
+```bash
+make help            # list all targets
+make sync            # uv sync
+make run             # run with SPEC / OUTDIR / TIMEOUT
+make run-default     # run tmp/spec.yaml -> tmp/plan_output
+make check-syntax    # compile check
+make verify          # check-syntax + run-default
+make fmt             # ruff fix + format
+make lint            # ruff checks
+make test            # pytest + coverage (>=80%)
+make clean-output    # remove OUTDIR
+make clean-tmp       # remove tmp/*
+```
+
+## Output Files
+
+Each run writes to `--outdir`:
+
+- `solution.json`: solved geometry + structural metrics
+- `report.txt`: validation result with diagnostics/suggestions
+- `F1.svg`, `F1.png` (and `F2.*` for two-floor specs)
+
+Optional structural overlay:
+
+```bash
+PLAN_ENGINE_DRAW_STRUCTURAL_WALLS=1 make run SPEC="examples/1. Compact 2F/spec.yaml" OUTDIR="tmp/plan_output"
 ```
 
 ## Examples
 
-The [`examples/`](examples/) directory contains 10 pre-built house variants, each with a
-`spec.yaml` input and pre-generated output in `plan_output/`.
-See [`examples/README.md`](examples/README.md) for the full list.
+`examples/` contains benchmark-ready specs and generated outputs.
+
+- Case list: [examples/README.md](examples/README.md)
+- Each case folder contains `spec.yaml` + `plan_output/`
 
 Regenerate all examples:
 
 ```bash
 for d in examples/*; do
   [ -f "$d/spec.yaml" ] || continue
-  uv run python main.py --spec "$d/spec.yaml" --outdir "$d/plan_output" --solver-timeout 20
+  uv run python main.py --spec "$d/spec.yaml" --outdir "$d/plan_output" --solver-timeout 30
 done
 ```
 
-## Documentation
+## Spec Authoring Guide
 
-- [How to write a spec.yaml](docs/how_to_use.md) -- beginner guide starting from site dimensions
+For a full step-by-step guide (from land dimensions to valid topology), read:
 
-## Commands
+- [docs/how_to_use.md](docs/how_to_use.md)
 
-```bash
-make help            # show all targets
-make sync            # install / update dependencies
-make run             # generate (SPEC=... OUTDIR=... TIMEOUT=90)
-make check-syntax    # Python compile check
-make verify          # check-syntax + run default example
-make fmt             # auto-format with ruff
-make lint            # lint with ruff
-make test            # pytest (80% coverage required)
-make clean-output    # remove OUTDIR
-```
+It includes:
 
-## Topology Rule: Bedroom Reachability
-
-Preflight enforces a residential circulation rule:
-
-- Every `bedroom` / `master_bedroom` must be reachable from `entry`
-  without using another bedroom as a transit room.
-- If violated, generation stops before solve with an error like:
-  `preflight: F2:bed3 is only reachable through bedroom transit (...)`
-
-Typical fix: connect blocked bedrooms to `hall` (or stair-linked hall) in
-`topology.adjacency`.
+- Complete `spec.yaml` schema walkthrough
+- Room type and shape rules
+- Buildable mask + balcony/veranda semantics
+- Topology best practices and strength levels
+- Error-to-fix troubleshooting map (`report.txt`)
 
 ## Project Structure
 
-```
-main.py                           CLI entrypoint
-Makefile                          Build / run / verify commands
-pyproject.toml                    Project metadata and dependencies (uv)
+```text
+main.py
+Makefile
 
-plan_engine/                      Core library
-  constants.py                    Grid constants, room types, unit conversions
-  models.py                       Frozen dataclasses (PlanSpec, PlanSolution, Rect, etc.)
-  dsl.py                          YAML spec parser -> PlanSpec
-  preflight.py                    Pre-solve checks (bedroom reachability, etc.)
-  stair_logic.py                  Stair portal mapping logic
-  io.py                           JSON/text file output
+plan_engine/
+  constants.py
+  models.py
+  dsl.py
+  preflight.py
+  stair_logic.py
+  io.py
   solver/
-    core.py                       PlanSolver class (orchestrates solving)
-    workflow.py                   Constraint building pipeline (variables, packing, topology, wet cluster)
-    rect_var.py                   RectVar factory, StairFootprint computation
-    constraints.py                Low-level CP-SAT constraint builders (touch, overlap, adjacency)
-    space_specs.py                Space-type constraint specifications (area, width, weights)
-    solution_builder.py           Converts solved CP-SAT variables -> PlanSolution
   validator/
-    core.py                       Validation orchestrator
-    geometry.py                   Grid alignment, boundary, overlap, coverage checks
-    connectivity.py               BFS reachability, WC-LDK separation
-    stair.py                      Stair alignment, portal positioning, hall connectivity
-    livability.py                 Dimensional quality, area ratios, circulation metrics
-    structural.py                 Bearing-wall proxy metrics and continuity diagnostics
-  structural/
-    walls.py                      Wall extraction + structural report computation
   renderer/
-    core.py                       SvgRenderer class (orchestrates drawing)
-    annotations.py                Space labels, title block, legend, north arrow
-    dimensions.py                 Room dimension guides, exterior dimension lines
-    stair.py                      Stair visualization (steps, voids, guardrails)
-    symbols.py                    Door and window symbols
-    helpers.py                    Geometry helpers, boundary segments, display formatting
+  structural/
 
-docs/                             User-facing documentation
-  how_to_use.md                   Beginner guide for writing spec.yaml
-examples/                         Pre-built spec + output pairs (10 house variants)
-resources/specs/                  YAML fixtures used by tests
-tests/                            Pytest suite (unit + integration)
-openspec/                         OpenSpec change-tracking (specs, proposals, tasks)
+docs/
+  how_to_use.md
+examples/
+resources/specs/
+tests/
+openspec/
 ```
 
 ## Troubleshooting
 
-- **`dsl_parse_failed`**: Check `spec.yaml` field names, indentation, and grid alignment (455 mm).
-- **`solve_failed`**: Constraints are too tight or conflicting. Try reducing room count or adjacency relationships, then add back incrementally.
-- **`preflight: ... only reachable through bedroom transit`**: Update `topology.adjacency` so each bedroom has a non-bedroom access route (usually hall).
-- **`Plan rejected by validation`**: Review `report.txt` for `Errors` and `Warnings`.
+- `dsl_parse_failed`: schema/indent/grid issue in `spec.yaml`
+- `preflight:` errors: deterministic feasibility/topology issues before solve
+- `solve_failed`: constraints too tight/conflicting
+- `valid=False`: check `report.txt` `Errors` section first, then `Diagnostics`
+
+If a bedroom is reachable only through another bedroom, preflight rejects it by design.

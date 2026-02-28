@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from plan_engine.constants import TATAMI_MM2
+from plan_engine.constants import is_indoor_space_type
 from plan_engine.renderer.helpers import (
     LEGEND_ORDER,
     SPACE_COLORS,
@@ -231,26 +232,43 @@ def draw_floor_area_summary(
     Returns:
         None.
     """
-    floor_area_sqm = {}
+    floor_indoor_sqm: dict[str, float] = {}
+    floor_outdoor_sqm: dict[str, float] = {}
     for fid, floor in solution.floors.items():
-        area_mm2 = 0
+        indoor_mm2 = 0
+        outdoor_mm2 = 0
         for space in floor.spaces.values():
-            area_mm2 += sum(rect.area for rect in space.rects)
+            area_value = sum(rect.area for rect in space.rects)
+            if is_indoor_space_type(space.type):
+                indoor_mm2 += area_value
+            else:
+                outdoor_mm2 += area_value
         if floor.stair is not None:
-            area_mm2 += sum(rect.area for rect in floor.stair.components)
-        floor_area_sqm[fid] = area_mm2 / 1_000_000
+            indoor_mm2 += sum(rect.area for rect in floor.stair.components)
+        floor_indoor_sqm[fid] = indoor_mm2 / 1_000_000
+        floor_outdoor_sqm[fid] = outdoor_mm2 / 1_000_000
 
     ordered_ids = sorted(
-        floor_area_sqm.keys(),
+        floor_indoor_sqm.keys(),
         key=lambda value: (int("".join(ch for ch in value if ch.isdigit()) or "9999"), value),
     )
-    total_sqm = sum(floor_area_sqm.values())
+    total_indoor_sqm = sum(floor_indoor_sqm.values())
+    total_outdoor_sqm = sum(floor_outdoor_sqm.values())
     sqm_per_tsubo = 3.305785
 
     lines = [
-        f"{fid}: {floor_area_sqm[fid]:.1f} sqm ({floor_area_sqm[fid] / sqm_per_tsubo:.1f} tsubo)" for fid in ordered_ids
+        (
+            f"{fid}: in {floor_indoor_sqm[fid]:.1f} sqm ({floor_indoor_sqm[fid] / sqm_per_tsubo:.1f} tsubo), "
+            f"out {floor_outdoor_sqm[fid]:.1f} sqm ({floor_outdoor_sqm[fid] / sqm_per_tsubo:.1f} tsubo)"
+        )
+        for fid in ordered_ids
     ]
-    lines.append(f"Total: {total_sqm:.1f} sqm ({total_sqm / sqm_per_tsubo:.1f} tsubo)")
+    lines.append(
+        f"Total indoor: {total_indoor_sqm:.1f} sqm ({total_indoor_sqm / sqm_per_tsubo:.1f} tsubo)"
+    )
+    lines.append(
+        f"Total outdoor: {total_outdoor_sqm:.1f} sqm ({total_outdoor_sqm / sqm_per_tsubo:.1f} tsubo)"
+    )
 
     box_x = renderer._x(site_rect.x2) + 88
     box_y = renderer.margin_px + 300

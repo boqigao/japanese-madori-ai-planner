@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from plan_engine.constants import is_indoor_space_type
 from plan_engine.models import (
     ContinuityMetrics,
     FloorStructureMetrics,
@@ -176,6 +177,8 @@ def _build_cell_ownership(solution: PlanSolution, floor_id: str) -> dict[tuple[i
     minor = solution.grid.minor
     owner: dict[tuple[int, int], str] = {}
     for space_id, space in floor.spaces.items():
+        if not is_indoor_space_type(space.type):
+            continue
         for rect in space.rects:
             for x in range(rect.x, rect.x2, minor):
                 for y in range(rect.y, rect.y2, minor):

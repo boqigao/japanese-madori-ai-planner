@@ -17,12 +17,16 @@ SPACE_COLORS = {
     "washroom": "#e7fbfb",
     "bath": "#dcecff",
     "storage": "#f0f0f0",
+    "balcony": "#e9f5ff",
+    "veranda": "#ecf9f0",
 }
 WINDOW_SPACE_TYPES = {"ldk", "bedroom", "master_bedroom", "entry"}
 LEGEND_ORDER = [
     "entry",
     "hall",
     "ldk",
+    "balcony",
+    "veranda",
     "master_bedroom",
     "bedroom",
     "toilet",
@@ -42,6 +46,8 @@ JP_SPACE_NAMES = {
     "washroom": "洗面",
     "bath": "浴室",
     "storage": "収納",
+    "balcony": "バルコニー",
+    "veranda": "ベランダ",
 }
 
 

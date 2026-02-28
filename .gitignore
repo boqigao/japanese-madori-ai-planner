@@ -23,7 +23,3 @@ build/
 
 # Local dev folder
 local-dev
-
-# Archieved openspec changes
-openspec/changes/archive
-

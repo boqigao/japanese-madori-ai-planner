@@ -7,7 +7,7 @@ site:
   envelope:
     type: rectangle
     width: 9100
-    depth: 7280
+    depth: 5460
   north: top
 floors:
   F1:
@@ -28,30 +28,23 @@ floors:
         size_constraints:
           min_width: 1365
         area:
-          min_tatami: 1.8
           target_tatami: 2.0
       - id: hall1
         type: hall
         size_constraints:
           min_width: 910
         area:
-          min_tatami: 2.5
-          target_tatami: 4.5
+          target_tatami: 4.0
         shape:
           allow: [L2]
           rect_components_max: 3
       - id: ldk
         type: ldk
         area:
-          min_tatami: 12.0
-          target_tatami: 18.0
-      - id: bed1
-        type: bedroom
-        size_constraints:
-          min_width: 1820
-        area:
-          min_tatami: 4.5
-          target_tatami: 5.0
+          target_tatami: 15.0
+        shape:
+          allow: [L2]
+          rect_components_max: 2
       - id: toilet1
         type: toilet
       - id: wash1
@@ -63,72 +56,67 @@ floors:
         size_constraints:
           min_width: 910
         area:
-          min_tatami: 1.5
           target_tatami: 2.5
     topology:
       adjacency:
-        - [entry, hall1, required]
-        - [hall1, ldk, required]
-        - [hall1, toilet1, required]
-        - [hall1, wash1, required]
-        - [hall1, stair, required]
-        - [wash1, bath1, required]
-        - [bed1, ldk, required]
-        - [storage1, ldk, preferred]
+        - [entry, hall1]
+        - [hall1, ldk]
+        - [hall1, toilet1]
+        - [hall1, wash1]
+        - [hall1, storage1]
+        - [hall1, stair]
+        - [wash1, bath1]
   F2:
+    buildable:
+      - x: 0
+        y: 0
+        w: 8190
+        h: 5460
     spaces:
       - id: hall2
         type: hall
         size_constraints:
           min_width: 910
         area:
-          min_tatami: 2.5
-          target_tatami: 4.5
+          target_tatami: 4.0
         shape:
           allow: [L2]
-          rect_components_max: 3
+          rect_components_max: 2
       - id: master
         type: master_bedroom
         size_constraints:
           min_width: 1820
         area:
-          min_tatami: 6.5
-          target_tatami: 8.0
+          target_tatami: 7.0
       - id: bed2
         type: bedroom
         size_constraints:
           min_width: 1820
         area:
-          min_tatami: 5.0
-          target_tatami: 6.0
+          target_tatami: 5.5
       - id: bed3
         type: bedroom
         size_constraints:
           min_width: 1820
         area:
-          min_tatami: 5.0
-          target_tatami: 6.0
-      - id: bed4
-        type: bedroom
-        size_constraints:
-          min_width: 1820
-        area:
-          min_tatami: 4.5
-          target_tatami: 5.0
+          target_tatami: 5.5
       - id: wic1
         type: storage
         size_constraints:
           min_width: 910
         area:
-          min_tatami: 1.5
+          target_tatami: 2.0
+      - id: balcony1
+        type: balcony
+        size_constraints:
+          min_width: 910
+        area:
           target_tatami: 2.5
     topology:
       adjacency:
-        - [hall2, stair, required]
-        - [hall2, master, required]
-        - [hall2, bed2, required]
-        - [hall2, bed3, required]
-        - [hall2, bed4, required]
-        - [bed3, bed2, required]
-        - [bed4, master, required]
-        - [wic1, master, preferred]
+        - [hall2, stair]
+        - [hall2, master]
+        - [hall2, bed2]
+        - [hall2, bed3]
+        - [hall2, wic1]
+        - [master, balcony1]

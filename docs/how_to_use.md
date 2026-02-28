@@ -1,44 +1,50 @@
-# How to Use This Project: Design a `spec.yaml` from Your Site
+# How to Use This Project
 
-This guide is for users with **no prior knowledge of this repository** who want to generate a detached-house floor plan from their site dimensions.
+This guide is for users who want to create a valid `spec.yaml` from scratch and generate realistic Japanese detached-house floor plans.
 
-## 1. What This Project Does
+## 1. Mental Model
 
-This project generates floor plans with a fixed pipeline:
+The engine is strict and deterministic before solving:
 
-`spec.yaml -> DSL parser -> CP-SAT solver -> validator -> SVG/PNG output`
+1. **DSL parse** (`plan_engine/dsl.py`): schema + grid alignment checks
+2. **Preflight** (`plan_engine/preflight.py`): feasibility/topology checks
+3. **Solver** (`plan_engine/solver/*`): CP-SAT layout search
+4. **Validator** (`plan_engine/validator/*`): geometry/connectivity/livability checks
+5. **Renderer** (`plan_engine/renderer/*`): SVG + PNG output
 
-You provide a YAML spec (`spec.yaml`).
-The solver places rooms and stairs under hard constraints (no overlap, grid alignment, connectivity, 100% coverage). The validator checks geometric and livability rules, then the renderer outputs drawings.
+If a hard rule fails, generation is rejected.
 
-## 2. What You Must Know Before Writing `spec.yaml`
-
-This MVP has strict boundaries:
-
-- Unit must be `mm`.
-- Grid is fixed: `minor=455`, `major=910`.
-- Building envelope supports rectangle only.
-- Every coordinate and important dimension must align to 455 mm.
-- Floor area must be used 100% (no white space left unassigned).
-- Only `ldk` and `hall` can use L-shape (`L2`) components.
-- Stair supports only `straight` or `L_landing`.
-
-If your site is irregular, define a **buildable rectangle** inside it and use that as `site.envelope`.
-
-## 3. Quick Start Commands
+## 2. First Successful Run
 
 ```bash
 uv sync
-uv run python main.py --spec tmp/spec.yaml --outdir tmp/plan_output --solver-timeout 60
+make run-default
 ```
 
-Generated files:
+Default input/output:
 
-- `solution.json`: solved geometry
-- `report.txt`: validation results
-- `F1.svg/F1.png`, `F2.svg/F2.png`, ...
+- input: `tmp/spec.yaml`
+- output: `tmp/plan_output/`
 
-## 4. `spec.yaml` Structure (Top Level)
+Or run your own file:
+
+```bash
+uv run python main.py --spec tmp/spec.yaml --outdir tmp/plan_output --solver-timeout 90
+```
+
+## 3. Hard Constraints You Must Respect
+
+- Units must be `mm`
+- Grid must be `minor=455`, `major=910`
+- Envelope type is rectangle only
+- All coordinates/sizes must align to 455mm
+- No overlap
+- Entry must touch exterior boundary
+- Indoor coverage is 100% of **floor buildable area**
+- Stair must connect to the configured hall on each connected floor
+- Bedroom pass-through is forbidden (a bedroom cannot be mandatory transit for another bedroom)
+
+## 4. Full `spec.yaml` Skeleton
 
 ```yaml
 version: 0.2
@@ -53,55 +59,95 @@ site:
     depth: 7280
   north: top
 floors:
-  F1: ...
-  F2: ...
-```
-
-Required top-level keys:
-
-- `version` (string)
-- `units` (`mm` only)
-- `grid` (`minor=455`, `major=910`)
-- `site`
-- `floors`
-
-## 5. Floor Section Format
-
-Each floor contains:
-
-- Optional `core.stair`
-- Required `spaces` list
-- Optional `topology.adjacency`
-
-Example skeleton:
-
-```yaml
-floors:
   F1:
     core:
       stair: ...
-    spaces:
-      - id: entry
-        type: entry
-        ...
+    spaces: [...]
     topology:
-      adjacency:
-        - [entry, hall1]
-        - [hall1, stair]
+      adjacency: [...]
+  F2:
+    buildable: [...]
+    spaces: [...]
+    topology:
+      adjacency: [...]
 ```
 
-Use stable floor IDs like `F1`, `F2`. The code sorts floors by numeric order.
+## 5. Top-Level Fields
 
-## 6. Space Definition Format
+### `version`
+Use `0.2`.
 
-Each space item:
+### `units`
+Must be `mm`.
+
+### `grid`
+- `minor`: `455`
+- `major`: `910`
+
+### `site.envelope`
+Rectangle only:
+
+```yaml
+site:
+  envelope:
+    type: rectangle
+    width: 9100
+    depth: 7280
+```
+
+`width/depth` must be divisible by `455`.
+
+### `site.north`
+Display orientation (`top` is common).
+
+## 6. Floor Fields
+
+Each floor (`F1`, `F2`, etc.) may contain:
+
+- `core.stair` (usually defined on F1)
+- `buildable` (optional indoor buildable mask)
+- `spaces` (required)
+- `topology.adjacency` (recommended and usually required for usable circulation)
+
+### 6.1 `buildable` (optional)
+
+Defines where **indoor** spaces may be placed on that floor.
+
+If omitted, buildable defaults to full envelope.
+
+Supported forms:
+
+```yaml
+buildable:
+  - x: 0
+    y: 0
+    w: 8190
+    h: 7280
+```
+
+or
+
+```yaml
+buildable:
+  rects:
+    - {x: 0, y: 0, w: 8190, h: 7280}
+```
+
+Rules:
+
+- rectangles must be inside envelope
+- no overlap between buildable rectangles
+- `x,y,w,h` must align to 455mm
+- `w,h > 0`
+
+## 7. Space Definition
 
 ```yaml
 - id: bed2
   type: bedroom
   area:
-    min_tatami: 6.0
-    target_tatami: 7.5
+    min_tatami: 4.5
+    target_tatami: 6.0
   size_constraints:
     min_width: 1820
   shape:
@@ -109,53 +155,54 @@ Each space item:
     rect_components_max: 1
 ```
 
-Fields:
+### Field meanings
 
-- `id`: room identifier. Keep unique within a floor.
-- `type`: semantic room type.
-- `area.min_tatami`: hard lower bound.
-- `area.target_tatami`: soft optimization target. In current solver, if `min_tatami` is absent, target also behaves as a minimum floor.
-- `size_constraints.min_width`: hard minimum short side in mm (must be multiple of 455).
-- `shape.allow`: allowed shapes (`rect`, `L2`).
-- `shape.rect_components_max`: requested component count cap.
+- `id`: unique room ID on that floor
+- `type`: semantic type
+- `area.min_tatami`: hard minimum
+- `area.target_tatami`: soft target (objective)
+- `size_constraints.min_width`: minimum short side in mm
+- `shape.allow`: allowed shapes (`rect`, `L2`)
+- `shape.rect_components_max`: max rectangle components (effective only when `L2` is active)
 
-Supported/expected room types in practice:
+### Important room type notes
+
+Common indoor types:
 
 - `entry`, `hall`, `ldk`
 - `bedroom`, `master_bedroom`
-- `toilet` or `wc`, `washroom`, `bath`
 - `storage`
+- `toilet`/`wc`, `washroom`, `bath`
 
-## 7. Shape Rules You Must Follow
+Outdoor types:
 
-Current implementation behavior:
+- `balcony`, `veranda`
 
-- Default is one rectangle (`rect`).
-- Only `ldk` and `hall` may declare `L2`.
-- `ldk` max components: 2.
-- `hall` max components: 4.
-- Wet modules (`toilet/wc/washroom/bath`) are forced to one fixed-size rectangle.
+Wet module sizes are fixed:
 
-Important implementation detail:
+- toilet/wc: `910 x 1820`
+- washroom: `1820 x 1820`
+- bath: `1820 x 1820`
 
-- `L2` is active only when `shape.allow` excludes `rect`.
-- If you set `allow: [rect, L2]`, current component logic falls back to single-rect.
+## 8. Shape Rules (Current Stage)
 
-To force L-shape for hall/LDK, use:
+- `ldk` can be multi-rect (`L2`) up to 2 parts
+- `hall` can be multi-rect (`L2`) up to 4 parts
+- other room types should remain rectangular
+- wet modules are single fixed rectangles
 
-```yaml
-shape:
-  allow: [L2]
-  rect_components_max: 4   # hall example
-```
+Practical note:
 
-## 8. Stair Definition Format
+- If `shape.allow` includes `rect`, component count falls back to 1
+- To actually allow multi-rect behavior, use `allow: [L2]`
+
+## 9. Stair Definition
 
 ```yaml
 core:
   stair:
     id: stair
-    type: straight            # or L_landing
+    type: straight        # straight | L_landing
     width: 910
     floor_height: 2730
     riser_pref: 230
@@ -165,154 +212,94 @@ core:
       F2: hall2
     placement:
       x: 3640
-      y: 3640
+      y: 2730
 ```
 
 Rules:
 
-- Stair `id` must be shared logically across floors (single vertical shaft model).
-- `width`, `placement.x`, `placement.y` must align to 455.
-- `connects` maps floor ID -> hall ID that must connect to stair portal.
-- If `placement` is omitted, solver chooses location.
+- `width`, `placement.x`, `placement.y` must align to 455
+- `connects` hall IDs must exist and be `hall` type
+- Stair position is shared structurally across connected floors
 
-## 9. Topology Adjacency: How It Works
+## 10. Topology: Adjacency Graph
 
-`topology.adjacency` requires **physical touching** (shared edge with positive overlap), not just conceptual relation.
-
-Example:
+Topology edges drive passable connectivity and doorway candidates.
 
 ```yaml
 topology:
   adjacency:
     - [entry, hall1]
     - [hall1, ldk]
-    - [hall1, bed1]
     - [hall1, stair]
+    - [hall1, toilet1]
+    - [hall1, wash1]
     - [wash1, bath1]
 ```
 
-Guidelines:
+### Edge format
 
-- Add only truly necessary edges.
-- Over-constraining adjacency is a common cause of `solve_failed`.
-- Always include stair-hall adjacency in topology (`[hallX, stair]`).
-- Every bedroom must have a path from `entry` that does not pass through another bedroom.
-  - Good: `entry -> hall -> bedroom`
-  - Bad: `entry -> hall -> bedroom A -> bedroom B`
+- 2-item: `[a, b]` (strength defaults to `auto`)
+- 3-item: `[a, b, required|preferred|optional]`
 
-## 10. Hard Constraints Enforced by Solver/Validator
+`auto` resolves by type-pair defaults in solver; most pairs end up required.
 
-These are non-negotiable:
+### Topology recommendations
 
-- No overlap of any rooms or stair components.
-- Every rectangle stays inside the envelope.
-- 100% envelope coverage per floor.
-- Entry must touch exterior boundary.
-- Entry has hard max area ≈ `2.5 jo`.
-- Wet module fixed sizes:
-  - toilet/wc: `910 x 1820`
-  - washroom: `1820 x 1820`
-  - bath: `1820 x 1820`
-- Bath must touch at least one washroom.
-- Wet spaces must form a connected cluster and connect to hall.
-- Toilet/WC must not be adjacent to LDK (1 minor-cell gap).
-- Hall short side must be <= `1820 mm`.
-- Stair portal edge must connect to configured hall on each connected floor.
-- Stair portal edge cannot sit on exterior boundary.
-- Bedroom pass-through is forbidden in preflight:
-  - `bedroom` / `master_bedroom` may be destination rooms, but must not be required as transit to reach another bedroom.
+- Keep circulation simple: `entry -> hall -> rooms`
+- Always connect hall to stair on stair floors
+- Keep toilet and wet-core linked to circulation (hall/entry/stair)
+- Do not force bedroom chains (`bed1 -> bed2 -> bed3`)
 
-## 11. Recommended Area/Width Ranges (Practical Defaults)
+## 11. Balcony/Veranda Semantics
 
-Use these as starting points:
+Outdoor spaces are first-class room types.
 
-- `entry`: 1.5 to 2.5 jo, min width 1365
-- `hall`: 3.0 to 5.5 jo, min width 910
-- `toilet`: 1.0 jo
-- `washroom`: 2.0 jo
-- `bath`: 2.0 jo
-- `bedroom`: 6.0 to 8.0 jo, min width 1820 or 2275
-- `master_bedroom`: 8.0 to 10.0 jo, min width 1820+
-- `ldk`: 12.0 to 18.0 jo
-- `storage/wic`: 1.5 to 3.0 jo
+Behavior:
 
-Because coverage is 100%, if total targets are too small, some rooms will grow to fill area. Plan target areas accordingly.
+- classified as outdoor in solution/report
+- excluded from indoor buildable coverage equation
+- must declare topology access to at least one indoor room
+- validator checks realized indoor-outdoor access
 
-## 12. Step-by-Step Workflow from Land Shape to `spec.yaml`
+Example:
 
-### Step 1: Decide Buildable Rectangle
+```yaml
+- id: balcony1
+  type: balcony
+  area:
+    target_tatami: 2.5
 
-- Measure your intended building footprint (not total site if irregular).
-- Snap both width/depth to multiples of 455.
-- Example: 9000 x 7300 becomes 9100 x 7280.
+# topology
+- [master, balcony1, required]
+```
 
-### Step 2: Decide Floor Program
+## 12. Step-by-Step Authoring Workflow
 
-- List rooms needed per floor.
-- Keep F1 around entry/living/wet/core.
-- Keep F2 around bedrooms/hall/storage.
+### Step 1: Set envelope on grid
 
-### Step 3: Define Stair + Hall Pairing
+Pick rectangle dimensions divisible by 455.
 
-- Pick stair type (`straight` is easiest for first attempt).
-- Define `connects` to one hall per connected floor.
-- Ensure each connected floor actually has that hall ID.
+### Step 2: Define floor program
 
-### Step 4: Write Spaces with Realistic Bounds
+Start small. Get one feasible plan first, then add rooms.
 
-- Start with `target_tatami` for each room.
-- Add `min_width` for bedrooms and entry.
-- Keep IDs simple (`bed1`, `bed2`, `hall1`, `hall2`).
+### Step 3: Add stair + halls
 
-### Step 5: Add Shape Constraints
+Declare stair and hall IDs (`hall1`, `hall2`) early.
 
-- Keep all non-hall/non-LDK rooms rectangular.
-- If you need flexible circulation, set hall as `L2` with `rect_components_max: 3~4`.
-- If you need LDK L-shape, set `allow: [L2]`.
+### Step 4: Add spaces with realistic ranges
 
-### Step 6: Add Minimal Topology
+Use targets that roughly match desired total floor area.
 
-- Start with core circulation edges only.
-- Add wet adjacency `[wash, bath]`.
-- Add stair adjacency `[hall, stair]`.
-- Add extra adjacency only if required.
+### Step 5: Add minimal topology
 
-### Step 7: Run and Read `report.txt`
+Only necessary edges first. Over-constraining is a common infeasibility source.
 
-- If parse error: fix schema/alignment first.
-- If solve fails: relax adjacency and width/area pressure.
-- If validation fails: address exact `Errors:` line-by-line.
+### Step 6: Run, inspect `report.txt`, iterate
 
-### Step 8: Iterate
+Fix errors first, then optimize warnings.
 
-Recommended order when infeasible:
-
-1. Reduce topology edges.
-2. Relax bedroom `min_width`.
-3. Lower area targets for large rooms.
-4. Remove forced stair placement.
-5. Re-check hall IDs in `stair.connects`.
-
-## 13. How to Read `report.txt`
-
-`report.txt` has:
-
-- `Errors`: hard failures (output rejected)
-- `Warnings`: plan is valid but quality issues exist
-- `Structural`: proxy structural diagnostics (warn-only)
-
-Common messages and fixes:
-
-- `dsl_parse_failed: ... align to 455mm`: snap all dimensions to 455.
-- `solve_failed`: constraints conflict; reduce adjacency and targets.
-- `area coverage must be 100%`: happens if geometry invalid or missing entities.
-- `entry must touch exterior boundary`: topology alone is not enough; entry rectangle must touch outer wall.
-- `stair ... connect hall missing`: hall ID in `connects` is wrong or absent.
-- `bath is not adjacent to any washroom`: add washroom and adjacency pressure.
-
-## 14. Full Two-Floor Example (Starter Template)
-
-This is a practical starter that aligns with current rules:
+## 13. Minimal 2F Example (With Balcony)
 
 ```yaml
 version: 0.2
@@ -324,9 +311,8 @@ site:
   envelope:
     type: rectangle
     width: 9100
-    depth: 7280
+    depth: 5460
   north: top
-
 floors:
   F1:
     core:
@@ -343,115 +329,121 @@ floors:
     spaces:
       - id: entry
         type: entry
-        size_constraints:
-          min_width: 1365
-        area:
-          target_tatami: 2.0
+        size_constraints: {min_width: 1365}
+        area: {target_tatami: 2.0}
       - id: hall1
         type: hall
-        size_constraints:
-          min_width: 910
-        area:
-          target_tatami: 4.5
+        size_constraints: {min_width: 910}
+        area: {target_tatami: 4.0}
         shape:
           allow: [L2]
-          rect_components_max: 4
+          rect_components_max: 3
       - id: ldk
         type: ldk
-        area:
-          target_tatami: 15.0
+        area: {target_tatami: 15.0}
         shape:
           allow: [L2]
           rect_components_max: 2
-      - id: bed1
-        type: bedroom
-        size_constraints:
-          min_width: 1820
-        area:
-          target_tatami: 8.0
       - id: toilet1
         type: toilet
-        area:
-          target_tatami: 1.0
       - id: wash1
         type: washroom
-        area:
-          target_tatami: 2.0
       - id: bath1
         type: bath
-        area:
-          target_tatami: 2.0
+      - id: storage1
+        type: storage
+        size_constraints: {min_width: 910}
+        area: {target_tatami: 2.0}
     topology:
       adjacency:
         - [entry, hall1]
         - [hall1, ldk]
-        - [hall1, bed1]
         - [hall1, toilet1]
         - [hall1, wash1]
-        - [hall1, stair]
         - [wash1, bath1]
+        - [hall1, storage1]
+        - [hall1, stair]
 
   F2:
+    buildable:
+      - {x: 0, y: 0, w: 8190, h: 5460}
     spaces:
       - id: hall2
         type: hall
-        size_constraints:
-          min_width: 910
-        area:
-          target_tatami: 4.5
+        size_constraints: {min_width: 910}
+        area: {target_tatami: 4.0}
         shape:
           allow: [L2]
-          rect_components_max: 4
+          rect_components_max: 2
       - id: master
         type: master_bedroom
-        size_constraints:
-          min_width: 1820
-        area:
-          target_tatami: 8.0
+        size_constraints: {min_width: 1820}
+        area: {target_tatami: 7.0}
       - id: bed2
         type: bedroom
-        size_constraints:
-          min_width: 1820
-        area:
-          target_tatami: 7.0
+        size_constraints: {min_width: 1820}
+        area: {target_tatami: 5.5}
       - id: bed3
         type: bedroom
-        size_constraints:
-          min_width: 1820
-        area:
-          target_tatami: 7.0
-      - id: bed4
-        type: bedroom
-        size_constraints:
-          min_width: 1820
-        area:
-          target_tatami: 5.0
+        size_constraints: {min_width: 1820}
+        area: {target_tatami: 5.5}
       - id: wic1
         type: storage
-        size_constraints:
-          min_width: 910
-        area:
-          target_tatami: 2.0
+        size_constraints: {min_width: 910}
+        area: {target_tatami: 2.0}
+      - id: balcony1
+        type: balcony
+        size_constraints: {min_width: 910}
+        area: {target_tatami: 2.5}
     topology:
       adjacency:
+        - [hall2, stair]
         - [hall2, master]
         - [hall2, bed2]
         - [hall2, bed3]
-        - [hall2, bed4]
         - [hall2, wic1]
-        - [hall2, stair]
+        - [master, balcony1]
 ```
 
-## 15. Final Checklist Before Running
+## 14. How to Read `report.txt`
 
-- All mm values snapped to 455.
-- Envelope is rectangle.
-- Each floor has realistic room list.
-- Entry exists on ground floor and can touch exterior.
-- Wet trio (`toilet/wash/bath`) designed with hall access.
-- Bath has washroom adjacency pressure.
-- Stair `connects` hall IDs exist on each connected floor.
-- Topology is necessary but not over-constrained.
-- Hall and LDK shape settings match desired behavior.
+### `Errors`
+Hard failures. Fix these first.
 
-If you want, the next step can be a second document with “design patterns” (for example: compact 4LDK, 5LDK+WIC, narrow-frontage lot patterns) that you can copy directly.
+### `Warnings`
+Output is valid but quality is not ideal.
+
+### `Diagnostics`
+Useful numeric context (area budgets, buildable stats, breakdowns).
+
+### Typical failure mapping
+
+- `dsl_parse_failed`: schema, type, or alignment issue
+- `preflight: ... max area cannot fill buildable`: increase targets/add room/reduce buildable
+- `preflight: ... bedroom transit`: connect blocked bedroom to hall/circulation
+- `solve_failed`: topology/size constraints over-constrained
+- `entry must touch exterior`: adjust entry placement pressure via topology/targets
+- `outdoor access ... missing/not realized`: add indoor↔balcony topology edge and ensure adjacency is solvable
+
+## 15. Practical Tuning Order (When Infeasible)
+
+1. Reduce topology edges to essentials
+2. Remove strict stair placement (`placement`)
+3. Relax min widths (except hard necessities)
+4. Lower room targets
+5. Reduce hall/LDK L-shape complexity
+6. Re-check buildable mask area against indoor program
+
+## 16. Pre-Run Checklist
+
+- [ ] every mm value is divisible by 455
+- [ ] floor IDs and room IDs are consistent
+- [ ] stair `connects` references existing hall IDs
+- [ ] each bedroom has hall-based access path
+- [ ] washroom and bath have adjacency edge
+- [ ] buildable masks are valid (inside, non-overlap)
+- [ ] outdoor spaces have at least one indoor access edge
+
+---
+
+If you want, the next iteration can add a second guide with copy-ready design patterns (compact 4LDK, narrow-frontage lot, balcony-heavy 2F, hiraya variants).

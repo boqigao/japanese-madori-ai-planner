@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from typing import TYPE_CHECKING
 
-from plan_engine.constants import WET_SPACE_TYPES
+from plan_engine.constants import is_indoor_space_type, is_outdoor_space_type
 
 if TYPE_CHECKING:
     from plan_engine.models import FloorSolution, PlanSolution, Rect, ValidationReport
@@ -27,6 +27,7 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
     primary_nodes: list[str] = []
     toilet_nodes: list[str] = []
     bedroom_nodes: set[str] = set()
+    outdoor_nodes: set[str] = set()
 
     stair_nodes_by_id: dict[str, list[str]] = {}
     floor_graphs: dict[str, dict[str, set[str]]] = {}
@@ -44,12 +45,10 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
             node = f"{floor_id}:{space_id}"
             if space.type == "entry":
                 entry_nodes.append(node)
-            if (
-                space.type not in WET_SPACE_TYPES
-                or space.type in TOILET_SPACE_TYPES
-                or space.type in WET_CORE_SPACE_TYPES
-            ):
+            if is_indoor_space_type(space.type):
                 primary_nodes.append(node)
+            elif is_outdoor_space_type(space.type):
+                outdoor_nodes.add(node)
             if space.type in TOILET_SPACE_TYPES:
                 toilet_nodes.append(node)
             if space.type in BEDROOM_SPACE_TYPES:
@@ -70,11 +69,12 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
         report.errors.append("no entry space found for connectivity validation")
         return
 
-    visited = _bfs(global_graph, entry_nodes)
+    visited, _ = _bfs_with_parents(global_graph, entry_nodes, non_transit_nodes=outdoor_nodes)
     for node in primary_nodes:
         if node not in visited:
             report.errors.append(f"entry does not reach primary space '{node}'")
 
+    _validate_outdoor_access_realization(solution, floor_graphs, report)
     _validate_toilet_topology_realization(solution, floor_graphs, report)
     _validate_wet_core_topology_realization(solution, floor_graphs, report)
     _validate_toilet_bedroom_pass_through(
@@ -82,6 +82,7 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
         entry_nodes=entry_nodes,
         toilet_nodes=toilet_nodes,
         bedroom_nodes=bedroom_nodes,
+        outdoor_nodes=outdoor_nodes,
         report=report,
     )
 
@@ -156,6 +157,48 @@ def _validate_wet_core_topology_realization(
             )
 
 
+def _validate_outdoor_access_realization(
+    solution: PlanSolution,
+    floor_graphs: dict[str, dict[str, set[str]]],
+    report: ValidationReport,
+) -> None:
+    """Validate declared and realized indoor access for each outdoor space.
+
+    Args:
+        solution: Solved plan containing per-floor spaces and topology.
+        floor_graphs: Realized per-floor adjacency graphs from topology edges.
+        report: Mutable validation report to append errors.
+
+    Returns:
+        None.
+    """
+    for floor_id, floor in solution.floors.items():
+        floor_graph = floor_graphs.get(floor_id, {})
+        indoor_ids = {
+            space_id for space_id, space in floor.spaces.items() if is_indoor_space_type(space.type)
+        }
+        for outdoor_id, outdoor_space in floor.spaces.items():
+            if not is_outdoor_space_type(outdoor_space.type):
+                continue
+            declared_indoor_neighbors: set[str] = set()
+            for left_id, right_id in floor.topology:
+                if left_id == outdoor_id and right_id in indoor_ids:
+                    declared_indoor_neighbors.add(right_id)
+                if right_id == outdoor_id and left_id in indoor_ids:
+                    declared_indoor_neighbors.add(left_id)
+            if not declared_indoor_neighbors:
+                report.errors.append(
+                    f"{floor_id}:{outdoor_id} outdoor access topology is missing "
+                    "(expected edge to an indoor space)"
+                )
+                continue
+            realized_neighbors = floor_graph.get(outdoor_id, set()).intersection(declared_indoor_neighbors)
+            if not realized_neighbors:
+                report.errors.append(
+                    f"{floor_id}:{outdoor_id} outdoor access topology is declared but not physically realized"
+                )
+
+
 def _validate_toilet_topology_realization(
     solution: PlanSolution,
     floor_graphs: dict[str, dict[str, set[str]]],
@@ -207,6 +250,7 @@ def _validate_toilet_bedroom_pass_through(
     entry_nodes: list[str],
     toilet_nodes: list[str],
     bedroom_nodes: set[str],
+    outdoor_nodes: set[str],
     report: ValidationReport,
 ) -> None:
     """Reject circulation where toilets are reachable only through bedrooms.
@@ -216,6 +260,7 @@ def _validate_toilet_bedroom_pass_through(
         entry_nodes: Entry nodes used as BFS roots.
         toilet_nodes: Global node IDs for all toilet/WC spaces.
         bedroom_nodes: Global node IDs for all bedroom/master bedroom spaces.
+        outdoor_nodes: Global node IDs for balcony/veranda spaces.
         report: Mutable validation report receiving errors.
 
     Returns:
@@ -224,7 +269,8 @@ def _validate_toilet_bedroom_pass_through(
     if not toilet_nodes:
         return
     reachable_all, parent_all = _bfs_with_parents(global_graph, entry_nodes, non_transit_nodes=frozenset())
-    reachable_no_bed_transit, _ = _bfs_with_parents(global_graph, entry_nodes, non_transit_nodes=bedroom_nodes)
+    non_transit_nodes = bedroom_nodes.union(outdoor_nodes)
+    reachable_no_bed_transit, _ = _bfs_with_parents(global_graph, entry_nodes, non_transit_nodes=non_transit_nodes)
 
     for toilet_node in sorted(toilet_nodes):
         if toilet_node not in reachable_all or toilet_node in reachable_no_bed_transit:
@@ -283,21 +329,6 @@ def _floor_graph_from_realized_topology(
 def _entities_touch(rects_a: list[Rect], rects_b: list[Rect]) -> bool:
     """Check whether any rectangles from two groups share an edge."""
     return any(a.shares_edge_with(b) for a in rects_a for b in rects_b)
-
-
-def _bfs(graph: dict[str, set[str]], start_nodes: list[str]) -> set[str]:
-    """Breadth-first search returning all reachable nodes from the start set."""
-    visited: set[str] = set()
-    queue: deque[str] = deque(start_nodes)
-    while queue:
-        node = queue.popleft()
-        if node in visited:
-            continue
-        visited.add(node)
-        for neighbor in graph.get(node, set()):
-            if neighbor not in visited:
-                queue.append(neighbor)
-    return visited
 
 
 def _bfs_with_parents(

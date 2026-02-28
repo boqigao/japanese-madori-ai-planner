@@ -4,7 +4,11 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from plan_engine.constants import WET_MODULE_SIZES_MM, WET_SPACE_TYPES, mm_to_cells
+from plan_engine.constants import (
+    WET_MODULE_SIZES_MM,
+    is_indoor_space_type,
+    mm_to_cells,
+)
 from plan_engine.models import BedroomReachabilityViolation, ValidationReport
 from plan_engine.solver.rect_var import _compute_stair_footprint, _find_global_stair
 from plan_engine.solver.space_specs import _max_area_cells, _min_area_cells, _target_area_cells
@@ -25,6 +29,7 @@ class FloorPreflightStats:
     Attributes:
         floor_id: Floor identifier (for example ``F1``).
         envelope_cells: Total available cells in the rectangular envelope.
+        buildable_cells: Total indoor buildable cells on this floor.
         min_cells: Sum of required minimum area cells for all entities.
         max_cells: Sum of available maximum area cells for all entities.
         room_count: Number of spaces declared on the floor.
@@ -33,6 +38,7 @@ class FloorPreflightStats:
 
     floor_id: str
     envelope_cells: int
+    buildable_cells: int
     min_cells: int
     max_cells: int
     room_count: int
@@ -78,32 +84,45 @@ def run_preflight(spec: PlanSpec) -> PreflightResult:
     _check_reference_consistency(spec, report)
 
     for floor_id, floor in spec.floors.items():
-        min_cells, max_cells = _floor_area_budget(spec, floor_id, envelope_area, stair_cells_by_floor.get(floor_id, 0))
+        buildable_area = _check_buildable_mask_consistency(
+            spec=spec,
+            floor_id=floor_id,
+            envelope_w_cells=envelope_w,
+            envelope_h_cells=envelope_h,
+            report=report,
+        )
+        min_cells, max_cells = _floor_area_budget(
+            spec=spec,
+            floor_id=floor_id,
+            buildable_area=buildable_area,
+            stair_cells=stair_cells_by_floor.get(floor_id, 0),
+        )
         hall_fanout = _hall_fanout(spec, floor_id)
         floor_stats[floor_id] = FloorPreflightStats(
             floor_id=floor_id,
             envelope_cells=envelope_area,
+            buildable_cells=buildable_area,
             min_cells=min_cells,
             max_cells=max_cells,
             room_count=len(floor.spaces),
             hall_fanout=hall_fanout,
         )
 
-        if min_cells > envelope_area:
-            over_cells = min_cells - envelope_area
+        if min_cells > buildable_area:
+            over_cells = min_cells - buildable_area
             report.errors.append(
-                f"preflight: {floor_id} minimum area exceeds envelope by {over_cells} cells "
+                f"preflight: {floor_id} minimum indoor area exceeds buildable area by {over_cells} cells "
                 f"({cells_to_sqm(over_cells, minor):.1f}sqm)"
             )
             _suggest_reduce_large_targets(spec, floor_id, report)
-        if max_cells < envelope_area:
-            gap_cells = envelope_area - max_cells
+        if max_cells < buildable_area:
+            gap_cells = buildable_area - max_cells
             report.errors.append(
-                f"preflight: {floor_id} maximum area cannot fill envelope, short by {gap_cells} cells "
+                f"preflight: {floor_id} maximum indoor area cannot fill buildable area, short by {gap_cells} cells "
                 f"({cells_to_sqm(gap_cells, minor):.1f}sqm)"
             )
             report.suggestions.append(
-                f"Increase target areas or add a storage/hall room on {floor_id} to absorb about "
+                f"Increase indoor target areas or add an indoor storage/hall room on {floor_id} to absorb about "
                 f"{cells_to_sqm(gap_cells, minor):.1f}sqm."
             )
 
@@ -119,7 +138,8 @@ def run_preflight(spec: PlanSpec) -> PreflightResult:
             )
 
         report.diagnostics.append(
-            f"{floor_id}: envelope={envelope_area} cells, min={min_cells}, max={max_cells}, "
+            f"{floor_id}: envelope={envelope_area} cells, buildable={buildable_area} cells, "
+            f"min={min_cells}, max={max_cells}, "
             f"rooms={len(floor.spaces)}, hall_fanout={hall_fanout}"
         )
 
@@ -154,10 +174,11 @@ def build_solver_failure_report(
     )
     for floor_id in sorted(floor_stats):
         stats = floor_stats[floor_id]
-        min_slack = stats.envelope_cells - stats.min_cells
-        max_slack = stats.max_cells - stats.envelope_cells
+        min_slack = stats.buildable_cells - stats.min_cells
+        max_slack = stats.max_cells - stats.buildable_cells
         report.diagnostics.append(
-            f"{floor_id}: min_slack={min_slack} cells, max_slack={max_slack} cells, "
+            f"{floor_id}: buildable={stats.buildable_cells} cells, "
+            f"min_slack={min_slack} cells, max_slack={max_slack} cells, "
             f"rooms={stats.room_count}, hall_fanout={stats.hall_fanout}"
         )
     report.suggestions.append(
@@ -201,14 +222,19 @@ def _stair_area_by_floor(
 def _floor_area_budget(
     spec: PlanSpec,
     floor_id: str,
-    envelope_area: int,
+    buildable_area: int,
     stair_cells: int,
 ) -> tuple[int, int]:
-    """Return ``(min_cells, max_cells)`` for one floor including stair occupancy."""
+    """Return ``(min_cells, max_cells)`` for indoor coverage on one floor.
+
+    Outdoor spaces are excluded from indoor buildable fill accounting.
+    """
     floor = spec.floors[floor_id]
     min_cells = stair_cells
     max_cells = stair_cells
     for space in floor.spaces:
+        if not is_indoor_space_type(space.type):
+            continue
         fixed = WET_MODULE_SIZES_MM.get(space.type)
         if fixed is not None:
             area = mm_to_cells(fixed[0], spec.grid.minor) * mm_to_cells(fixed[1], spec.grid.minor)
@@ -218,7 +244,7 @@ def _floor_area_budget(
 
         min_cells += _min_area_cells(space, spec.grid.minor)
         max_area = _max_area_cells(space, spec.grid.minor)
-        max_cells += envelope_area if max_area is None else max_area
+        max_cells += buildable_area if max_area is None else max_area
     return min_cells, max_cells
 
 
@@ -251,6 +277,66 @@ def _check_room_min_width(
                 f"preflight: {floor_id}:{space.id} min_width={min_width}mm exceeds envelope short side "
                 f"({short_edge_mm}mm)"
             )
+
+
+def _check_buildable_mask_consistency(
+    spec: PlanSpec,
+    floor_id: str,
+    envelope_w_cells: int,
+    envelope_h_cells: int,
+    report: ValidationReport,
+) -> int:
+    """Validate one floor buildable mask and return its area in cells.
+
+    Args:
+        spec: Parsed plan specification.
+        floor_id: Floor identifier.
+        envelope_w_cells: Envelope width in cells.
+        envelope_h_cells: Envelope depth in cells.
+        report: Mutable validation report for preflight findings.
+
+    Returns:
+        Buildable indoor area in grid cells. Falls back to full envelope area
+        when parsing/validation errors make the mask unusable.
+    """
+    floor = spec.floors[floor_id]
+    envelope_w_mm = envelope_w_cells * spec.grid.minor
+    envelope_h_mm = envelope_h_cells * spec.grid.minor
+    rects = list(floor.buildable_mask)
+    if not rects:
+        return envelope_w_cells * envelope_h_cells
+
+    total_cells = 0
+    for index, rect in enumerate(rects):
+        if rect.w <= 0 or rect.h <= 0:
+            report.errors.append(f"preflight: {floor_id} buildable rect #{index} has non-positive size")
+            continue
+        aligned = True
+        for field_name, value in (("x", rect.x), ("y", rect.y), ("w", rect.w), ("h", rect.h)):
+            if value % spec.grid.minor != 0:
+                aligned = False
+                report.errors.append(
+                    f"preflight: {floor_id} buildable rect #{index} field '{field_name}'={value} "
+                    f"is not aligned to {spec.grid.minor}mm"
+                )
+        if rect.x < 0 or rect.y < 0 or rect.x + rect.w > envelope_w_mm or rect.y + rect.h > envelope_h_mm:
+            report.errors.append(
+                f"preflight: {floor_id} buildable rect #{index} is outside envelope "
+                f"({envelope_w_mm}x{envelope_h_mm}mm)"
+            )
+        if aligned:
+            total_cells += mm_to_cells(rect.w, spec.grid.minor) * mm_to_cells(rect.h, spec.grid.minor)
+
+    for i, left in enumerate(rects):
+        for right in rects[i + 1 :]:
+            if _rects_overlap(left.x, left.y, left.w, left.h, right.x, right.y, right.w, right.h):
+                report.errors.append(f"preflight: {floor_id} buildable mask rectangles must not overlap")
+                break
+
+    if total_cells <= 0:
+        report.errors.append(f"preflight: {floor_id} buildable mask has zero indoor area")
+        return envelope_w_cells * envelope_h_cells
+    return total_cells
 
 
 def _check_reference_consistency(spec: PlanSpec, report: ValidationReport) -> None:
@@ -322,9 +408,12 @@ def _check_topology_reachability(
     """
     graph: dict[str, set[str]] = {}
     start_nodes: list[str] = []
-    target_nodes: list[str] = []
+    indoor_target_nodes: list[str] = []
     bedroom_nodes: set[str] = set()
     stair_nodes_by_id: dict[str, list[str]] = {}
+    floor_space_types: dict[str, dict[str, str]] = {}
+    floor_topology_neighbors: dict[str, dict[str, set[str]]] = {}
+    outdoor_nodes_by_floor: dict[str, list[str]] = {}
 
     global_stair = _find_global_stair(spec)
     stair_id = global_stair.id if global_stair is not None else None
@@ -334,17 +423,18 @@ def _check_topology_reachability(
         floors_with_stair.intersection_update(spec.floors.keys())
 
     for floor_id, floor in spec.floors.items():
+        floor_space_types[floor_id] = {space.id: space.type for space in floor.spaces}
+        local_neighbors: dict[str, set[str]] = {}
         for space in floor.spaces:
             node = f"{floor_id}:{space.id}"
             graph.setdefault(node, set())
+            local_neighbors.setdefault(space.id, set())
             if space.type == "entry":
                 start_nodes.append(node)
-            if (
-                space.type not in WET_SPACE_TYPES
-                or space.type in TOILET_SPACE_TYPES
-                or space.type in WET_CORE_SPACE_TYPES
-            ):
-                target_nodes.append(node)
+            if is_indoor_space_type(space.type):
+                indoor_target_nodes.append(node)
+            else:
+                outdoor_nodes_by_floor.setdefault(floor_id, []).append(space.id)
             if space.type in BEDROOM_SPACE_TYPES:
                 bedroom_nodes.add(node)
 
@@ -352,7 +442,7 @@ def _check_topology_reachability(
         if floor_stair_id is not None and floor_id in floors_with_stair:
             stair_node = f"{floor_id}:{floor_stair_id}"
             graph.setdefault(stair_node, set())
-            target_nodes.append(stair_node)
+            indoor_target_nodes.append(stair_node)
             stair_nodes_by_id.setdefault(floor_stair_id, []).append(stair_node)
 
         for edge in floor.topology.adjacency:
@@ -361,6 +451,9 @@ def _check_topology_reachability(
             right = f"{floor_id}:{right_id}"
             graph.setdefault(left, set()).add(right)
             graph.setdefault(right, set()).add(left)
+            local_neighbors.setdefault(left_id, set()).add(right_id)
+            local_neighbors.setdefault(right_id, set()).add(left_id)
+        floor_topology_neighbors[floor_id] = local_neighbors
 
     for stair_nodes in stair_nodes_by_id.values():
         for index, node in enumerate(stair_nodes):
@@ -375,17 +468,16 @@ def _check_topology_reachability(
     reachable_all, parent_all = _bfs_with_parents(graph, start_nodes, non_transit_nodes=frozenset())
     reachable_no_bed_transit, _ = _bfs_with_parents(graph, start_nodes, non_transit_nodes=bedroom_nodes)
 
-    for node in target_nodes:
+    for node in indoor_target_nodes:
         if node not in reachable_all:
             report.errors.append(f"preflight: topology does not connect entry to '{node}'")
+
     violations: list[BedroomReachabilityViolation] = []
     for bedroom_node in sorted(bedroom_nodes):
         if bedroom_node not in reachable_all or bedroom_node in reachable_no_bed_transit:
             continue
         path_nodes = _reconstruct_path(parent_all, bedroom_node)
-        transit_bedrooms = [
-            node for node in path_nodes[1:-1] if node in bedroom_nodes
-        ]
+        transit_bedrooms = [node for node in path_nodes[1:-1] if node in bedroom_nodes]
         if not transit_bedrooms:
             continue
 
@@ -411,6 +503,25 @@ def _check_topology_reachability(
             f"Topology fix for {floor_id}:{bedroom_id}: add at least one adjacency to hall/entry/stair-linked circulation "
             "that does not route through another bedroom."
         )
+
+    for floor_id, outdoor_ids in outdoor_nodes_by_floor.items():
+        neighbors = floor_topology_neighbors.get(floor_id, {})
+        space_types = floor_space_types.get(floor_id, {})
+        for outdoor_id in outdoor_ids:
+            local_neighbors = neighbors.get(outdoor_id, set())
+            indoor_neighbors = [
+                candidate_id
+                for candidate_id in local_neighbors
+                if candidate_id in space_types and is_indoor_space_type(space_types[candidate_id])
+            ]
+            if indoor_neighbors:
+                continue
+            report.errors.append(
+                f"preflight: {floor_id}:{outdoor_id} outdoor space has no indoor access topology edge"
+            )
+            report.suggestions.append(
+                f"Add topology adjacency like [{outdoor_id}, <indoor_room>, required] on {floor_id}."
+            )
     return violations
 
 
@@ -727,6 +838,20 @@ def _edge_ids(edge: object) -> tuple[str, str]:
     if left_id is None or right_id is None:
         raise ValueError("invalid topology edge")
     return str(left_id), str(right_id)
+
+
+def _rects_overlap(
+    ax: int,
+    ay: int,
+    aw: int,
+    ah: int,
+    bx: int,
+    by: int,
+    bw: int,
+    bh: int,
+) -> bool:
+    """Return True when two axis-aligned rectangles overlap with positive area."""
+    return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
 
 
 def cells_to_sqm(cells: int, minor_grid: int) -> float:

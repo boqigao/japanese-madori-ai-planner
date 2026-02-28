@@ -8,6 +8,7 @@ TATAMI_MM2 = 1_620_000
 
 MAJOR_ROOM_TYPES = {"ldk", "bedroom", "master_bedroom"}
 WET_SPACE_TYPES = {"toilet", "wc", "washroom", "bath"}
+OUTDOOR_SPACE_TYPES = {"balcony", "veranda"}
 STAIR_TYPES = {"straight", "L_landing"}
 EDGE_NAMES = {"left", "right", "top", "bottom"}
 
@@ -17,6 +18,16 @@ WET_MODULE_SIZES_MM: dict[str, tuple[int, int]] = {
     "washroom": (1820, 1820),
     "bath": (1820, 1820),
 }
+
+
+def is_outdoor_space_type(space_type: str) -> bool:
+    """Return True when ``space_type`` is classified as outdoor."""
+    return space_type in OUTDOOR_SPACE_TYPES
+
+
+def is_indoor_space_type(space_type: str) -> bool:
+    """Return True when ``space_type`` is classified as indoor."""
+    return space_type not in OUTDOOR_SPACE_TYPES
 
 
 def ceil_to_grid(value: int, grid: int) -> int:

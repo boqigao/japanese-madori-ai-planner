@@ -1,0 +1,30 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 3640
+    depth: 2730
+  north: top
+floors:
+  F1:
+    buildable:
+      - x: 0
+        y: 0
+        w: 2275
+        h: 2730
+      - x: 1820
+        y: 0
+        w: 1820
+        h: 2730
+    spaces:
+      - id: entry
+        type: entry
+      - id: storage1
+        type: storage
+    topology:
+      adjacency:
+        - [entry, storage1, required]

@@ -21,13 +21,13 @@ def draw_door_symbol(
     y_fn,
     scale: float,
 ) -> tuple[tuple[int, int], tuple[int, int]]:
-    """Draw one door symbol and return the final wall opening segment.
+    """Draw one door/opening symbol and return the final wall opening segment.
 
     Args:
         drawing: SVG drawing object to mutate.
         p1: First endpoint of the host wall segment in mm coordinates.
         p2: Second endpoint of the host wall segment in mm coordinates.
-        exterior: Whether the door is on the building exterior boundary.
+        exterior: Whether the opening is on the building exterior boundary.
         boundary: Building boundary rectangle, used to choose outward swing side.
         reverse_swing: If ``True``, mirror swing direction.
         draw_arc: If ``True``, draw the door swing arc.
@@ -37,7 +37,8 @@ def draw_door_symbol(
         scale: Current render scale (px per mm).
 
     Returns:
-        Opening segment endpoints in mm coordinates.
+        Opening segment endpoints in mm coordinates. The same primitive is
+        used for indoor-to-indoor and indoor-to-outdoor access edges.
     """
     wall_cut_width = 7 if exterior else 6
     if p1[0] == p2[0]:

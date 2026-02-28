@@ -38,17 +38,17 @@ The system MUST verify that no two spaces on the same floor overlap.
 - THEN the no-overlap check passes
 
 ### Requirement: 100% Envelope Coverage
-The system MUST verify that the total space area equals the envelope area for each floor.
+The system MUST verify that total indoor space area equals buildable indoor area for each floor, and MUST report indoor-vs-outdoor area breakdowns separately.
 
-#### Scenario: Full coverage
-- GIVEN a solution where space areas sum to the envelope area
-- WHEN the validator checks coverage
-- THEN the coverage check passes
+#### Scenario: Full indoor buildable coverage
+- **GIVEN** a solution where indoor space areas sum to buildable indoor area
+- **WHEN** the validator checks coverage
+- **THEN** the indoor coverage check passes
 
-#### Scenario: Incomplete coverage
-- GIVEN a solution where space areas sum to less than the envelope area
-- WHEN the validator checks coverage
-- THEN a coverage gap error is reported
+#### Scenario: Indoor buildable coverage gap
+- **GIVEN** a solution where indoor space areas sum to less than buildable indoor area
+- **WHEN** the validator checks coverage
+- **THEN** a buildable-coverage gap error is reported
 
 ### Requirement: Entry Exterior Adjacency
 The system MUST verify that the entry (genkan) space touches the building boundary.
@@ -59,22 +59,17 @@ The system MUST verify that the entry (genkan) space touches the building bounda
 - THEN the check passes
 
 ### Requirement: Entry Reachability
-The system MUST verify reachability from entry using realized topology edges (declared adjacency that is physically touching in solved geometry). `toilet/wc` spaces MUST be reachable from entry, and paths that require bedroom transit to reach a toilet MUST be reported as errors.
+The system MUST verify reachability from entry for all indoor spaces using realized topology edges. Outdoor spaces MUST be checked by outdoor-access rules and MUST NOT be used as mandatory transit nodes for indoor BFS reachability.
 
-#### Scenario: Reachable graph with toilet access
-- **GIVEN** a solution where topology edges are physically realized and each toilet is connected to circulation
+#### Scenario: Reachable indoor graph with outdoor spaces
+- **GIVEN** a solution where indoor topology is physically realized and each indoor space is reachable from entry
 - **WHEN** the validator performs BFS from the entry
-- **THEN** all required spaces including `toilet/wc` are reachable
+- **THEN** entry reachability passes regardless of whether outdoor spaces are transit-isolated
 
-#### Scenario: Toilet unreachable from entry
-- **GIVEN** a solution where `toilet1` has no realized topology path from entry
+#### Scenario: Indoor room unreachable from entry
+- **GIVEN** a solution where `bedroom3` has no realized topology path from entry through indoor circulation
 - **WHEN** the validator performs BFS
-- **THEN** a validation error is reported for unreachable `toilet1`
-
-#### Scenario: Toilet reachable only via bedroom pass-through
-- **GIVEN** a solution where every entry-to-toilet path uses another bedroom as an intermediate transit node
-- **WHEN** the validator evaluates route quality
-- **THEN** a validation error is reported indicating bedroom pass-through toilet circulation
+- **THEN** a validation error is reported for unreachable indoor room
 
 ### Requirement: Stair Projection Alignment
 The system MUST verify that stair positions align across floors.
@@ -143,4 +138,17 @@ The system MUST verify that each `toilet/wc` has at least one declared topology 
 - **GIVEN** a floor with `toilet1` and no topology edge from toilet to `hall`, `entry`, or `stair`
 - **WHEN** the validator checks toilet topology realization
 - **THEN** a validation error is reported that toilet circulation topology is missing
+
+### Requirement: Outdoor Access Validation
+The system MUST verify that each outdoor space has at least one realized indoor adjacency edge and one corresponding opening candidate on the shared boundary.
+
+#### Scenario: Outdoor access realized
+- **GIVEN** a balcony adjacent to `bedroom2` with positive shared-edge overlap
+- **WHEN** the validator checks outdoor access
+- **THEN** the balcony access check passes
+
+#### Scenario: Outdoor access missing
+- **GIVEN** an outdoor space with no realized indoor touching edge
+- **WHEN** the validator checks outdoor access
+- **THEN** a validation error is reported for missing indoor-to-outdoor access
 

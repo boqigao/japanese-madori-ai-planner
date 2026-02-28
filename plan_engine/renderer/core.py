@@ -54,9 +54,11 @@ def _should_draw_interior_door(left_type: str, right_type: str) -> bool:
     Returns:
         ``True`` if a door symbol should be drawn, otherwise ``False``.
         Bath-to-non-wash edges are suppressed so bath openings are represented
-        only via washroom connections.
+        only via washroom connections. Outdoor-to-outdoor edges are suppressed.
     """
     types = {left_type, right_type}
+    if types.issubset({"balcony", "veranda"}):
+        return False
     return not ("bath" in types and "washroom" not in types)
 
 
@@ -235,7 +237,10 @@ class SvgRenderer:
         """Draw colored space rectangles with boundary segments."""
         for space in _ordered_spaces(floor):
             fill = SPACE_COLORS.get(space.type, "#eeeeee")
+            is_outdoor = space.type in {"balcony", "veranda"}
             stroke_dash = "6,4" if space.id.startswith("auto_fill_") else None
+            if is_outdoor:
+                stroke_dash = "8,4"
             for rect in space.rects:
                 attrs = {
                     "insert": (self._x(rect.x), self._y(rect.y)),
@@ -243,7 +248,28 @@ class SvgRenderer:
                     "fill": fill,
                     "stroke": "none",
                 }
+                if is_outdoor:
+                    attrs["fill_opacity"] = 0.82
                 drawing.add(drawing.rect(**attrs))
+                if is_outdoor:
+                    drawing.add(
+                        drawing.line(
+                            start=(self._x(rect.x), self._y(rect.y)),
+                            end=(self._x(rect.x2), self._y(rect.y2)),
+                            stroke="#8da7b8",
+                            stroke_width=0.9,
+                            stroke_opacity=0.6,
+                        )
+                    )
+                    drawing.add(
+                        drawing.line(
+                            start=(self._x(rect.x), self._y(rect.y2)),
+                            end=(self._x(rect.x2), self._y(rect.y)),
+                            stroke="#8da7b8",
+                            stroke_width=0.9,
+                            stroke_opacity=0.6,
+                        )
+                    )
             for p1, p2 in _space_boundary_segments(space.rects):
                 line_attrs: dict[str, object] = {
                     "start": (self._x(p1[0]), self._y(p1[1])),

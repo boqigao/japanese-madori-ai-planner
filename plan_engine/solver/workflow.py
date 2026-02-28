@@ -6,7 +6,13 @@ from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
-from plan_engine.constants import MAJOR_ROOM_TYPES, WET_MODULE_SIZES_MM, WET_SPACE_TYPES, mm_to_cells
+from plan_engine.constants import (
+    MAJOR_ROOM_TYPES,
+    WET_MODULE_SIZES_MM,
+    WET_SPACE_TYPES,
+    is_indoor_space_type,
+    mm_to_cells,
+)
 from plan_engine.solver.constraints import (
     edge_touch_constraint,
     enforce_exterior_touch,
@@ -58,6 +64,9 @@ class SolveContext:
     floor_compactness_terms: list[cp_model.IntVar]
     topology_soft_penalties: list[tuple[cp_model.IntVar, int]]
     floor_area_vars: dict[str, list[cp_model.IntVar]]
+    floor_indoor_area_vars: dict[str, list[cp_model.IntVar]]
+    floor_buildable_masks: dict[str, list[tuple[int, int, int, int]]]
+    floor_buildable_area_cells: dict[str, int]
     ordered_floors: list[str]
     floor_rank: dict[str, int]
     stair_spec: StairSpec | None
@@ -96,6 +105,26 @@ def build_context(spec: PlanSpec) -> SolveContext:
     floor_compactness_terms: list[cp_model.IntVar] = []
     topology_soft_penalties: list[tuple[cp_model.IntVar, int]] = []
     floor_area_vars: dict[str, list[cp_model.IntVar]] = {fid: [] for fid in spec.floors}
+    floor_indoor_area_vars: dict[str, list[cp_model.IntVar]] = {fid: [] for fid in spec.floors}
+    floor_buildable_masks: dict[str, list[tuple[int, int, int, int]]] = {}
+    floor_buildable_area_cells: dict[str, int] = {}
+
+    for floor_id, floor in spec.floors.items():
+        mask_cells: list[tuple[int, int, int, int]] = []
+        if floor.buildable_mask:
+            for rect in floor.buildable_mask:
+                mask_cells.append(
+                    (
+                        mm_to_cells(rect.x, spec.grid.minor),
+                        mm_to_cells(rect.y, spec.grid.minor),
+                        mm_to_cells(rect.w, spec.grid.minor),
+                        mm_to_cells(rect.h, spec.grid.minor),
+                    )
+                )
+        if not mask_cells:
+            mask_cells = [(0, 0, envelope_w_cells, envelope_h_cells)]
+        floor_buildable_masks[floor_id] = mask_cells
+        floor_buildable_area_cells[floor_id] = sum(w * h for _, _, w, h in mask_cells)
 
     ordered_floors = ordered_floor_ids(spec.floors.keys())
     floor_rank = {floor_id: idx for idx, floor_id in enumerate(ordered_floors)}
@@ -133,6 +162,9 @@ def build_context(spec: PlanSpec) -> SolveContext:
         floor_compactness_terms=floor_compactness_terms,
         topology_soft_penalties=topology_soft_penalties,
         floor_area_vars=floor_area_vars,
+        floor_indoor_area_vars=floor_indoor_area_vars,
+        floor_buildable_masks=floor_buildable_masks,
+        floor_buildable_area_cells=floor_buildable_area_cells,
         ordered_floors=ordered_floors,
         floor_rank=floor_rank,
         stair_spec=stair_spec,
@@ -189,6 +221,42 @@ def _create_stair_anchor(
     return stair_footprint, stair_x, stair_y
 
 
+def _constrain_rect_within_buildable_union(
+    model: cp_model.CpModel,
+    rect: RectVar,
+    allowed_regions: list[tuple[int, int, int, int]],
+    prefix: str,
+) -> None:
+    """Constrain one rectangle to lie fully inside a union of allowed regions.
+
+    Args:
+        model: CP-SAT model receiving constraints.
+        rect: Rectangle variable to constrain.
+        allowed_regions: Regions as ``(x, y, w, h)`` in cell units.
+        prefix: Variable-name prefix for helper booleans.
+
+    Returns:
+        None. Constraints are added in-place.
+    """
+    if len(allowed_regions) == 1:
+        x, y, w, h = allowed_regions[0]
+        model.Add(rect.x >= x)
+        model.Add(rect.y >= y)
+        model.Add(rect.x_end <= x + w)
+        model.Add(rect.y_end <= y + h)
+        return
+
+    indicators: list[cp_model.IntVar] = []
+    for index, (x, y, w, h) in enumerate(allowed_regions):
+        inside = model.NewBoolVar(f"{prefix}_in_buildable_{index}")
+        indicators.append(inside)
+        model.Add(rect.x >= x).OnlyEnforceIf(inside)
+        model.Add(rect.y >= y).OnlyEnforceIf(inside)
+        model.Add(rect.x_end <= x + w).OnlyEnforceIf(inside)
+        model.Add(rect.y_end <= y + h).OnlyEnforceIf(inside)
+    model.AddBoolOr(indicators)
+
+
 def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
     """Create CP-SAT rectangle variables and space-local constraints.
 
@@ -202,7 +270,9 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
     max_strip_width_cells = max(1, int(ctx.envelope_w_cells * 0.7))
     max_strip_depth_cells = max(1, int(ctx.envelope_h_cells * 0.7))
     for floor_id, floor in spec.floors.items():
+        buildable_regions = ctx.floor_buildable_masks[floor_id]
         for space in floor.spaces:
+            indoor_space = is_indoor_space_type(space.type)
             component_count = _component_count(space)
             fixed_dims = WET_MODULE_SIZES_MM.get(space.type)
             if fixed_dims is not None and component_count != 1:
@@ -246,6 +316,13 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                     # Prevent unrealistic full-depth/full-width strips on anchor rooms.
                     ctx.model.Add(rect.w <= max_strip_width_cells)
                     ctx.model.Add(rect.h <= max_strip_depth_cells)
+                if indoor_space:
+                    _constrain_rect_within_buildable_union(
+                        model=ctx.model,
+                        rect=rect,
+                        allowed_regions=buildable_regions,
+                        prefix=f"{_slug(floor_id)}_{_slug(space.id)}_{idx}",
+                    )
 
             area_sum = ctx.model.NewIntVar(
                 1,
@@ -280,6 +357,8 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                 ctx.model.Add(area_sum <= max_area_cells)
 
             ctx.floor_area_vars[floor_id].append(area_sum)
+            if indoor_space:
+                ctx.floor_indoor_area_vars[floor_id].append(area_sum)
 
             if component_count > 1:
                 for idx in range(1, component_count):
@@ -348,8 +427,15 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                     shared_x_offset=dx,
                     shared_y_offset=dy,
                 )
+                _constrain_rect_within_buildable_union(
+                    model=ctx.model,
+                    rect=stair_rect,
+                    allowed_regions=buildable_regions,
+                    prefix=f"{_slug(floor_id)}_{_slug(ctx.stair_spec.id)}_{_slug(component_name)}",
+                )
                 stair_rects.append(stair_rect)
                 ctx.floor_area_vars[floor_id].append(stair_rect.area)
+                ctx.floor_indoor_area_vars[floor_id].append(stair_rect.area)
             ctx.placements[floor_id][ctx.stair_spec.id] = stair_rects
 
 
@@ -380,9 +466,10 @@ def add_floor_packing_constraints(ctx: SolveContext) -> None:
         ctx.model.Add(span_y == max_y - min_y)
         ctx.floor_compactness_terms.extend([span_x, span_y])
 
-        used_area = ctx.model.NewIntVar(0, ctx.max_area, f"{_slug(floor_id)}_used_area")
-        ctx.model.Add(used_area == sum(ctx.floor_area_vars[floor_id]))
-        ctx.model.Add(used_area == ctx.max_area)
+        indoor_target = ctx.floor_buildable_area_cells.get(floor_id, ctx.max_area)
+        used_area = ctx.model.NewIntVar(0, ctx.max_area, f"{_slug(floor_id)}_used_indoor_area")
+        ctx.model.Add(used_area == sum(ctx.floor_indoor_area_vars[floor_id]))
+        ctx.model.Add(used_area == indoor_target)
 
 
 def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
@@ -396,6 +483,8 @@ def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
         if ctx.stair_spec is not None and floor_id in ctx.floors_with_stair:
             space_type_by_id[ctx.stair_spec.id] = "stair"
         incident_touches: dict[str, list[cp_model.IntVar]] = {entity_id: [] for entity_id in ctx.placements[floor_id]}
+        declared_neighbors: dict[str, set[str]] = {entity_id: set() for entity_id in ctx.placements[floor_id]}
+        touch_by_pair: dict[tuple[str, str], cp_model.IntVar] = {}
 
         for edge in floor.topology.adjacency:
             left_id = edge.left_id
@@ -418,6 +507,10 @@ def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
                 prefix=f"{_slug(floor_id)}_adj_{_slug(left_id)}_{_slug(right_id)}",
                 required=False,
             )
+            declared_neighbors[left_id].add(right_id)
+            declared_neighbors[right_id].add(left_id)
+            touch_by_pair[(left_id, right_id)] = touch_any
+            touch_by_pair[(right_id, left_id)] = touch_any
             incident_touches[left_id].append(touch_any)
             incident_touches[right_id].append(touch_any)
             if strength == "required":
@@ -438,6 +531,27 @@ def add_topology_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
                 continue
             # Every primary space must realize at least one declared adjacency edge.
             ctx.model.AddBoolOr(neighbors)
+
+        for entity_id, entity_type in space_type_by_id.items():
+            if is_indoor_space_type(entity_type):
+                continue
+            neighbor_ids = declared_neighbors.get(entity_id, set())
+            indoor_neighbors = [
+                neighbor_id
+                for neighbor_id in neighbor_ids
+                if neighbor_id in space_type_by_id and is_indoor_space_type(space_type_by_id[neighbor_id])
+            ]
+            if not indoor_neighbors:
+                raise ValueError(
+                    f"floor {floor_id} outdoor space '{entity_id}' requires topology adjacency to at least one indoor space"
+                )
+            realized: list[cp_model.IntVar] = []
+            for indoor_neighbor in sorted(indoor_neighbors):
+                touch = touch_by_pair.get((entity_id, indoor_neighbor))
+                if touch is not None:
+                    realized.append(touch)
+            if realized:
+                ctx.model.AddBoolOr(realized)
 
 
 def add_bath_wash_adjacency_constraints(spec: PlanSpec, ctx: SolveContext) -> None:

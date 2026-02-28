@@ -50,7 +50,12 @@ def build_solution(
                 )
                 for rect in placements[floor_id][space.id]
             ]
-            solved_spaces[space.id] = SpaceGeometry(id=space.id, type=space.type, rects=rects)
+            solved_spaces[space.id] = SpaceGeometry(
+                id=space.id,
+                type=space.type,
+                rects=rects,
+                space_class=space.space_class,
+            )
 
         stair_geometry = None
         if stair_spec is not None and stair_spec.id in placements[floor_id] and stair_footprint is not None:
@@ -94,11 +99,21 @@ def build_solution(
                 portal_edge=portal.edge,
             )
 
+        buildable_mask_rects = [
+            Rect(x=mask.x, y=mask.y, w=mask.w, h=mask.h)
+            for mask in floor.buildable_mask
+        ]
+        if not buildable_mask_rects:
+            buildable_mask_rects = [Rect(x=0, y=0, w=spec.site.envelope.width, h=spec.site.envelope.depth)]
+        indoor_buildable_area_mm2 = sum(rect.area for rect in buildable_mask_rects)
+
         floor_solutions[floor_id] = FloorSolution(
             id=floor_id,
             spaces=solved_spaces,
             stair=stair_geometry,
             topology=[edge.to_tuple() for edge in floor.topology.adjacency],
+            buildable_mask=buildable_mask_rects,
+            indoor_buildable_area_mm2=indoor_buildable_area_mm2,
         )
 
     base_solution = PlanSolution(

@@ -4,10 +4,11 @@ from pathlib import Path
 
 import yaml
 
-from plan_engine.constants import MAJOR_GRID_MM, MINOR_GRID_MM, STAIR_TYPES
+from plan_engine.constants import MAJOR_GRID_MM, MINOR_GRID_MM, STAIR_TYPES, is_outdoor_space_type
 from plan_engine.models import (
     AdjacencyRule,
     AreaConstraint,
+    BuildableRectSpec,
     CoreSpec,
     EnvelopeSpec,
     FloorSpec,
@@ -72,7 +73,13 @@ def load_plan_spec(path: str | Path) -> PlanSpec:
     floors_raw = _expect_mapping(raw, "floors")
     floors: dict[str, FloorSpec] = {}
     for floor_id, floor_payload in floors_raw.items():
-        floors[str(floor_id)] = _parse_floor(str(floor_id), _expect_mapping_value(floor_payload), minor)
+        floors[str(floor_id)] = _parse_floor(
+            floor_id=str(floor_id),
+            payload=_expect_mapping_value(floor_payload),
+            minor=minor,
+            envelope_width=width,
+            envelope_depth=depth,
+        )
 
     return PlanSpec(
         version=version,
@@ -83,16 +90,25 @@ def load_plan_spec(path: str | Path) -> PlanSpec:
     )
 
 
-def _parse_floor(floor_id: str, payload: dict[str, object], minor: int) -> FloorSpec:
+def _parse_floor(
+    floor_id: str,
+    payload: dict[str, object],
+    minor: int,
+    envelope_width: int,
+    envelope_depth: int,
+) -> FloorSpec:
     """Parse a single floor definition from raw YAML data.
 
     Extracts the optional core (stair) configuration, the list of spaces, and
-    the topology adjacency pairs for the given floor.
+    the topology adjacency pairs for the given floor. Also parses an optional
+    floor-level buildable mask.
 
     Args:
         floor_id: Identifier for this floor (e.g. ``"1F"``).
         payload: Dict of raw YAML values for the floor.
         minor: Minor grid size in mm, used for alignment validation.
+        envelope_width: Site envelope width in millimeters.
+        envelope_depth: Site envelope depth in millimeters.
 
     Returns:
         A ``FloorSpec`` representing the parsed floor.
@@ -143,7 +159,21 @@ def _parse_floor(floor_id: str, payload: dict[str, object], minor: int) -> Floor
                 )
             )
 
-    return FloorSpec(id=floor_id, core=core, spaces=spaces, topology=TopologySpec(adjacency=adjacency_pairs))
+    buildable_mask = _parse_buildable_mask(
+        floor_id=floor_id,
+        buildable_raw=payload.get("buildable"),
+        minor=minor,
+        envelope_width=envelope_width,
+        envelope_depth=envelope_depth,
+    )
+
+    return FloorSpec(
+        id=floor_id,
+        core=core,
+        spaces=spaces,
+        topology=TopologySpec(adjacency=adjacency_pairs),
+        buildable_mask=buildable_mask,
+    )
 
 
 def _parse_space(raw: dict[str, object], minor: int) -> SpaceSpec:
@@ -166,6 +196,7 @@ def _parse_space(raw: dict[str, object], minor: int) -> SpaceSpec:
     """
     space_id = str(raw["id"])
     space_type = str(raw["type"])
+    space_class = "outdoor" if is_outdoor_space_type(space_type) else "indoor"
 
     area_raw = raw.get("area")
     area = AreaConstraint()
@@ -203,6 +234,7 @@ def _parse_space(raw: dict[str, object], minor: int) -> SpaceSpec:
     return SpaceSpec(
         id=space_id,
         type=space_type,
+        space_class=space_class,
         area=area,
         size_constraints=size,
         shape=shape,
@@ -269,3 +301,73 @@ def _expect_mapping_value(value: object) -> dict[str, object]:
     if not isinstance(value, dict):
         raise ValueError("floor definition must be a mapping")
     return value
+
+
+def _parse_buildable_mask(
+    floor_id: str,
+    buildable_raw: object,
+    minor: int,
+    envelope_width: int,
+    envelope_depth: int,
+) -> list[BuildableRectSpec]:
+    """Parse floor buildable mask rectangles.
+
+    Args:
+        floor_id: Floor identifier.
+        buildable_raw: Raw ``buildable`` YAML value. Supports a list of
+            rectangle mappings or ``{\"rects\": [...]}``.
+        minor: Minor grid size in millimeters.
+        envelope_width: Envelope width used for defaulting.
+        envelope_depth: Envelope depth used for defaulting.
+
+    Returns:
+        Parsed list of buildable rectangles in millimeters. When omitted,
+        defaults to one full-envelope rectangle.
+
+    Raises:
+        ValueError: If buildable mask format is invalid or not grid-aligned.
+    """
+    if buildable_raw is None:
+        return [BuildableRectSpec(x=0, y=0, w=envelope_width, h=envelope_depth)]
+
+    rect_items: object
+    if isinstance(buildable_raw, list):
+        rect_items = buildable_raw
+    elif isinstance(buildable_raw, dict):
+        if "rects" in buildable_raw:
+            rect_items = buildable_raw["rects"]
+        elif {"x", "y", "w", "h"}.issubset(buildable_raw.keys()):
+            rect_items = [buildable_raw]
+        else:
+            raise ValueError(
+                f"buildable on floor {floor_id} must be a list or a mapping with 'rects'"
+            )
+    else:
+        raise ValueError(f"buildable on floor {floor_id} must be a list or mapping")
+
+    if not isinstance(rect_items, list) or not rect_items:
+        raise ValueError(f"buildable rects on floor {floor_id} must be a non-empty list")
+
+    rects: list[BuildableRectSpec] = []
+    for index, rect_raw in enumerate(rect_items):
+        if not isinstance(rect_raw, dict):
+            raise ValueError(f"buildable rect #{index} on floor {floor_id} must be a mapping")
+        missing = {"x", "y", "w", "h"} - set(rect_raw.keys())
+        if missing:
+            raise ValueError(
+                f"buildable rect #{index} on floor {floor_id} is missing keys: {sorted(missing)}"
+            )
+        x = int(rect_raw["x"])
+        y = int(rect_raw["y"])
+        w = int(rect_raw["w"])
+        h = int(rect_raw["h"])
+        if w <= 0 or h <= 0:
+            raise ValueError(f"buildable rect #{index} on floor {floor_id} must have positive size")
+        for field_name, value in (("x", x), ("y", y), ("w", w), ("h", h)):
+            if value % minor != 0:
+                raise ValueError(
+                    f"buildable rect #{index} field '{field_name}' on floor {floor_id} "
+                    f"must align to {minor}mm grid"
+                )
+        rects.append(BuildableRectSpec(x=x, y=y, w=w, h=h))
+    return rects
