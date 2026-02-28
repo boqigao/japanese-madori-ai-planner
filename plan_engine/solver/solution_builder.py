@@ -78,6 +78,11 @@ def build_solution(
                 floor_count=len(ordered_floors),
                 component_count=len(stair_components),
             )
+            if portal.component_index < 0 or portal.component_index >= len(stair_components):
+                raise ValueError(
+                    f"stair '{stair_spec.id}' portal component {portal.component_index} is out of range "
+                    f"for floor '{floor_id}' ({len(stair_components)} components)"
+                )
             stair_geometry = StairGeometry(
                 id=stair_spec.id,
                 type=stair_spec.type,

@@ -30,7 +30,7 @@ def stair_portal_for_floor(
     """Determine the stair portal (component index and edge) for a given floor.
 
     Args:
-        stair_type: Type of stair (e.g. "straight", "L_landing").
+        stair_type: Type of stair (``straight``, ``L_landing``, ``U_turn``).
         floor_index: Zero-based index of the floor being queried.
         floor_count: Total number of floors connected by the stair.
         component_count: Number of rectangular components in the stair geometry.
@@ -50,11 +50,22 @@ def stair_portal_for_floor(
     if stair_type == "straight" or component_count <= 1:
         return StairPortal(component_index=0, edge="top" if floor_index == 0 else "bottom")
 
-    if stair_type != "L_landing" or component_count < 3:
-        return StairPortal(component_index=0, edge="left")
+    if stair_type == "L_landing":
+        if component_count < 3:
+            return StairPortal(component_index=0, edge="left")
+        if floor_index == 0:
+            # Lower floor: access stair run start.
+            return StairPortal(component_index=0, edge="left")
+        # Upper floor: access final run end.
+        return StairPortal(component_index=2, edge="bottom")
 
-    if floor_index == 0:
-        # Lower floor: access stair run start.
-        return StairPortal(component_index=0, edge="left")
-    # Upper floor: access final run end.
-    return StairPortal(component_index=2, edge="bottom")
+    if stair_type == "U_turn":
+        if component_count < 3:
+            return StairPortal(component_index=0, edge="left")
+        if floor_index == 0:
+            # Lower floor: access lower run entry side.
+            return StairPortal(component_index=0, edge="left")
+        # Upper floor: access opposite run exit side.
+        return StairPortal(component_index=2, edge="right")
+
+    raise ValueError(f"unsupported stair type '{stair_type}' for portal mapping")

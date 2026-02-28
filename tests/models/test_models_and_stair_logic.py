@@ -77,11 +77,21 @@ def test_ordered_floor_ids_and_portal_mapping() -> None:
     assert (l0.component_index, l0.edge) == (0, "left")
     assert (l1.component_index, l1.edge) == (2, "bottom")
 
+    u0 = stair_portal_for_floor("U_turn", floor_index=0, floor_count=2, component_count=3)
+    u1 = stair_portal_for_floor("U_turn", floor_index=1, floor_count=2, component_count=3)
+    assert (u0.component_index, u0.edge) == (0, "left")
+    assert (u1.component_index, u1.edge) == (2, "right")
+
 
 @pytest.mark.parametrize("floor_count,floor_index", [(3, 0), (2, 2), (2, -1)])
 def test_stair_portal_invalid_args(floor_count: int, floor_index: int) -> None:
     with pytest.raises(ValueError):
         stair_portal_for_floor("straight", floor_index=floor_index, floor_count=floor_count, component_count=1)
+
+
+def test_stair_portal_rejects_unknown_type() -> None:
+    with pytest.raises(ValueError, match="unsupported stair type"):
+        stair_portal_for_floor("spiral", floor_index=0, floor_count=2, component_count=3)
 
 
 def test_plan_spec_with_mismatched_stair_ids_triggers_global_stair_error() -> None:

@@ -1,43 +1,40 @@
 valid=True
 errors=0
-warnings=8
-structural=11
+warnings=5
+structural=9
 
 Warnings:
-- F1:bed1 misses south-facing preference (south edge=bottom)
-- F1:toilet1 misses north-facing service preference (north edge=top)
-- F1:pantry1 misses north-facing service preference (north edge=top)
-- F2:master master_bedroom area 10.7jo exceeds 1.3x target (8.0jo)
+- F2:master master_bedroom area 11.5jo exceeds 1.3x target (8.0jo)
 - F2:master misses south-facing preference (south edge=bottom)
-- F2:bed3 bedroom area 8.4jo exceeds 1.3x target (6.0jo)
-- structural: F1: wall-balance ratio 0.40 below target 0.50
-- structural: vertical transfer required on 4 upper-floor bearing segments
+- F2:bed2 bedroom short side 2275mm is below 2730mm livability threshold
+- structural: F1: wall-balance ratio 0.42 below target 0.50
+- structural: vertical transfer required on 2 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=58240mm (V/H=25480/32760), balance=0.40
-- F2: bearing=54600mm (V/H=24570/30030), balance=0.78
-- F2->F1 vertical: supported=17290/24570mm, direct_below=0.70
-- F2->F1 horizontal: supported=23660/30030mm, direct_below=0.79
-- vertical_transfer_required=4
-- F2:w_F2_v_1820_3640_6370 unsupported=910mm at vertical@1820
-- F2:w_F2_v_6370_0_6370 unsupported=6370mm at vertical@6370
-- F2:w_F2_h_2730_0_6370 unsupported=1820mm at horizontal@2730
-- F2:w_F2_h_3640_1820_6370 unsupported=4550mm at horizontal@3640
+- F1: bearing=54600mm (V/H=25480/29120), balance=0.42
+- F2: bearing=42770mm (V/H=24570/18200), balance=0.59
+- F2->F1 vertical: supported=19110/24570mm, direct_below=0.78
+- F2->F1 horizontal: supported=18200/18200mm, direct_below=1.00
+- vertical_transfer_required=2
+- F2:w_F2_v_4550_0_4095 unsupported=2275mm at vertical@4550
+- F2:w_F2_v_5460_3185_6370 unsupported=3185mm at vertical@5460
 
 Diagnostics:
-- F1: envelope=280 cells, buildable=280 cells, min=229, max=395, rooms=8, hall_fanout=5
-- F2: envelope=280 cells, buildable=280 cells, min=175, max=318, rooms=5, hall_fanout=4
+- F1: envelope=280 cells, buildable=280 cells, min=237, max=403, rooms=8, hall_fanout=5
+- F2: envelope=280 cells, buildable=280 cells, min=183, max=326, rooms=5, hall_fanout=4
 - F1: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
 - F2: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
+- F1: stair_portal component=0 edge=left type=U_turn
+- F2: stair_portal component=2 edge=right type=U_turn
 - F1:ldk orientation major_south edge=bottom status=ok
-- F1:bed1 orientation major_south edge=bottom status=miss
-- F1:toilet1 orientation service_north edge=top status=miss
+- F1:bed1 orientation major_south edge=bottom status=ok
+- F1:toilet1 orientation service_north edge=top status=ok
 - F1:wash1 orientation service_north edge=top status=ok
 - F1:bath1 orientation service_north edge=top status=ok
-- F1:pantry1 orientation service_north edge=top status=miss
-- F1: orientation_summary north=top south=bottom major_south=1/2 service_north=2/4
+- F1:pantry1 orientation service_north edge=top status=ok
+- F1: orientation_summary north=top south=bottom major_south=2/2 service_north=4/4
 - F2:master orientation major_south edge=bottom status=miss
 - F2:bed2 orientation major_south edge=bottom status=ok
 - F2:bed3 orientation major_south edge=bottom status=ok

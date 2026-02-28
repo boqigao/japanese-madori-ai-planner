@@ -139,3 +139,10 @@ def test_draw_stair_steps_smoke() -> None:
         tread_count=10,
         components=[Rect(0, 0, 910, 910), Rect(910, 0, 910, 910), Rect(910, 910, 910, 910)],
     )
+    draw_stair_steps(
+        renderer,
+        drawing,
+        "U_turn",
+        tread_count=10,
+        components=[Rect(0, 910, 910, 1365), Rect(0, 0, 1820, 910), Rect(910, 910, 910, 1365)],
+    )

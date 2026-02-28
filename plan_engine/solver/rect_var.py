@@ -97,6 +97,21 @@ def _compute_stair_footprint(stair: StairSpec, minor_grid: int) -> StairFootprin
         ]
         bbox_w_cells = run1_cells + width_cells
         bbox_h_cells = width_cells + run2_cells
+    elif stair.type == "U_turn":
+        run1_treads = max(1, math.ceil(tread_count / 2))
+        run2_treads = max(1, tread_count - run1_treads)
+        run1_mm = ceil_to_grid(run1_treads * tread_mm, minor_grid)
+        run2_mm = ceil_to_grid(run2_treads * tread_mm, minor_grid)
+        avg_tread_mm = max(1, round((run1_mm + run2_mm) / tread_count))
+        run1_cells = max(1, mm_to_cells(run1_mm, minor_grid))
+        run2_cells = max(1, mm_to_cells(run2_mm, minor_grid))
+        components = [
+            ("flight1", 0, width_cells, width_cells, run1_cells),
+            ("landing", 0, 0, 2 * width_cells, width_cells),
+            ("flight2", width_cells, width_cells, width_cells, run2_cells),
+        ]
+        bbox_w_cells = 2 * width_cells
+        bbox_h_cells = width_cells + max(run1_cells, run2_cells)
     else:
         raise ValueError(f"unsupported stair type '{stair.type}'")
 

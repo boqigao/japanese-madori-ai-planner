@@ -170,7 +170,7 @@ def draw_stair_steps(
     components: list[Rect],
     visible_indices: set[int] | None = None,
 ) -> None:
-    """Draw tread lines for straight or L-shaped stair flights."""
+    """Draw tread lines for straight, L-landing, and U-turn stair flights."""
     if tread_count <= 0 or not components:
         return
     if visible_indices is None:
@@ -197,6 +197,32 @@ def draw_stair_steps(
     flight1, _, flight2 = components[0], components[1], components[2]
     run1 = max(1, tread_count // 2)
     run2 = max(1, tread_count - run1)
+
+    if stair_type == "U_turn":
+        if 0 in visible_indices:
+            for index in range(1, run1 + 1):
+                y = flight1.y + (flight1.h * index) / (run1 + 1)
+                drawing.add(
+                    drawing.line(
+                        start=(renderer._x(flight1.x + 0.12 * flight1.w), renderer._y(y)),
+                        end=(renderer._x(flight1.x + 0.88 * flight1.w), renderer._y(y)),
+                        stroke="#2a2a2a",
+                        stroke_width=1.4,
+                    )
+                )
+        if 2 in visible_indices:
+            for index in range(1, run2 + 1):
+                y = flight2.y + (flight2.h * index) / (run2 + 1)
+                drawing.add(
+                    drawing.line(
+                        start=(renderer._x(flight2.x + 0.12 * flight2.w), renderer._y(y)),
+                        end=(renderer._x(flight2.x + 0.88 * flight2.w), renderer._y(y)),
+                        stroke="#2a2a2a",
+                        stroke_width=1.4,
+                    )
+                )
+        return
+
     if 0 in visible_indices:
         for index in range(1, run1 + 1):
             x = flight1.x + (flight1.w * index) / (run1 + 1)

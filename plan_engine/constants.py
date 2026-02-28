@@ -9,7 +9,7 @@ TATAMI_MM2 = 1_620_000
 MAJOR_ROOM_TYPES = {"ldk", "bedroom", "master_bedroom"}
 WET_SPACE_TYPES = {"toilet", "wc", "washroom", "bath"}
 OUTDOOR_SPACE_TYPES = {"balcony", "veranda"}
-STAIR_TYPES = {"straight", "L_landing"}
+STAIR_TYPES = {"straight", "L_landing", "U_turn"}
 EDGE_NAMES = {"left", "right", "top", "bottom"}
 
 WET_MODULE_SIZES_MM: dict[str, tuple[int, int]] = {

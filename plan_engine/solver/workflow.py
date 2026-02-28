@@ -685,6 +685,11 @@ def add_stair_connection_constraints(ctx: SolveContext) -> None:
     """Enforce stair-to-hall portal edge connectivity."""
     if ctx.stair_spec is None:
         return
+    min_components_by_type = {
+        "straight": 1,
+        "L_landing": 3,
+        "U_turn": 3,
+    }
     for floor_id, hall_id in ctx.stair_spec.connects.items():
         if floor_id not in ctx.placements:
             raise ValueError(f"stair connects references unknown floor '{floor_id}'")
@@ -693,6 +698,14 @@ def add_stair_connection_constraints(ctx: SolveContext) -> None:
         if hall_id not in ctx.placements[floor_id]:
             raise ValueError(f"stair connect hall '{hall_id}' is missing on floor '{floor_id}'")
         stair_rects = ctx.placements[floor_id][ctx.stair_spec.id]
+        min_components = min_components_by_type.get(ctx.stair_spec.type)
+        if min_components is None:
+            raise ValueError(f"unsupported stair type '{ctx.stair_spec.type}'")
+        if len(stair_rects) < min_components:
+            raise ValueError(
+                f"stair '{ctx.stair_spec.id}' on floor '{floor_id}' has {len(stair_rects)} components, "
+                f"expected at least {min_components} for type '{ctx.stair_spec.type}'"
+            )
         portal = stair_portal_for_floor(
             stair_type=ctx.stair_spec.type,
             floor_index=ctx.floor_rank[floor_id],

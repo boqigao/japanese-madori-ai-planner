@@ -1,5 +1,9 @@
-## MODIFIED Requirements
+# Solver Specification
 
+## Purpose
+Defines CP-SAT layout solving behavior for room placement, stair integration, topology realization, and objective optimization on the 455mm grid.
+
+## Requirements
 ### Requirement: Space Placement
 The system MUST create `RectVar` decision variables for each space and place indoor spaces within the floor indoor buildable mask. Outdoor spaces (`balcony`/`veranda`) MUST be placed within floor envelope bounds and MAY occupy regions outside indoor buildable mask. In addition, each `bedroom`, `master_bedroom`, and `ldk` MUST realize at least one shared edge segment with the floor exterior boundary.
 
@@ -40,3 +44,29 @@ The system MUST minimize a combined objective covering area targets, alignment, 
 - **GIVEN** a constrained floor where adjacency and 455mm-grid-aligned packing make full orientation preference impossible
 - **WHEN** the solver optimizes
 - **THEN** the solver MAY accept unmet orientation preference by paying configured soft penalty while still satisfying all hard constraints
+
+### Requirement: U-turn Stair Footprint Modeling
+The solver MUST model `U_turn` stairs as deterministic 455mm-grid-aligned rectangular components in cell units and include them in normal packing constraints.
+
+#### Scenario: U-turn footprint components are generated
+- **GIVEN** a `U_turn` stair spec with width and riser/tread preferences in mm
+- **WHEN** stair footprint variables are created
+- **THEN** the solver creates component rectangles (two flights and one landing) whose coordinates and dimensions are aligned to 455mm cells
+
+#### Scenario: U-turn footprint participates in no-overlap
+- **GIVEN** a floor with indoor rooms and one `U_turn` stair
+- **WHEN** floor packing constraints are built
+- **THEN** all `U_turn` component intervals are included in `NoOverlap2D` and cannot overlap room rectangles
+
+### Requirement: U-turn Stair Connection Constraints
+The solver MUST enforce hall connectivity for `U_turn` stairs through a deterministic portal component and edge per floor rank.
+
+#### Scenario: Stair portal touches connected hall
+- **GIVEN** a `U_turn` stair connects map `{"F1": "hall1", "F2": "hall2"}`
+- **WHEN** stair connection constraints are applied
+- **THEN** each floor's mapped portal edge has positive shared boundary with its connected hall rectangles
+
+#### Scenario: Missing connected hall is rejected
+- **GIVEN** a `U_turn` stair connect entry pointing to a missing hall id
+- **WHEN** solver constraints are assembled
+- **THEN** the solver setup fails with a descriptive missing hall reference error

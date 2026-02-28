@@ -1,5 +1,9 @@
-## ADDED Requirements
+# Validator Specification
 
+## Purpose
+Defines post-solve validation rules for geometry, connectivity, livability diagnostics, and stair consistency checks. Validator MUST reject logically invalid plans and report actionable diagnostics.
+
+## Requirements
 ### Requirement: Major Room Exterior Adjacency
 The system MUST verify that every `bedroom`, `master_bedroom`, and `ldk` touches at least one exterior boundary edge in solved geometry. Violation MUST be treated as a validation error.
 
@@ -35,3 +39,21 @@ The validator MUST evaluate orientation preference outcomes using solved geometr
 - **GIVEN** solved geometry where all targeted major rooms touch inferred south and all targeted service rooms touch inferred north
 - **WHEN** validator livability checks run
 - **THEN** no orientation-preference warning is emitted and diagnostics report successful orientation realization
+
+### Requirement: U-turn Stair Validation
+The validator MUST validate `U_turn` stair projection alignment and portal connectivity consistency across floors.
+
+#### Scenario: U-turn projection aligned across floors
+- **GIVEN** a two-floor solved plan with `U_turn` stairs
+- **WHEN** stair validation runs
+- **THEN** the validator confirms stair projection and component bounding boxes are aligned in mm across floors
+
+#### Scenario: U-turn portal mismatch is an error
+- **GIVEN** a solved plan where `U_turn` stair portal edge/component does not match expected floor-rank mapping
+- **WHEN** stair validation runs
+- **THEN** validator emits an error describing the portal mismatch
+
+#### Scenario: U-turn hall connection missing is an error
+- **GIVEN** a solved plan where the mapped `U_turn` portal does not share a positive-length edge with the declared hall
+- **WHEN** stair validation runs
+- **THEN** validator emits an error for missing stair-hall portal connectivity

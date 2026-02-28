@@ -354,3 +354,80 @@ def test_validate_stair_alignment_error_on_two_floors() -> None:
     report = ValidationReport()
     validate_stair(spec, solution, report)
     assert any("projection is not aligned" in item for item in report.errors)
+
+
+def test_validate_stair_reports_u_turn_layout_mismatch() -> None:
+    stair_spec = StairSpec(
+        id="stair",
+        type="U_turn",
+        width=910,
+        floor_height=2730,
+        riser_pref=230,
+        tread_pref=210,
+        connects={"F1": "h1", "F2": "h2"},
+    )
+    spec = PlanSpec(
+        version="0.2",
+        units="mm",
+        grid=GridSpec(minor=455, major=910),
+        site=SiteSpec(envelope=EnvelopeSpec(type="rectangle", width=5460, depth=4550), north="top"),
+        floors={
+            "F1": FloorSpec(id="F1", core=CoreSpec(stair=stair_spec), spaces=[SpaceSpec(id="h1", type="hall")]),
+            "F2": FloorSpec(id="F2", core=CoreSpec(stair=stair_spec), spaces=[SpaceSpec(id="h2", type="hall")]),
+        },
+    )
+
+    stair_f1 = StairGeometry(
+        id="stair",
+        type="U_turn",
+        bbox=Rect(1820, 910, 1820, 2275),
+        components=[
+            Rect(1820, 1820, 910, 1365),
+            Rect(1820, 910, 1820, 910),
+            Rect(2730, 1820, 910, 1365),
+        ],
+        floor_height=2730,
+        riser_count=13,
+        tread_count=12,
+        riser_mm=210,
+        tread_mm=228,
+        landing_size=(910, 910),
+        connects={"F1": "h1", "F2": "h2"},
+        portal_component=0,
+        portal_edge="left",
+    )
+    stair_f2_bad = replace(
+        stair_f1,
+        portal_component=2,
+        portal_edge="right",
+        components=[
+            Rect(1820, 1820, 910, 1365),
+            Rect(1820, 910, 1820, 910),
+            Rect(2730, 2730, 910, 1365),
+        ],
+    )
+
+    solution = PlanSolution(
+        units="mm",
+        grid=spec.grid,
+        envelope=spec.site.envelope,
+        north="top",
+        floors={
+            "F1": FloorSolution(
+                id="F1",
+                spaces={"h1": SpaceGeometry("h1", "hall", [Rect(910, 1820, 910, 1365)])},
+                stair=stair_f1,
+                topology=[("h1", "stair")],
+            ),
+            "F2": FloorSolution(
+                id="F2",
+                spaces={"h2": SpaceGeometry("h2", "hall", [Rect(3640, 2730, 910, 910)])},
+                stair=stair_f2_bad,
+                topology=[("h2", "stair")],
+            ),
+        },
+    )
+
+    report = ValidationReport()
+    validate_stair(spec, solution, report)
+    assert any("U_turn landing is not connected to flight2" in item for item in report.errors)

@@ -245,8 +245,9 @@ def _parse_stair_spec(floor_id: str, stair_raw: dict[str, object], minor: int) -
     """Parse a stair specification from raw YAML data.
 
     Reads stair type, dimensions, riser/tread preferences, connection mapping,
-    and optional placement coordinates.  Validates that the stair type is one
-    of the supported types defined in ``STAIR_TYPES``.
+    and optional placement coordinates. Validates that the stair type is one
+    of the supported values in ``STAIR_TYPES`` (``straight``, ``L_landing``,
+    ``U_turn``).
 
     Args:
         floor_id: Identifier of the floor this stair belongs to.

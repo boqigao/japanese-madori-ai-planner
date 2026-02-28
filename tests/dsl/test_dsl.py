@@ -103,6 +103,44 @@ def test_load_plan_spec_rejects_stair_missing_coordinate(tmp_path: Path) -> None
         load_plan_spec(path)
 
 
+def test_load_plan_spec_accepts_u_turn_stair(tmp_path: Path) -> None:
+    payload = _minimal_payload()
+    payload["floors"]["F1"]["core"] = {
+        "stair": {
+            "id": "stair",
+            "type": "U_turn",
+            "width": 910,
+            "floor_height": 2730,
+            "riser_pref": 230,
+            "tread_pref": 210,
+            "connects": {"F1": "hall1"},
+            "placement": {"x": 0, "y": 0},
+        }
+    }
+    path = _write_yaml(tmp_path / "u_turn.yaml", payload)
+    spec = load_plan_spec(path)
+    assert spec.floors["F1"].core.stair is not None
+    assert spec.floors["F1"].core.stair.type == "U_turn"
+
+
+def test_load_plan_spec_rejects_unsupported_stair_type(tmp_path: Path) -> None:
+    payload = _minimal_payload()
+    payload["floors"]["F1"]["core"] = {
+        "stair": {
+            "id": "stair",
+            "type": "spiral",
+            "width": 910,
+            "floor_height": 2730,
+            "riser_pref": 230,
+            "tread_pref": 210,
+            "connects": {"F1": "hall1"},
+        }
+    }
+    path = _write_yaml(tmp_path / "bad_stair_type.yaml", payload)
+    with pytest.raises(ValueError, match="unsupported stair type"):
+        load_plan_spec(path)
+
+
 def test_load_plan_spec_rejects_bad_topology_pairs(tmp_path: Path) -> None:
     payload = _minimal_payload()
     payload["floors"]["F1"]["topology"] = {"adjacency": [["entry"]]}

@@ -14,7 +14,7 @@ floors:
     core:
       stair:
         id: stair
-        type: straight
+        type: L_landing
         width: 910
         floor_height: 2730
         riser_pref: 230

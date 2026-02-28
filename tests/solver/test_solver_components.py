@@ -70,12 +70,17 @@ def test_resolve_riser_and_stair_footprint() -> None:
         connects={"F1": "h1", "F2": "h2"},
     )
     lshape = replace(straight, type="L_landing")
+    uturn = replace(straight, type="U_turn")
 
     fp_straight = _compute_stair_footprint(straight, 455)
     fp_lshape = _compute_stair_footprint(lshape, 455)
+    fp_uturn = _compute_stair_footprint(uturn, 455)
     assert fp_straight.w_cells >= 1
     assert len(fp_straight.components) == 1
     assert len(fp_lshape.components) == 3
+    assert len(fp_uturn.components) == 3
+    assert fp_uturn.w_cells == 2 * (straight.width // 455)
+    assert fp_uturn.components[1][0] == "landing"
 
     with pytest.raises(ValueError, match="unsupported stair type"):
         _compute_stair_footprint(replace(straight, type="unknown"), 455)

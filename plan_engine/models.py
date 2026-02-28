@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal, TypeAlias
+
+
+StairType: TypeAlias = Literal["straight", "L_landing", "U_turn"]
 
 
 @dataclass(frozen=True)
@@ -91,10 +95,22 @@ class SpaceSpec:
 
 @dataclass(frozen=True)
 class StairSpec:
-    """Stair specification with type, dimensions, and floor connections."""
+    """Stair specification with type, dimensions, and floor connections.
+
+    Attributes:
+        id: Stable stair identifier shared across connected floors.
+        type: Stair topology token (``straight``, ``L_landing``, ``U_turn``).
+        width: Stair body width in millimeters.
+        floor_height: Floor-to-floor height in millimeters.
+        riser_pref: Preferred riser size in millimeters.
+        tread_pref: Preferred tread size in millimeters.
+        connects: Mapping ``{floor_id: hall_id}`` for portal connectivity.
+        placement_x: Optional fixed stair anchor X coordinate in millimeters.
+        placement_y: Optional fixed stair anchor Y coordinate in millimeters.
+    """
 
     id: str
-    type: str
+    type: StairType
     width: int
     floor_height: int
     riser_pref: int
@@ -240,10 +256,26 @@ class SpaceGeometry:
 
 @dataclass(frozen=True)
 class StairGeometry:
-    """Solved geometry for a stair including portal information."""
+    """Solved geometry for a stair including component and portal metadata.
+
+    Attributes:
+        id: Stair identifier.
+        type: Solved stair topology token.
+        bbox: Bounding box of all stair components.
+        components: Stair component rectangles in deterministic index order.
+        floor_height: Floor-to-floor height in millimeters.
+        riser_count: Number of risers.
+        tread_count: Number of treads.
+        riser_mm: Effective riser size in millimeters.
+        tread_mm: Effective tread size in millimeters.
+        landing_size: Landing size ``(w, h)`` in millimeters.
+        connects: Mapping ``{floor_id: hall_id}`` from DSL.
+        portal_component: Connected component index for this floor.
+        portal_edge: Connected component edge token.
+    """
 
     id: str
-    type: str
+    type: StairType
     bbox: Rect
     components: list[Rect]
     floor_height: int

@@ -73,6 +73,17 @@ def validate_stair(spec: PlanSpec, solution: PlanSolution, report: ValidationRep
                 f"{floor_id}: stair portal edge mismatch (expected {portal.edge}, got {floor_solution.stair.portal_edge})"
             )
 
+        if stair.type == "U_turn":
+            _validate_u_turn_layout(
+                floor_id=floor_id,
+                components=floor_solution.stair.components,
+                report=report,
+            )
+
+        report.diagnostics.append(
+            f"{floor_id}: stair_portal component={portal.component_index} edge={portal.edge} type={stair.type}"
+        )
+
         portal_component = floor_solution.stair.components[portal.component_index]
         _validate_portal_internal(
             floor_id=floor_id,
@@ -161,3 +172,31 @@ def _validate_portal_internal(
         report.errors.append(f"{floor_id}: stair portal edge top is on exterior boundary")
     elif edge == "bottom" and component.y2 >= depth:
         report.errors.append(f"{floor_id}: stair portal edge bottom is on exterior boundary")
+
+
+def _validate_u_turn_layout(
+    floor_id: str,
+    components: list[Rect],
+    report: ValidationReport,
+) -> None:
+    """Validate geometric consistency for a solved U-turn stair footprint.
+
+    Args:
+        floor_id: Floor identifier for diagnostics.
+        components: Stair component rectangles in solved index order.
+        report: Mutable validation report receiving errors.
+
+    Returns:
+        None. Appends errors directly to ``report`` when mismatches are found.
+    """
+    if len(components) < 3:
+        report.errors.append(f"{floor_id}: U_turn stair requires at least 3 components")
+        return
+
+    flight1 = components[0]
+    landing = components[1]
+    flight2 = components[2]
+    if not landing.shares_edge_with(flight1):
+        report.errors.append(f"{floor_id}: U_turn landing is not connected to flight1")
+    if not landing.shares_edge_with(flight2):
+        report.errors.append(f"{floor_id}: U_turn landing is not connected to flight2")
