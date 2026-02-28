@@ -9,6 +9,7 @@ from plan_engine.solver.space_specs import _component_count
 from plan_engine.solver.solution_builder import build_solution
 from plan_engine.solver.workflow import (
     SolveContext,
+    add_orientation_preference_constraints,
     add_bath_wash_adjacency_constraints,
     add_floor_packing_constraints,
     add_stair_connection_constraints,
@@ -58,6 +59,7 @@ class PlanSolver:
         add_stair_connection_constraints(ctx)
         add_wc_ldk_non_adjacent_constraints(spec, ctx)
         add_wet_cluster_constraints(spec, ctx)
+        add_orientation_preference_constraints(spec, ctx)
         build_objective(ctx)
 
         solver, status = self._run_solver(ctx, effective_timeout)

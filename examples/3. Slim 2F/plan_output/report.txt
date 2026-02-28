@@ -1,10 +1,15 @@
 valid=True
 errors=0
-warnings=2
+warnings=7
 structural=10
 
 Warnings:
+- F1:toilet1 misses north-facing service preference (north edge=top)
+- F1:wash1 misses north-facing service preference (north edge=top)
+- F1:bath1 misses north-facing service preference (north edge=top)
+- F2:master misses south-facing preference (south edge=bottom)
 - F2:bed2 bedroom area 7.7jo exceeds 1.3x target (5.5jo)
+- F2:storage2 misses north-facing service preference (north edge=top)
 - structural: vertical transfer required on 3 upper-floor bearing segments
 
 Structural:
@@ -24,6 +29,15 @@ Diagnostics:
 - F2: envelope=192 cells, buildable=192 cells, min=120, max=235, rooms=4, hall_fanout=3
 - F1: area_breakdown indoor=39748800mm2 outdoor=0mm2 buildable=39748800mm2
 - F2: area_breakdown indoor=39748800mm2 outdoor=0mm2 buildable=39748800mm2
+- F1:ldk orientation major_south edge=bottom status=ok
+- F1:toilet1 orientation service_north edge=top status=miss
+- F1:wash1 orientation service_north edge=top status=miss
+- F1:bath1 orientation service_north edge=top status=miss
+- F1: orientation_summary north=top south=bottom major_south=1/1 service_north=0/3
+- F2:master orientation major_south edge=bottom status=miss
+- F2:bed2 orientation major_south edge=bottom status=ok
+- F2:storage2 orientation service_north edge=top status=miss
+- F2: orientation_summary north=top south=bottom major_south=1/2 service_north=0/1
 - F1: area indoor=39.75sqm outdoor=0.00sqm
 - F2: area indoor=39.75sqm outdoor=0.00sqm
 - total_area: indoor=79.50sqm outdoor=0.00sqm

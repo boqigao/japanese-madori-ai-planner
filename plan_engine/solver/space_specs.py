@@ -44,6 +44,20 @@ COMPONENT_CAP_BY_TYPE: dict[str, int] = {
     "hall": 4,
 }
 
+SOUTH_PREFERENCE_WEIGHT_BY_TYPE: dict[str, int] = {
+    "ldk": 72,
+    "master_bedroom": 52,
+    "bedroom": 44,
+}
+
+NORTH_PREFERENCE_WEIGHT_BY_TYPE: dict[str, int] = {
+    "washroom": 30,
+    "bath": 30,
+    "toilet": 26,
+    "wc": 26,
+    "storage": 22,
+}
+
 MAX_AREA_TARGET_MULTIPLIER_BY_TYPE: dict[str, float] = {
     "entry": 1.5,
     "hall": 1.5,
@@ -113,6 +127,32 @@ def _shortfall_weight(space_type: str) -> int:
 def _overshoot_weight(space_type: str) -> int:
     """Get the penalty weight for area overshooting by space type."""
     return OVERSHOOT_WEIGHT_BY_TYPE.get(space_type, 9)
+
+
+def _south_preference_weight(space_type: str) -> int:
+    """Return orientation penalty weight for missing south-edge touch.
+
+    Args:
+        space_type: Canonical room type.
+
+    Returns:
+        Positive weight when the room should prefer the south facade,
+        otherwise ``0``.
+    """
+    return SOUTH_PREFERENCE_WEIGHT_BY_TYPE.get(space_type, 0)
+
+
+def _north_preference_weight(space_type: str) -> int:
+    """Return orientation penalty weight for missing north-edge touch.
+
+    Args:
+        space_type: Canonical room type.
+
+    Returns:
+        Positive weight when the room should prefer the north facade,
+        otherwise ``0``.
+    """
+    return NORTH_PREFERENCE_WEIGHT_BY_TYPE.get(space_type, 0)
 
 
 def _max_area_cells(space: SpaceSpec, minor_grid: int) -> int | None:

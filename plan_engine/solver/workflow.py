@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from ortools.sat.python import cp_model
 
 from plan_engine.constants import (
+    EDGE_NAMES,
     MAJOR_ROOM_TYPES,
     WET_MODULE_SIZES_MM,
     WET_SPACE_TYPES,
@@ -33,8 +34,10 @@ from plan_engine.solver.space_specs import (
     _max_area_cells,
     _min_area_cells,
     _min_width_cells,
+    _north_preference_weight,
     _overshoot_weight,
     _shortfall_weight,
+    _south_preference_weight,
     _target_area_cells,
 )
 from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
@@ -63,6 +66,7 @@ class SolveContext:
     hall_area_penalties: list[cp_model.IntVar]
     floor_compactness_terms: list[cp_model.IntVar]
     topology_soft_penalties: list[tuple[cp_model.IntVar, int]]
+    orientation_soft_penalties: list[tuple[cp_model.IntVar, int]]
     floor_area_vars: dict[str, list[cp_model.IntVar]]
     floor_indoor_area_vars: dict[str, list[cp_model.IntVar]]
     floor_buildable_masks: dict[str, list[tuple[int, int, int, int]]]
@@ -104,6 +108,7 @@ def build_context(spec: PlanSpec) -> SolveContext:
     hall_area_penalties: list[cp_model.IntVar] = []
     floor_compactness_terms: list[cp_model.IntVar] = []
     topology_soft_penalties: list[tuple[cp_model.IntVar, int]] = []
+    orientation_soft_penalties: list[tuple[cp_model.IntVar, int]] = []
     floor_area_vars: dict[str, list[cp_model.IntVar]] = {fid: [] for fid in spec.floors}
     floor_indoor_area_vars: dict[str, list[cp_model.IntVar]] = {fid: [] for fid in spec.floors}
     floor_buildable_masks: dict[str, list[tuple[int, int, int, int]]] = {}
@@ -161,6 +166,7 @@ def build_context(spec: PlanSpec) -> SolveContext:
         hall_area_penalties=hall_area_penalties,
         floor_compactness_terms=floor_compactness_terms,
         topology_soft_penalties=topology_soft_penalties,
+        orientation_soft_penalties=orientation_soft_penalties,
         floor_area_vars=floor_area_vars,
         floor_indoor_area_vars=floor_indoor_area_vars,
         floor_buildable_masks=floor_buildable_masks,
@@ -255,6 +261,81 @@ def _constrain_rect_within_buildable_union(
         model.Add(rect.x_end <= x + w).OnlyEnforceIf(inside)
         model.Add(rect.y_end <= y + h).OnlyEnforceIf(inside)
     model.AddBoolOr(indicators)
+
+
+def resolve_north_south_edges(north: str) -> tuple[str, str]:
+    """Resolve envelope north/south edges from ``site.north`` token.
+
+    Args:
+        north: Cardinal north token from spec/site, one of
+            ``top``, ``right``, ``bottom``, ``left``.
+
+    Returns:
+        Tuple ``(north_edge, south_edge)`` in envelope edge names.
+
+    Raises:
+        ValueError: If ``north`` is not a supported edge token.
+    """
+    normalized = north.strip().lower()
+    if normalized not in EDGE_NAMES:
+        raise ValueError(f"unsupported site.north '{north}'; expected one of {sorted(EDGE_NAMES)}")
+
+    mapping = {
+        "top": ("top", "bottom"),
+        "right": ("right", "left"),
+        "bottom": ("bottom", "top"),
+        "left": ("left", "right"),
+    }
+    return mapping[normalized]
+
+
+def _space_edge_touch_bool(
+    model: cp_model.CpModel,
+    rects: list[RectVar],
+    edge: str,
+    envelope_w_cells: int,
+    envelope_h_cells: int,
+    prefix: str,
+) -> cp_model.IntVar:
+    """Build a boolean indicating whether a space touches a given envelope edge.
+
+    Args:
+        model: CP-SAT model receiving helper constraints.
+        rects: Rectangle components that compose one logical space.
+        edge: Envelope edge name (``left/right/top/bottom``).
+        envelope_w_cells: Floor envelope width in cell units.
+        envelope_h_cells: Floor envelope height in cell units.
+        prefix: Variable-name prefix for generated booleans.
+
+    Returns:
+        Bool-var equal to 1 when any component rectangle touches ``edge``.
+
+    Raises:
+        ValueError: If ``edge`` is not supported.
+    """
+    if edge not in EDGE_NAMES:
+        raise ValueError(f"unsupported envelope edge '{edge}'")
+
+    component_touches: list[cp_model.IntVar] = []
+    for index, rect in enumerate(rects):
+        touch = model.NewBoolVar(f"{prefix}_{edge}_touch_comp_{index}")
+        component_touches.append(touch)
+        if edge == "left":
+            model.Add(rect.x == 0).OnlyEnforceIf(touch)
+            model.Add(rect.x != 0).OnlyEnforceIf(touch.Not())
+        elif edge == "right":
+            model.Add(rect.x_end == envelope_w_cells).OnlyEnforceIf(touch)
+            model.Add(rect.x_end != envelope_w_cells).OnlyEnforceIf(touch.Not())
+        elif edge == "top":
+            model.Add(rect.y == 0).OnlyEnforceIf(touch)
+            model.Add(rect.y != 0).OnlyEnforceIf(touch.Not())
+        elif edge == "bottom":
+            model.Add(rect.y_end == envelope_h_cells).OnlyEnforceIf(touch)
+            model.Add(rect.y_end != envelope_h_cells).OnlyEnforceIf(touch.Not())
+
+    touches_edge = model.NewBoolVar(f"{prefix}_{edge}_touch")
+    model.AddMaxEquality(touches_edge, component_touches)
+    return touches_edge
 
 
 def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
@@ -847,6 +928,56 @@ def add_wet_core_circulation_constraints(spec: PlanSpec, ctx: SolveContext) -> N
         ctx.model.AddBoolOr(touch_vars)
 
 
+def add_orientation_preference_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Add soft orientation penalties derived from ``site.north``.
+
+    This function creates one soft penalty boolean per eligible space:
+    - major rooms (`ldk`/`bedroom`/`master_bedroom`) prefer south edge touch
+    - service rooms (`washroom`/`bath`/`toilet`/`wc`/`storage`) prefer north edge touch
+
+    Args:
+        spec: Parsed plan specification.
+        ctx: Mutable solve context holding placements and objective accumulators.
+
+    Returns:
+        None. Soft-penalty terms are appended to ``ctx.orientation_soft_penalties``.
+    """
+    north_edge, south_edge = resolve_north_south_edges(spec.site.north)
+    for floor_id, floor in spec.floors.items():
+        for space in floor.spaces:
+            rects = ctx.placements[floor_id].get(space.id)
+            if not rects:
+                continue
+
+            south_weight = _south_preference_weight(space.type)
+            if south_weight > 0:
+                south_touch = _space_edge_touch_bool(
+                    model=ctx.model,
+                    rects=rects,
+                    edge=south_edge,
+                    envelope_w_cells=ctx.envelope_w_cells,
+                    envelope_h_cells=ctx.envelope_h_cells,
+                    prefix=f"{_slug(floor_id)}_{_slug(space.id)}",
+                )
+                south_missing = ctx.model.NewBoolVar(f"{_slug(floor_id)}_{_slug(space.id)}_miss_south_pref")
+                ctx.model.Add(south_missing + south_touch == 1)
+                ctx.orientation_soft_penalties.append((south_missing, south_weight))
+
+            north_weight = _north_preference_weight(space.type)
+            if north_weight > 0:
+                north_touch = _space_edge_touch_bool(
+                    model=ctx.model,
+                    rects=rects,
+                    edge=north_edge,
+                    envelope_w_cells=ctx.envelope_w_cells,
+                    envelope_h_cells=ctx.envelope_h_cells,
+                    prefix=f"{_slug(floor_id)}_{_slug(space.id)}",
+                )
+                north_missing = ctx.model.NewBoolVar(f"{_slug(floor_id)}_{_slug(space.id)}_miss_north_pref")
+                ctx.model.Add(north_missing + north_touch == 1)
+                ctx.orientation_soft_penalties.append((north_missing, north_weight))
+
+
 def build_objective(ctx: SolveContext) -> None:
     """Assemble and minimize the weighted objective function."""
     objective_terms = [50 * v for v in ctx.major_room_alignment_penalties]
@@ -856,6 +987,7 @@ def build_objective(ctx: SolveContext) -> None:
     objective_terms.extend(8 * v for v in ctx.floor_compactness_terms)
     objective_terms.extend(10 * v for v in ctx.hall_area_penalties)
     objective_terms.extend(weight * var for var, weight in ctx.topology_soft_penalties)
+    objective_terms.extend(weight * var for var, weight in ctx.orientation_soft_penalties)
     if objective_terms:
         ctx.model.Minimize(sum(objective_terms))
 

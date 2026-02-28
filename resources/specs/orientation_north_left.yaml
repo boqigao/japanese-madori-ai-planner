@@ -1,0 +1,26 @@
+version: "0.2"
+units: mm
+grid: { minor: 455, major: 910 }
+site:
+  envelope: { type: rectangle, width: 7280, depth: 5460 }
+  north: left
+floors:
+  F1:
+    spaces:
+      - { id: ldk1, type: ldk, area: { min_tatami: 10, target_tatami: 12 }, shape: { allow: [L2], rect_components_max: 2 } }
+      - { id: bed1, type: bedroom, area: { min_tatami: 6, target_tatami: 7 }, shape: { allow: [rect], rect_components_max: 1 } }
+      - { id: hall1, type: hall, area: { min_tatami: 2, target_tatami: 3 }, shape: { allow: [L2], rect_components_max: 4 } }
+      - { id: entry, type: entry, area: { min_tatami: 2, target_tatami: 2.5 } }
+      - { id: wash1, type: washroom }
+      - { id: bath1, type: bath }
+      - { id: toilet1, type: toilet }
+      - { id: storage1, type: storage, area: { min_tatami: 2, target_tatami: 3 } }
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [hall1, ldk1, required]
+        - [hall1, bed1, required]
+        - [hall1, wash1, required]
+        - [wash1, bath1, required]
+        - [hall1, toilet1, required]
+        - [hall1, storage1, required]

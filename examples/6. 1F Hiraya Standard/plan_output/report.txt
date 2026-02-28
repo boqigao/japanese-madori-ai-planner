@@ -1,10 +1,12 @@
 valid=True
 errors=0
-warnings=2
+warnings=4
 structural=3
 
 Warnings:
 - no stair declared
+- F1:bed2 misses south-facing preference (south edge=bottom)
+- F1:storage1 misses north-facing service preference (north edge=top)
 - structural: F1: wall-balance ratio 0.42 below target 0.50
 
 Structural:
@@ -15,5 +17,13 @@ Structural:
 Diagnostics:
 - F1: envelope=280 cells, buildable=280 cells, min=261, max=472, rooms=9, hall_fanout=7
 - F1: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
+- F1:ldk orientation major_south edge=bottom status=ok
+- F1:bed1 orientation major_south edge=bottom status=ok
+- F1:bed2 orientation major_south edge=bottom status=miss
+- F1:toilet1 orientation service_north edge=top status=ok
+- F1:wash1 orientation service_north edge=top status=ok
+- F1:bath1 orientation service_north edge=top status=ok
+- F1:storage1 orientation service_north edge=top status=miss
+- F1: orientation_summary north=top south=bottom major_south=2/3 service_north=3/4
 - F1: area indoor=57.97sqm outdoor=0.00sqm
 - total_area: indoor=57.97sqm outdoor=0.00sqm
