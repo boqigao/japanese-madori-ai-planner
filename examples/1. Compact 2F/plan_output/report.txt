@@ -1,28 +1,26 @@
 valid=True
 errors=0
-warnings=7
-structural=10
+warnings=6
+structural=9
 
 Warnings:
-- F1:wash1 misses north-facing service preference (north edge=top)
 - F1:storage1 misses north-facing service preference (north edge=top)
-- F2:master bedroom short side 2275mm is below 2730mm livability threshold
-- F2:bed2 bedroom area 9.2jo exceeds 1.3x target (6.0jo)
-- F2:bed3 misses south-facing preference (south edge=bottom)
-- F2: secondary bedroom area (9.2jo) exceeds master bedroom (7.7jo)
-- structural: vertical transfer required on 3 upper-floor bearing segments
+- F2:bed2 bedroom short side 2275mm is below 2730mm livability threshold
+- F2:bed2 misses south-facing preference (south edge=bottom)
+- F2:bed3 bedroom short side 2275mm is below 2730mm livability threshold
+- structural: F1: wall-balance ratio 0.47 below target 0.50
+- structural: vertical transfer required on 2 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=52780mm (V/H=27300/25480), balance=0.51
-- F2: bearing=42315mm (V/H=24115/18200), balance=0.63
-- F2->F1 vertical: supported=17745/24115mm, direct_below=0.74
+- F1: bearing=47775mm (V/H=20930/26845), balance=0.47
+- F2: bearing=39130mm (V/H=20930/18200), balance=0.52
+- F2->F1 vertical: supported=15470/20930mm, direct_below=0.74
 - F2->F1 horizontal: supported=18200/18200mm, direct_below=1.00
-- vertical_transfer_required=3
-- F2:w_F2_v_2730_0_5460 unsupported=910mm at vertical@2730
-- F2:w_F2_v_3640_3185_5460 unsupported=2275mm at vertical@3640
-- F2:w_F2_v_5460_0_3185 unsupported=3185mm at vertical@5460
+- vertical_transfer_required=2
+- F2:w_F2_v_3640_0_2275 unsupported=2275mm at vertical@3640
+- F2:w_F2_v_4550_2275_5460 unsupported=3185mm at vertical@4550
 
 Diagnostics:
 - F1: envelope=240 cells, buildable=240 cells, min=190, max=327, rooms=7, hall_fanout=6
@@ -33,13 +31,13 @@ Diagnostics:
 - F2: stair_portal component=2 edge=right type=U_turn
 - F1:ldk orientation major_south edge=bottom status=ok
 - F1:toilet1 orientation service_north edge=top status=ok
-- F1:wash1 orientation service_north edge=top status=miss
+- F1:wash1 orientation service_north edge=top status=ok
 - F1:bath1 orientation service_north edge=top status=ok
 - F1:storage1 orientation service_north edge=top status=miss
-- F1: orientation_summary north=top south=bottom major_south=1/1 service_north=2/4
+- F1: orientation_summary north=top south=bottom major_south=1/1 service_north=3/4
 - F2:master orientation major_south edge=bottom status=ok
-- F2:bed2 orientation major_south edge=bottom status=ok
-- F2:bed3 orientation major_south edge=bottom status=miss
+- F2:bed2 orientation major_south edge=bottom status=miss
+- F2:bed3 orientation major_south edge=bottom status=ok
 - F2: orientation_summary north=top south=bottom major_south=2/3 service_north=0/0
 - F1: area indoor=49.69sqm outdoor=0.00sqm
 - F2: area indoor=49.69sqm outdoor=0.00sqm

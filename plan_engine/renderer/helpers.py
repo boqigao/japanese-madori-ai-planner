@@ -367,3 +367,77 @@ def _stair_label_point(components: list[Rect], portal_component_index: int) -> t
         return landing.x + landing.w / 2, landing.y + landing.h / 2
     first = components[0]
     return first.x + first.w / 2, first.y + first.h / 2
+
+
+def _should_draw_interior_door(left_type: str, right_type: str) -> bool:
+    """Decide whether a topology edge should render an interior door symbol.
+
+    Args:
+        left_type: Space type on one side of the shared boundary.
+        right_type: Space type on the other side of the shared boundary.
+
+    Returns:
+        ``True`` if a door symbol should be drawn, otherwise ``False``.
+        Bath-to-non-wash edges are suppressed so bath openings are represented
+        only via washroom connections. Outdoor-to-outdoor edges are suppressed.
+    """
+    types = {left_type, right_type}
+    bedroom_types = {"bedroom", "master_bedroom"}
+    closet_types = {"closet"}
+    if types.issubset({"balcony", "veranda"}):
+        return False
+    if types.intersection(closet_types):
+        return False
+    if left_type in bedroom_types and right_type in bedroom_types:
+        return False
+    return not ("bath" in types and "washroom" not in types)
+
+
+def _subtract_colinear_segment(
+    base: tuple[tuple[int, int], tuple[int, int]],
+    cut: tuple[tuple[int, int], tuple[int, int]],
+) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Subtract one colinear cut segment from a base segment.
+
+    Args:
+        base: Base axis-aligned segment to keep where possible.
+        cut: Segment to remove from ``base`` when they are colinear and overlap.
+
+    Returns:
+        Remaining segment pieces after subtraction. Returns ``[base]`` when the
+        segments are not colinear/overlapping.
+    """
+    (bx1, by1), (bx2, by2) = base
+    (cx1, cy1), (cx2, cy2) = cut
+
+    # Vertical segments on the same x coordinate.
+    if bx1 == bx2 and cx1 == cx2 and bx1 == cx1:
+        base_start, base_end = sorted((by1, by2))
+        cut_start, cut_end = sorted((cy1, cy2))
+        overlap_start = max(base_start, cut_start)
+        overlap_end = min(base_end, cut_end)
+        if overlap_start >= overlap_end:
+            return [base]
+        parts: list[tuple[tuple[int, int], tuple[int, int]]] = []
+        if base_start < overlap_start:
+            parts.append(((bx1, base_start), (bx1, overlap_start)))
+        if overlap_end < base_end:
+            parts.append(((bx1, overlap_end), (bx1, base_end)))
+        return parts
+
+    # Horizontal segments on the same y coordinate.
+    if by1 == by2 and cy1 == cy2 and by1 == cy1:
+        base_start, base_end = sorted((bx1, bx2))
+        cut_start, cut_end = sorted((cx1, cx2))
+        overlap_start = max(base_start, cut_start)
+        overlap_end = min(base_end, cut_end)
+        if overlap_start >= overlap_end:
+            return [base]
+        parts = []
+        if base_start < overlap_start:
+            parts.append(((base_start, by1), (overlap_start, by1)))
+        if overlap_end < base_end:
+            parts.append(((overlap_end, by1), (base_end, by1)))
+        return parts
+
+    return [base]

@@ -13,6 +13,10 @@ EMBEDDED_CLOSET_SPACE_TYPES = {"closet"}
 CLOSET_SPACE_TYPES = {"closet"}
 WALK_IN_CLOSET_SPACE_TYPES = {"wic"}
 STAIR_TYPES = {"straight", "L_landing", "U_turn"}
+BEDROOM_SPACE_TYPES = frozenset({"bedroom", "master_bedroom"})
+TOILET_SPACE_TYPES = frozenset({"toilet", "wc"})
+WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath"})
+CIRCULATION_SPACE_TYPES = frozenset({"hall", "entry"})
 EDGE_NAMES = {"left", "right", "top", "bottom"}
 
 WET_MODULE_SIZES_MM: dict[str, tuple[int, int]] = {

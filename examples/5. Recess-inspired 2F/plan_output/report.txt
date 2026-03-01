@@ -10,8 +10,8 @@ Warnings:
 - F1:toilet1 misses north-facing service preference (north edge=top)
 - F1:wash1 misses north-facing service preference (north edge=top)
 - F1:bath1 misses north-facing service preference (north edge=top)
-- F2:bed2 misses south-facing preference (south edge=bottom)
-- F2:bed3 bedroom area 10.2jo exceeds 1.3x target (6.0jo)
+- F2:bed2 bedroom area 10.2jo exceeds 1.3x target (6.0jo)
+- F2:bed3 misses south-facing preference (south edge=bottom)
 - F2: secondary bedroom area (10.2jo) exceeds master bedroom (8.9jo)
 - structural: F1: wall-balance ratio 0.42 below target 0.50
 - structural: vertical transfer required on 4 upper-floor bearing segments
@@ -44,8 +44,8 @@ Diagnostics:
 - F1:bath1 orientation service_north edge=top status=miss
 - F1: orientation_summary north=top south=bottom major_south=1/2 service_north=0/4
 - F2:master orientation major_south edge=bottom status=ok
-- F2:bed2 orientation major_south edge=bottom status=miss
-- F2:bed3 orientation major_south edge=bottom status=ok
+- F2:bed2 orientation major_south edge=bottom status=ok
+- F2:bed3 orientation major_south edge=bottom status=miss
 - F2: orientation_summary north=top south=bottom major_south=2/3 service_north=0/0
 - F1: area indoor=57.97sqm outdoor=0.00sqm
 - F2: area indoor=57.97sqm outdoor=0.00sqm

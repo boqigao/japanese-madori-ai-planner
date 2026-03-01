@@ -5,7 +5,7 @@ import pytest
 
 from plan_engine.models import FloorSolution, Rect, SpaceGeometry
 from plan_engine.renderer.core import SvgRenderer
-from plan_engine.renderer.dimensions import (
+from plan_engine.renderer.dimensions_exterior import (
     _normalize_breakpoints,
     _side_axis,
     _snap_to_minor,

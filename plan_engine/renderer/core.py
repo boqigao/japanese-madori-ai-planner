@@ -14,26 +14,23 @@ from plan_engine.renderer.annotations import (
     draw_space_labels,
     draw_title_block,
 )
-from plan_engine.renderer.dimensions import (
-    draw_dimension_line,
-    draw_dimensions,
-    draw_room_dimension_guides,
-)
+from plan_engine.renderer.dimensions_exterior import draw_dimension_line, draw_dimensions
+from plan_engine.renderer.dimensions_interior import draw_room_dimension_guides
+from plan_engine.renderer.fixtures import draw_fixtures as _mod_draw_fixtures
+from plan_engine.renderer.fixtures import draw_vent_marker as _mod_draw_vent_marker
 from plan_engine.renderer.helpers import (
     SPACE_COLORS,
-    WINDOW_SPACE_TYPES,
     _bounding_rect,
-    _door_line_key,
-    _entity_rects,
-    _exterior_segments,
     _floor_rects,
     _ordered_spaces,
     _segment_key,
-    _segment_length,
-    _shared_segment,
     _sorted_floor_ids,
     _space_boundary_segments,
+    _subtract_colinear_segment,
 )
+from plan_engine.renderer.openings import draw_entry_door as _mod_draw_entry_door
+from plan_engine.renderer.openings import draw_interior_doors as _mod_draw_interior_doors
+from plan_engine.renderer.openings import draw_windows as _mod_draw_windows
 from plan_engine.renderer.stair import (
     draw_stair,
     draw_stair_connection_opening,
@@ -42,80 +39,6 @@ from plan_engine.renderer.stair import (
     draw_void_hatch,
 )
 from plan_engine.renderer.symbols import draw_door_symbol, draw_window_symbol
-
-
-def _should_draw_interior_door(left_type: str, right_type: str) -> bool:
-    """Decide whether a topology edge should render an interior door symbol.
-
-    Args:
-        left_type: Space type on one side of the shared boundary.
-        right_type: Space type on the other side of the shared boundary.
-
-    Returns:
-        ``True`` if a door symbol should be drawn, otherwise ``False``.
-        Bath-to-non-wash edges are suppressed so bath openings are represented
-        only via washroom connections. Outdoor-to-outdoor edges are suppressed.
-    """
-    types = {left_type, right_type}
-    bedroom_types = {"bedroom", "master_bedroom"}
-    closet_types = {"closet"}
-    if types.issubset({"balcony", "veranda"}):
-        return False
-    if types.intersection(closet_types):
-        return False
-    if left_type in bedroom_types and right_type in bedroom_types:
-        return False
-    return not ("bath" in types and "washroom" not in types)
-
-
-def _subtract_colinear_segment(
-    base: tuple[tuple[int, int], tuple[int, int]],
-    cut: tuple[tuple[int, int], tuple[int, int]],
-) -> list[tuple[tuple[int, int], tuple[int, int]]]:
-    """Subtract one colinear cut segment from a base segment.
-
-    Args:
-        base: Base axis-aligned segment to keep where possible.
-        cut: Segment to remove from ``base`` when they are colinear and overlap.
-
-    Returns:
-        Remaining segment pieces after subtraction. Returns ``[base]`` when the
-        segments are not colinear/overlapping.
-    """
-    (bx1, by1), (bx2, by2) = base
-    (cx1, cy1), (cx2, cy2) = cut
-
-    # Vertical segments on the same x coordinate.
-    if bx1 == bx2 and cx1 == cx2 and bx1 == cx1:
-        base_start, base_end = sorted((by1, by2))
-        cut_start, cut_end = sorted((cy1, cy2))
-        overlap_start = max(base_start, cut_start)
-        overlap_end = min(base_end, cut_end)
-        if overlap_start >= overlap_end:
-            return [base]
-        parts: list[tuple[tuple[int, int], tuple[int, int]]] = []
-        if base_start < overlap_start:
-            parts.append(((bx1, base_start), (bx1, overlap_start)))
-        if overlap_end < base_end:
-            parts.append(((bx1, overlap_end), (bx1, base_end)))
-        return parts
-
-    # Horizontal segments on the same y coordinate.
-    if by1 == by2 and cy1 == cy2 and by1 == cy1:
-        base_start, base_end = sorted((bx1, bx2))
-        cut_start, cut_end = sorted((cx1, cx2))
-        overlap_start = max(base_start, cut_start)
-        overlap_end = min(base_end, cut_end)
-        if overlap_start >= overlap_end:
-            return [base]
-        parts = []
-        if base_start < overlap_start:
-            parts.append(((base_start, by1), (overlap_start, by1)))
-        if overlap_end < base_end:
-            parts.append(((overlap_end, by1), (base_end, by1)))
-        return parts
-
-    return [base]
 
 
 class SvgRenderer:
@@ -367,15 +290,7 @@ class SvgRenderer:
         self._draw_embedded_closets(drawing, floor)
 
     def _draw_embedded_closets(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
-        """Draw embedded closet overlays inside parent rooms.
-
-        Args:
-            drawing: SVG drawing object to mutate.
-            floor: Solved floor containing embedded closet geometry.
-
-        Returns:
-            None.
-        """
+        """Draw embedded closet overlays inside parent rooms."""
         for closet in floor.embedded_closets:
             rect = closet.rect
             drawing.add(
@@ -392,15 +307,7 @@ class SvgRenderer:
             self._draw_closet_hatch(drawing, rect)
 
     def _draw_closet_hatch(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
-        """Draw diagonal hatch lines for built-in closet zones.
-
-        Args:
-            drawing: SVG drawing object to mutate.
-            rect: Closet rectangle in millimeter coordinates.
-
-        Returns:
-            None.
-        """
+        """Draw diagonal hatch lines for built-in closet zones."""
         spacing_mm = 160
         start = -rect.h
         end = rect.w + rect.h
@@ -423,22 +330,9 @@ class SvgRenderer:
             )
 
     def _draw_structural_overlay(
-        self,
-        drawing: svgwrite.Drawing,
-        solution: PlanSolution,
-        floor_id: str,
+        self, drawing: svgwrite.Drawing, solution: PlanSolution, floor_id: str,
     ) -> None:
-        """Draw a structural wall-role overlay when enabled by environment flag.
-
-        Args:
-            drawing: Floor drawing to mutate.
-            solution: Full solved plan containing extracted wall metadata.
-            floor_id: Floor id currently being rendered.
-
-        Returns:
-            None. Overlay is drawn only when
-            ``PLAN_ENGINE_DRAW_STRUCTURAL_WALLS=1``.
-        """
+        """Draw structural wall-role overlay (only when PLAN_ENGINE_DRAW_STRUCTURAL_WALLS=1)."""
         if os.getenv("PLAN_ENGINE_DRAW_STRUCTURAL_WALLS", "0") != "1":
             return
         floor_walls = solution.walls.get(floor_id, [])
@@ -468,255 +362,12 @@ class SvgRenderer:
             drawing.add(drawing.line(**line_attrs))
 
     def _draw_fixtures(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
-        """Draw lightweight furniture/fixture symbols for readability.
-
-        Args:
-            drawing: Floor drawing to mutate.
-            floor: Floor solution containing room geometries.
-
-        Returns:
-            None.
-        """
-        for space in floor.spaces.values():
-            if not space.rects:
-                continue
-            rect = max(space.rects, key=lambda value: value.area)
-            if rect.w < 1365 or rect.h < 1365:
-                continue
-
-            if space.type in {"bedroom", "master_bedroom"}:
-                bed_w = min(rect.w * 0.56, 1820)
-                bed_h = min(rect.h * 0.34, 1365)
-                bed_x = rect.x + (rect.w - bed_w) / 2
-                bed_y = rect.y + rect.h * 0.18
-                drawing.add(
-                    drawing.rect(
-                        insert=(self._x(bed_x), self._y(bed_y)),
-                        size=(bed_w * self.scale, bed_h * self.scale),
-                        fill="none",
-                        stroke="#7f7f7f",
-                        stroke_width=1.1,
-                    )
-                )
-                drawing.add(
-                    drawing.line(
-                        start=(self._x(bed_x), self._y(bed_y + bed_h * 0.35)),
-                        end=(self._x(bed_x + bed_w), self._y(bed_y + bed_h * 0.35)),
-                        stroke="#7f7f7f",
-                        stroke_width=0.9,
-                    )
-                )
-                continue
-
-            if space.type == "ldk":
-                counter_w = min(rect.w * 0.32, 2280)
-                counter_h = min(rect.h * 0.10, 700)
-                counter_x = rect.x + rect.w * 0.54
-                counter_y = rect.y + rect.h * 0.10
-                drawing.add(
-                    drawing.rect(
-                        insert=(self._x(counter_x), self._y(counter_y)),
-                        size=(counter_w * self.scale, counter_h * self.scale),
-                        fill="none",
-                        stroke="#8a6b4a",
-                        stroke_width=1.0,
-                    )
-                )
-                leg_w = min(counter_h * 0.9, 650)
-                leg_h = min(rect.h * 0.22, 1365)
-                leg_x = counter_x + counter_w - leg_w
-                leg_y = counter_y
-                drawing.add(
-                    drawing.rect(
-                        insert=(self._x(leg_x), self._y(leg_y)),
-                        size=(leg_w * self.scale, leg_h * self.scale),
-                        fill="none",
-                        stroke="#8a6b4a",
-                        stroke_width=1.0,
-                    )
-                )
-                stove_cx = counter_x + counter_w * 0.35
-                stove_cy = counter_y + counter_h * 0.5
-                for dx in (-90, 90):
-                    drawing.add(
-                        drawing.circle(
-                            center=(self._x(stove_cx + dx), self._y(stove_cy)),
-                            r=max(3, 70 * self.scale),
-                            fill="none",
-                            stroke="#8a6b4a",
-                            stroke_width=0.9,
-                        )
-                    )
-                sink_x = leg_x + leg_w * 0.15
-                sink_y = leg_y + leg_h * 0.42
-                sink_w = leg_w * 0.68
-                sink_h = min(300, leg_h * 0.24)
-                drawing.add(
-                    drawing.rect(
-                        insert=(self._x(sink_x), self._y(sink_y)),
-                        size=(sink_w * self.scale, sink_h * self.scale),
-                        fill="none",
-                        stroke="#8a6b4a",
-                        stroke_width=0.9,
-                    )
-                )
-                island_w = min(rect.w * 0.22, 1365)
-                island_h = min(rect.h * 0.12, 820)
-                island_x = rect.x + rect.w * 0.40
-                island_y = rect.y + rect.h * 0.42
-                drawing.add(
-                    drawing.rect(
-                        insert=(self._x(island_x), self._y(island_y)),
-                        size=(island_w * self.scale, island_h * self.scale),
-                        fill="none",
-                        stroke="#8a6b4a",
-                        stroke_width=1.0,
-                    )
-                )
-                continue
-
-            if space.type in {"toilet", "wc"}:
-                cx = rect.x + rect.w * 0.5
-                cy = rect.y + rect.h * 0.55
-                tank_w = min(rect.w * 0.42, 380)
-                tank_h = min(rect.h * 0.14, 180)
-                drawing.add(
-                    drawing.rect(
-                        insert=(self._x(cx - tank_w / 2), self._y(rect.y + rect.h * 0.16)),
-                        size=(tank_w * self.scale, tank_h * self.scale),
-                        fill="none",
-                        stroke="#6f6f6f",
-                        stroke_width=1.0,
-                    )
-                )
-                drawing.add(
-                    drawing.ellipse(
-                        center=(self._x(cx), self._y(cy)),
-                        r=(max(12, rect.w * self.scale * 0.13), max(8, rect.h * self.scale * 0.18)),
-                        fill="none",
-                        stroke="#6f6f6f",
-                        stroke_width=1.0,
-                    )
-                )
-                self._draw_vent_marker(drawing, rect)
-                continue
-
-            if space.type == "washroom":
-                sink_w = min(rect.w * 0.34, 760)
-                sink_h = min(rect.h * 0.22, 455)
-                sink_x = rect.x + rect.w * 0.18
-                sink_y = rect.y + rect.h * 0.18
-                for offset in (0.0, rect.w * 0.40):
-                    drawing.add(
-                        drawing.rect(
-                            insert=(self._x(sink_x + offset), self._y(sink_y)),
-                            size=(sink_w * self.scale, sink_h * self.scale),
-                            fill="none",
-                            stroke="#6f6f6f",
-                            stroke_width=1.0,
-                        )
-                    )
-                drawing.add(
-                    drawing.line(
-                        start=(self._x(rect.x + rect.w * 0.14), self._y(sink_y - 120)),
-                        end=(self._x(rect.x + rect.w * 0.86), self._y(sink_y - 120)),
-                        stroke="#8f8f8f",
-                        stroke_width=0.8,
-                    )
-                )
-                self._draw_vent_marker(drawing, rect)
-                continue
-
-            if space.type == "bath":
-                tub_w = min(rect.w * 0.62, 1365)
-                tub_h = min(rect.h * 0.55, 910)
-                tub_x = rect.x + rect.w * 0.2
-                tub_y = rect.y + rect.h * 0.22
-                drawing.add(
-                    drawing.rect(
-                        insert=(self._x(tub_x), self._y(tub_y)),
-                        size=(tub_w * self.scale, tub_h * self.scale),
-                        rx=6,
-                        ry=6,
-                        fill="none",
-                        stroke="#6f6f6f",
-                        stroke_width=1.0,
-                    )
-                )
-                self._draw_vent_marker(drawing, rect)
-                continue
-
-            if space.type in {"storage", "wic"}:
-                x1 = rect.x + rect.w * 0.12
-                x2 = rect.x2 - rect.w * 0.12
-                y1 = rect.y + rect.h * 0.18
-                y2 = rect.y2 - rect.h * 0.18
-                drawing.add(
-                    drawing.line(
-                        start=(self._x(x1), self._y(y1)),
-                        end=(self._x(x2), self._y(y1)),
-                        stroke="#9a9a9a",
-                        stroke_width=0.9,
-                    )
-                )
-                drawing.add(
-                    drawing.line(
-                        start=(self._x(x1), self._y(y2)),
-                        end=(self._x(x2), self._y(y2)),
-                        stroke="#9a9a9a",
-                        stroke_width=0.9,
-                    )
-                )
-                if space.type == "wic":
-                    mid = rect.y + rect.h * 0.5
-                    drawing.add(
-                        drawing.line(
-                            start=(self._x(x1), self._y(mid)),
-                            end=(self._x(x2), self._y(mid)),
-                            stroke="#9a9a9a",
-                            stroke_width=0.7,
-                            stroke_dasharray="5,3",
-                        )
-                    )
+        """Delegate fixture rendering to the fixtures sub-module."""
+        _mod_draw_fixtures(self, drawing, floor)
 
     def _draw_vent_marker(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
-        """Draw a simple mechanical ventilation marker in a wet room.
-
-        Args:
-            drawing: Floor drawing to mutate.
-            rect: Wet-room rectangle in mm coordinates.
-
-        Returns:
-            None.
-        """
-        cx = rect.x2 - min(220, rect.w * 0.2)
-        cy = rect.y + min(220, rect.h * 0.2)
-        radius = max(3, 70 * self.scale)
-        drawing.add(
-            drawing.circle(
-                center=(self._x(cx), self._y(cy)),
-                r=radius,
-                fill="none",
-                stroke="#7c7c7c",
-                stroke_width=0.9,
-            )
-        )
-        drawing.add(
-            drawing.line(
-                start=(self._x(cx - 90), self._y(cy)),
-                end=(self._x(cx + 90), self._y(cy)),
-                stroke="#7c7c7c",
-                stroke_width=0.8,
-            )
-        )
-        drawing.add(
-            drawing.line(
-                start=(self._x(cx), self._y(cy - 90)),
-                end=(self._x(cx), self._y(cy + 90)),
-                stroke="#7c7c7c",
-                stroke_width=0.8,
-            )
-        )
+        """Delegate vent marker rendering to the fixtures sub-module."""
+        _mod_draw_vent_marker(self, drawing, rect)
 
     def _draw_stair(
         self,
@@ -739,173 +390,16 @@ class SvgRenderer:
         draw_stair_connection_opening(self, drawing, floor, floor_index, total_floors)
 
     def _draw_interior_doors(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
-        """Draw interior door symbols at shared space boundaries.
+        """Delegate interior door rendering to the openings sub-module."""
+        _mod_draw_interior_doors(self, drawing, floor)
 
-        Args:
-            drawing: Floor drawing to mutate.
-            floor: Floor solution containing topology and space geometry.
+    def _draw_entry_door(self, drawing, floor, building_rect):
+        """Delegate entry door rendering to the openings sub-module."""
+        return _mod_draw_entry_door(self, drawing, floor, building_rect)
 
-        Returns:
-            None.
-        """
-        door_entries: list[tuple[int, tuple[tuple[int, int], tuple[int, int]], str, str]] = []
-        door_pairs: set[frozenset[str]] = set()
-        for index, (left_id, right_id) in enumerate(floor.topology):
-            if floor.stair is not None and (floor.stair.id in (left_id, right_id)):
-                continue
-            left_rects = _entity_rects(floor, left_id)
-            right_rects = _entity_rects(floor, right_id)
-            if not left_rects or not right_rects:
-                continue
-            segment = _shared_segment(left_rects, right_rects)
-            if segment is None:
-                continue
-            left_type = floor.spaces[left_id].type if left_id in floor.spaces else left_id
-            right_type = floor.spaces[right_id].type if right_id in floor.spaces else right_id
-            if not _should_draw_interior_door(left_type, right_type):
-                continue
-            door_entries.append((index, segment, left_type, right_type))
-            door_pairs.add(frozenset((left_id, right_id)))
-
-        wash_ids = [space_id for space_id, space in floor.spaces.items() if space.type == "washroom"]
-        for bath_id, bath_space in floor.spaces.items():
-            if bath_space.type != "bath":
-                continue
-            for wash_id in wash_ids:
-                pair_key = frozenset((bath_id, wash_id))
-                if pair_key in door_pairs:
-                    continue
-                segment = _shared_segment(bath_space.rects, floor.spaces[wash_id].rects)
-                if segment is None:
-                    continue
-                door_entries.append((len(door_entries), segment, "bath", "washroom"))
-                door_pairs.add(pair_key)
-                break
-
-        line_counts: dict[tuple[str, int], int] = {}
-        for _, segment, _, _ in door_entries:
-            key = _door_line_key(segment)
-            line_counts[key] = line_counts.get(key, 0) + 1
-
-        for index, segment, left_type, right_type in door_entries:
-            key = _door_line_key(segment)
-            crowded_line = line_counts.get(key, 0) >= 3
-            force_arc_small = left_type in {"bedroom", "master_bedroom"} or right_type in {
-                "bedroom",
-                "master_bedroom",
-            }
-            self._draw_door_symbol(
-                drawing,
-                segment[0],
-                segment[1],
-                exterior=False,
-                boundary=None,
-                reverse_swing=(index % 2 == 1),
-                draw_arc=not crowded_line,
-                force_arc_small=force_arc_small,
-            )
-
-    def _draw_entry_door(
-        self, drawing: svgwrite.Drawing, floor: FloorSolution, building_rect: Rect
-    ) -> (
-        tuple[
-            tuple[tuple[int, int], tuple[int, int]],
-            tuple[tuple[int, int], tuple[int, int]],
-        ]
-        | None
-    ):
-        """Draw the primary entry door and return wall/opening segments.
-
-        Args:
-            drawing: Floor drawing to mutate.
-            floor: Floor solution containing spaces/topology.
-            building_rect: Building footprint boundary.
-
-        Returns:
-            ``(wall_segment, opening_segment)`` when an entry door is placed, else ``None``.
-        """
-        entry_spaces = [space for space in floor.spaces.values() if space.type == "entry"]
-        if not entry_spaces:
-            return None
-
-        best_segment: tuple[tuple[int, int], tuple[int, int]] | None = None
-        best_len = -1
-        for entry in entry_spaces:
-            for rect in entry.rects:
-                for segment in _exterior_segments(rect, building_rect):
-                    seg_len = _segment_length(segment[0], segment[1])
-                    if seg_len > best_len:
-                        best_len = seg_len
-                        best_segment = segment
-        if best_segment is None:
-            return None
-        opening_segment = self._draw_door_symbol(
-            drawing,
-            best_segment[0],
-            best_segment[1],
-            exterior=True,
-            boundary=building_rect,
-            reverse_swing=False,
-            draw_arc=True,
-            force_arc_small=True,
-        )
-        return best_segment, opening_segment
-
-    def _draw_windows(
-        self,
-        drawing: svgwrite.Drawing,
-        floor: FloorSolution,
-        building_rect: Rect,
-        blocked_segments: set[tuple[tuple[int, int], tuple[int, int]]],
-    ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
-        """Draw exterior window symbols and return their opening segments.
-
-        Args:
-            drawing: Floor drawing to mutate.
-            floor: Floor solution containing spaces.
-            building_rect: Building footprint boundary.
-            blocked_segments: Exterior segments reserved by doors and excluded from windows.
-
-        Returns:
-            List of window opening segments in mm coordinates.
-        """
-        min_window_segment = 1365
-        opening_segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
-        for space in floor.spaces.values():
-            if space.type not in WINDOW_SPACE_TYPES:
-                continue
-            candidate_segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
-            for rect in space.rects:
-                candidate_segments.extend(_exterior_segments(rect, building_rect))
-            if not candidate_segments:
-                continue
-
-            seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
-            unique_segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
-            for segment in candidate_segments:
-                key = _segment_key(segment)
-                if key in seen:
-                    continue
-                seen.add(key)
-                unique_segments.append(segment)
-
-            for segment in unique_segments:
-                key = _segment_key(segment)
-                if key in blocked_segments:
-                    continue
-                length = _segment_length(segment[0], segment[1])
-                if length < min_window_segment:
-                    continue
-                if length >= 3600:
-                    opening_segments.append(
-                        self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.28)
-                    )
-                    opening_segments.append(
-                        self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.72)
-                    )
-                else:
-                    opening_segments.append(self._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5))
-        return opening_segments
+    def _draw_windows(self, drawing, floor, building_rect, blocked_segments):
+        """Delegate window rendering to the openings sub-module."""
+        return _mod_draw_windows(self, drawing, floor, building_rect, blocked_segments)
 
     def _draw_space_labels(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
         """Delegate space label rendering."""
@@ -937,55 +431,15 @@ class SvgRenderer:
         """Delegate north arrow rendering."""
         draw_north_arrow(self, drawing, north)
 
-    def _draw_dimensions(
-        self,
-        drawing: svgwrite.Drawing,
-        site_rect: Rect,
-        building_rect: Rect,
-        floor: FloorSolution,
-        opening_segments: list[tuple[tuple[int, int], tuple[int, int]]],
-    ) -> None:
-        """Delegate exterior dimension rendering with perimeter/opening chains.
+    def _draw_dimensions(self, drawing, site_rect, building_rect, floor, opening_segments):
+        """Delegate exterior dimension rendering."""
+        draw_dimensions(self, drawing, site_rect, building_rect, floor, opening_segments)
 
-        Args:
-            drawing: Floor drawing to mutate.
-            site_rect: Site envelope rectangle.
-            building_rect: Building footprint rectangle.
-            floor: Floor geometry used for room-derived perimeter segmentation.
-            opening_segments: Exterior opening segments (door/window) for opening chains.
-
-        Returns:
-            None.
-        """
-        draw_dimensions(
-            self,
-            drawing,
-            site_rect,
-            building_rect,
-            floor,
-            opening_segments,
-        )
-
-    def _draw_dimension_line(
-        self,
-        drawing: svgwrite.Drawing,
-        p1: tuple[int, int],
-        p2: tuple[int, int],
-        offset_px: float,
-        label: str,
-        vertical: bool = False,
-    ) -> None:
+    def _draw_dimension_line(self, drawing, p1, p2, offset_px, label, vertical=False):
         """Delegate single dimension line rendering."""
         draw_dimension_line(self, drawing, p1, p2, offset_px=offset_px, label=label, vertical=vertical)
 
-    def _draw_stair_steps(
-        self,
-        drawing: svgwrite.Drawing,
-        stair_type: str,
-        tread_count: int,
-        components: list[Rect],
-        visible_indices: set[int] | None = None,
-    ) -> None:
+    def _draw_stair_steps(self, drawing, stair_type, tread_count, components, visible_indices=None):
         """Delegate stair step rendering."""
         draw_stair_steps(self, drawing, stair_type, tread_count, components, visible_indices=visible_indices)
 
@@ -997,44 +451,12 @@ class SvgRenderer:
         """Delegate void guardrail rendering."""
         draw_void_guardrail(self, drawing, rect)
 
-    def _draw_door_symbol(
-        self,
-        drawing: svgwrite.Drawing,
-        p1: tuple[int, int],
-        p2: tuple[int, int],
-        exterior: bool,
-        boundary: Rect | None,
-        reverse_swing: bool,
-        draw_arc: bool = True,
-        force_arc_small: bool = False,
-    ) -> tuple[tuple[int, int], tuple[int, int]]:
-        """Delegate door symbol rendering and return the opening segment.
-
-        Args:
-            drawing: Floor drawing to mutate.
-            p1: First endpoint of host wall segment in mm.
-            p2: Second endpoint of host wall segment in mm.
-            exterior: Whether this is an exterior door.
-            boundary: Building boundary for exterior swing inference.
-            reverse_swing: Whether to mirror swing direction.
-            draw_arc: Whether to draw swing arc graphics.
-            force_arc_small: Whether to force arcs for short interior segments.
-
-        Returns:
-            Opening segment in mm coordinates.
-        """
+    def _draw_door_symbol(self, drawing, p1, p2, exterior, boundary, reverse_swing, draw_arc=True, force_arc_small=False):
+        """Delegate door symbol rendering and return the opening segment."""
         return draw_door_symbol(
-            drawing=drawing,
-            p1=p1,
-            p2=p2,
-            exterior=exterior,
-            boundary=boundary,
-            reverse_swing=reverse_swing,
-            draw_arc=draw_arc,
-            force_arc_small=force_arc_small,
-            x_fn=self._x,
-            y_fn=self._y,
-            scale=self.scale,
+            drawing=drawing, p1=p1, p2=p2, exterior=exterior, boundary=boundary,
+            reverse_swing=reverse_swing, draw_arc=draw_arc, force_arc_small=force_arc_small,
+            x_fn=self._x, y_fn=self._y, scale=self.scale,
         )
 
     def _draw_window_symbol(

@@ -4,7 +4,8 @@ import svgwrite
 
 from plan_engine.models import EnvelopeSpec, FloorSolution, GridSpec, PlanSolution, Rect, SpaceGeometry
 from plan_engine.renderer.annotations import draw_floor_area_summary
-from plan_engine.renderer.core import _should_draw_interior_door, SvgRenderer
+from plan_engine.renderer.core import SvgRenderer
+from plan_engine.renderer.helpers import _should_draw_interior_door
 
 
 def test_renderer_area_summary_separates_indoor_and_outdoor() -> None:

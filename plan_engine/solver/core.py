@@ -5,20 +5,20 @@ from typing import TYPE_CHECKING
 from ortools.sat.python import cp_model
 
 from plan_engine.solver.rect_var import _compute_stair_footprint, _find_global_stair
-from plan_engine.solver.space_specs import _component_count
 from plan_engine.solver.solution_builder import build_solution
+from plan_engine.solver.space_specs import _component_count
 from plan_engine.solver.workflow import (
     SolveContext,
-    add_orientation_preference_constraints,
     add_bath_wash_adjacency_constraints,
     add_closet_parent_constraints,
     add_floor_packing_constraints,
+    add_orientation_preference_constraints,
     add_stair_connection_constraints,
     add_toilet_circulation_constraints,
     add_topology_constraints,
-    add_wet_core_circulation_constraints,
     add_wc_ldk_non_adjacent_constraints,
     add_wet_cluster_constraints,
+    add_wet_core_circulation_constraints,
     build_context,
     build_objective,
     create_space_variables,

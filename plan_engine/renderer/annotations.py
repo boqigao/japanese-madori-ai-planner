@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from plan_engine.constants import TATAMI_MM2
-from plan_engine.constants import is_indoor_space_type
+from plan_engine.constants import TATAMI_MM2, is_indoor_space_type
 from plan_engine.renderer.helpers import (
     LEGEND_ORDER,
     SPACE_COLORS,

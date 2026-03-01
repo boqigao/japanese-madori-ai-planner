@@ -12,11 +12,8 @@ from plan_engine.models import (
     Rect,
     SpaceGeometry,
 )
-from plan_engine.renderer.core import (
-    SvgRenderer,
-    _should_draw_interior_door,
-    _subtract_colinear_segment,
-)
+from plan_engine.renderer.core import SvgRenderer
+from plan_engine.renderer.helpers import _should_draw_interior_door, _subtract_colinear_segment
 
 
 def test_should_draw_interior_door_suppresses_bedroom_to_bedroom() -> None:
