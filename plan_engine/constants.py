@@ -18,6 +18,7 @@ TOILET_SPACE_TYPES = frozenset({"toilet", "wc"})
 WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath"})
 CIRCULATION_SPACE_TYPES = frozenset({"hall", "entry"})
 EDGE_NAMES = {"left", "right", "top", "bottom"}
+WINDOW_SPACE_TYPES = {"ldk", "bedroom", "master_bedroom", "entry"}
 
 WET_MODULE_SIZES_MM: dict[str, tuple[int, int]] = {
     "toilet": (910, 1820),
@@ -63,3 +64,25 @@ def tatami_to_cells(tatami: float, minor_grid: int) -> int:
     """Convert tatami area to minimum cell count (rounded up)."""
     cell_area = minor_grid * minor_grid
     return math.ceil((tatami * TATAMI_MM2) / cell_area)
+
+
+def should_draw_interior_door(left_type: str, right_type: str) -> bool:
+    """Decide whether a topology edge between two space types warrants an interior door.
+
+    Args:
+        left_type: Space type on one side of the shared boundary.
+        right_type: Space type on the other side of the shared boundary.
+
+    Returns:
+        ``True`` if a door should be placed, otherwise ``False``.
+        Suppressed edges: outdoor-to-outdoor, closet edges, bedroom-to-bedroom,
+        and bath-to-non-washroom.
+    """
+    types = {left_type, right_type}
+    if types.issubset({"balcony", "veranda"}):
+        return False
+    if types.intersection({"closet"}):
+        return False
+    if left_type in BEDROOM_SPACE_TYPES and right_type in BEDROOM_SPACE_TYPES:
+        return False
+    return not ("bath" in types and "washroom" not in types)

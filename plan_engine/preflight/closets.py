@@ -6,6 +6,8 @@ from plan_engine.constants import (
     BEDROOM_SPACE_TYPES,
     CIRCULATION_SPACE_TYPES,
     WALK_IN_CLOSET_SPACE_TYPES,
+    WINDOW_SPACE_TYPES,
+    should_draw_interior_door,
 )
 from plan_engine.preflight.topology import _edge_ids
 from plan_engine.solver.rect_var import _find_global_stair
@@ -160,3 +162,46 @@ def _warn_bedrooms_without_closet(spec: PlanSpec, floor_id: str, report: Validat
             f"Add embedded closet or WIC for {floor_id}:{bedroom_id} "
             f"(for example under bedroom '{bedroom_id}': closet: {{id: {bedroom_id}_cl}})."
         )
+
+
+def _warn_closet_wall_feasibility(spec: PlanSpec, floor_id: str, report: ValidationReport) -> None:
+    """Warn when a closet-bearing room has all topology neighbors producing doors.
+
+    This heuristic check flags rooms where every adjacency edge would produce
+    an interior door, leaving no guaranteed free interior wall for closet
+    placement. Combined with exterior walls (windows), this may make it
+    difficult to place a closet without blocking openings.
+
+    Args:
+        spec: Parsed plan specification.
+        floor_id: Floor identifier to inspect.
+        report: Mutable report receiving warnings.
+    """
+    floor = spec.floors[floor_id]
+    space_type_by_id = {space.id: space.type for space in floor.spaces}
+    closet_parent_ids = {closet.parent_id for closet in floor.embedded_closets}
+
+    for parent_id in sorted(closet_parent_ids):
+        parent_type = space_type_by_id.get(parent_id)
+        if parent_type is None or parent_type not in WINDOW_SPACE_TYPES:
+            continue
+
+        door_neighbor_count = 0
+        total_neighbor_count = 0
+        for edge in floor.topology.adjacency:
+            left_id, right_id = _edge_ids(edge)
+            neighbor_id = right_id if left_id == parent_id else (left_id if right_id == parent_id else None)
+            if neighbor_id is None:
+                continue
+            neighbor_type = space_type_by_id.get(neighbor_id)
+            if neighbor_type is None:
+                continue
+            total_neighbor_count += 1
+            if should_draw_interior_door(parent_type, neighbor_type):
+                door_neighbor_count += 1
+
+        if total_neighbor_count > 0 and door_neighbor_count == total_neighbor_count:
+            report.warnings.append(
+                f"preflight: {floor_id}:{parent_id} has closet but all {door_neighbor_count} "
+                f"topology neighbors produce doors — closet may conflict with openings"
+            )

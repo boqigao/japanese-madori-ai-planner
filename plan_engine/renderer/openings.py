@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from plan_engine.constants import WINDOW_SPACE_TYPES
 from plan_engine.renderer.helpers import (
-    WINDOW_SPACE_TYPES,
     _door_line_key,
     _entity_rects,
     _exterior_segments,

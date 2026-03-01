@@ -1,9 +1,11 @@
 valid=True
 errors=0
-warnings=5
+warnings=7
 structural=3
 
 Warnings:
+- preflight: F1:bed1 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
+- preflight: F1:bed2 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
 - no stair declared
 - F1:ldk misses south-facing preference (south edge=bottom)
 - F1:wash1 misses north-facing service preference (north edge=top)

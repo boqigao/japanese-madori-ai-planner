@@ -1,32 +1,31 @@
 valid=True
 errors=0
-warnings=11
-structural=11
+warnings=12
+structural=9
 
 Warnings:
+- preflight: F1:bed1 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
 - F1:bed1 bedroom short side 2275mm is below 2730mm livability threshold
 - F1:bed1 misses south-facing preference (south edge=bottom)
 - F1:pantry1 misses north-facing service preference (north edge=top)
 - F1:toilet1 misses north-facing service preference (north edge=top)
 - F1:wash1 misses north-facing service preference (north edge=top)
 - F1:bath1 misses north-facing service preference (north edge=top)
-- F2:bed2 bedroom area 10.2jo exceeds 1.3x target (6.0jo)
-- F2:bed3 misses south-facing preference (south edge=bottom)
+- F2:bed2 misses south-facing preference (south edge=bottom)
+- F2:bed3 bedroom area 10.2jo exceeds 1.3x target (6.0jo)
 - F2: secondary bedroom area (10.2jo) exceeds master bedroom (8.9jo)
 - structural: F1: wall-balance ratio 0.42 below target 0.50
-- structural: vertical transfer required on 4 upper-floor bearing segments
+- structural: vertical transfer required on 2 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
 - F1: bearing=47775mm (V/H=23205/24570), balance=0.42
-- F2: bearing=48685mm (V/H=22750/25935), balance=0.58
-- F2->F1 vertical: supported=18200/22750mm, direct_below=0.80
-- F2->F1 horizontal: supported=20475/25935mm, direct_below=0.79
-- vertical_transfer_required=4
-- F2:w_F2_v_1820_910_3185 unsupported=455mm at vertical@1820
+- F2: bearing=44590mm (V/H=20475/24115), balance=0.67
+- F2->F1 vertical: supported=16380/20475mm, direct_below=0.80
+- F2->F1 horizontal: supported=19565/24115mm, direct_below=0.81
+- vertical_transfer_required=2
 - F2:w_F2_v_4550_0_6370 unsupported=4095mm at vertical@4550
-- F2:w_F2_h_910_0_1820 unsupported=910mm at horizontal@910
 - F2:w_F2_h_2730_4550_9100 unsupported=4550mm at horizontal@2730
 
 Diagnostics:
@@ -44,8 +43,8 @@ Diagnostics:
 - F1:bath1 orientation service_north edge=top status=miss
 - F1: orientation_summary north=top south=bottom major_south=1/2 service_north=0/4
 - F2:master orientation major_south edge=bottom status=ok
-- F2:bed2 orientation major_south edge=bottom status=ok
-- F2:bed3 orientation major_south edge=bottom status=miss
+- F2:bed2 orientation major_south edge=bottom status=miss
+- F2:bed3 orientation major_south edge=bottom status=ok
 - F2: orientation_summary north=top south=bottom major_south=2/3 service_north=0/0
 - F1: area indoor=57.97sqm outdoor=0.00sqm
 - F2: area indoor=57.97sqm outdoor=0.00sqm

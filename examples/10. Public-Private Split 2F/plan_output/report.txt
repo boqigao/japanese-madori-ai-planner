@@ -1,9 +1,10 @@
 valid=True
 errors=0
-warnings=10
+warnings=11
 structural=12
 
 Warnings:
+- preflight: F1:study1 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
 - F1:study1 bedroom short side 2275mm is below 2730mm livability threshold
 - F1:study1 misses south-facing preference (south edge=bottom)
 - F1:toilet1 misses north-facing service preference (north edge=top)

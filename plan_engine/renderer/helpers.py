@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from plan_engine.constants import MINOR_GRID_MM
+from plan_engine.constants import MINOR_GRID_MM, should_draw_interior_door
 from plan_engine.models import FloorSolution, Rect, SpaceGeometry
 from plan_engine.stair_logic import StairPortal, stair_portal_for_floor
 
@@ -22,7 +22,6 @@ SPACE_COLORS = {
     "balcony": "#e9f5ff",
     "veranda": "#ecf9f0",
 }
-WINDOW_SPACE_TYPES = {"ldk", "bedroom", "master_bedroom", "entry"}
 LEGEND_ORDER = [
     "entry",
     "hall",
@@ -370,27 +369,8 @@ def _stair_label_point(components: list[Rect], portal_component_index: int) -> t
 
 
 def _should_draw_interior_door(left_type: str, right_type: str) -> bool:
-    """Decide whether a topology edge should render an interior door symbol.
-
-    Args:
-        left_type: Space type on one side of the shared boundary.
-        right_type: Space type on the other side of the shared boundary.
-
-    Returns:
-        ``True`` if a door symbol should be drawn, otherwise ``False``.
-        Bath-to-non-wash edges are suppressed so bath openings are represented
-        only via washroom connections. Outdoor-to-outdoor edges are suppressed.
-    """
-    types = {left_type, right_type}
-    bedroom_types = {"bedroom", "master_bedroom"}
-    closet_types = {"closet"}
-    if types.issubset({"balcony", "veranda"}):
-        return False
-    if types.intersection(closet_types):
-        return False
-    if left_type in bedroom_types and right_type in bedroom_types:
-        return False
-    return not ("bath" in types and "washroom" not in types)
+    """Delegate to shared ``should_draw_interior_door`` in constants."""
+    return should_draw_interior_door(left_type, right_type)
 
 
 def _subtract_colinear_segment(
