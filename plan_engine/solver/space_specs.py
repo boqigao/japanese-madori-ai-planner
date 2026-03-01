@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from plan_engine.constants import mm_to_cells, tatami_to_cells
 
 if TYPE_CHECKING:
-    from plan_engine.models import SpaceSpec
+    from plan_engine.models import EmbeddedClosetSpec, SpaceSpec
 
 DEFAULT_MIN_TATAMI_BY_TYPE: dict[str, float] = {
     "entry": 2.0,
     "hall": 2.0,
     "ldk": 12.0,
     "bedroom": 6.0,
+    "wic": 2.0,
 }
 
 SHORTFALL_WEIGHT_BY_TYPE: dict[str, int] = {
@@ -29,6 +31,7 @@ OVERSHOOT_WEIGHT_BY_TYPE: dict[str, int] = {
     "master_bedroom": 48,
     "ldk": 52,
     "storage": 44,
+    "wic": 65,
 }
 
 MIN_WIDTH_CELLS_BY_TYPE: dict[str, int] = {
@@ -37,6 +40,7 @@ MIN_WIDTH_CELLS_BY_TYPE: dict[str, int] = {
     "master_bedroom": 3,
     "entry": 3,
     "hall": 2,
+    "wic": 4,
 }
 
 COMPONENT_CAP_BY_TYPE: dict[str, int] = {
@@ -56,6 +60,7 @@ NORTH_PREFERENCE_WEIGHT_BY_TYPE: dict[str, int] = {
     "toilet": 26,
     "wc": 26,
     "storage": 22,
+    "wic": 16,
 }
 
 MAX_AREA_TARGET_MULTIPLIER_BY_TYPE: dict[str, float] = {
@@ -65,6 +70,7 @@ MAX_AREA_TARGET_MULTIPLIER_BY_TYPE: dict[str, float] = {
     "bedroom": 1.5,
     "ldk": 1.45,
     "storage": 1.45,
+    "wic": 1.15,
 }
 
 MAX_AREA_DEFAULT_TATAMI_BY_TYPE: dict[str, float] = {
@@ -74,11 +80,15 @@ MAX_AREA_DEFAULT_TATAMI_BY_TYPE: dict[str, float] = {
     "bedroom": 10.0,
     "ldk": 16.0,
     "storage": 8.0,
+    "wic": 4.0,
 }
 
 ENTRY_MIN_AREA_DEFAULT_TATAMI = 3.0
 ENTRY_HARD_MAX_TATAMI = 2.5
 TARGET_TO_MIN_RATIO = 0.70
+EMBEDDED_CLOSET_TARGET_TO_MIN_RATIO = 0.70
+EMBEDDED_CLOSET_DEFAULT_TARGET_TATAMI = 1.0
+EMBEDDED_CLOSET_TARGET_TO_MAX_MULTIPLIER = 1.20
 
 
 def _component_count(space: SpaceSpec) -> int:
@@ -186,3 +196,54 @@ def _min_width_cells(space: SpaceSpec, minor_grid: int) -> int:
     if space.size_constraints.min_width is not None:
         return mm_to_cells(space.size_constraints.min_width, minor_grid)
     return MIN_WIDTH_CELLS_BY_TYPE.get(space.type, 1)
+
+
+def _embedded_closet_target_area_cells(closet: EmbeddedClosetSpec, minor_grid: int) -> int:
+    """Return target closet area in cells for one embedded closet declaration.
+
+    Args:
+        closet: Embedded closet declaration attached to a parent room.
+        minor_grid: Minor grid size in millimeters.
+
+    Returns:
+        Target area in grid cells.
+    """
+    if closet.area.target_tatami is not None:
+        return tatami_to_cells(closet.area.target_tatami, minor_grid)
+    if closet.area.min_tatami is not None:
+        return tatami_to_cells(closet.area.min_tatami, minor_grid)
+    return tatami_to_cells(EMBEDDED_CLOSET_DEFAULT_TARGET_TATAMI, minor_grid)
+
+
+def _embedded_closet_min_area_cells(closet: EmbeddedClosetSpec, minor_grid: int) -> int:
+    """Return minimum closet area in cells for one embedded closet declaration.
+
+    Args:
+        closet: Embedded closet declaration attached to a parent room.
+        minor_grid: Minor grid size in millimeters.
+
+    Returns:
+        Minimum area in grid cells.
+    """
+    if closet.area.min_tatami is not None:
+        return tatami_to_cells(closet.area.min_tatami, minor_grid)
+    if closet.area.target_tatami is not None:
+        return tatami_to_cells(closet.area.target_tatami * EMBEDDED_CLOSET_TARGET_TO_MIN_RATIO, minor_grid)
+    return tatami_to_cells(
+        EMBEDDED_CLOSET_DEFAULT_TARGET_TATAMI * EMBEDDED_CLOSET_TARGET_TO_MIN_RATIO,
+        minor_grid,
+    )
+
+
+def _embedded_closet_max_area_cells(closet: EmbeddedClosetSpec, minor_grid: int) -> int:
+    """Return soft maximum closet area in cells for one embedded closet declaration.
+
+    Args:
+        closet: Embedded closet declaration attached to a parent room.
+        minor_grid: Minor grid size in millimeters.
+
+    Returns:
+        Maximum area in grid cells.
+    """
+    target_cells = _embedded_closet_target_area_cells(closet, minor_grid)
+    return max(target_cells, math.ceil(target_cells * EMBEDDED_CLOSET_TARGET_TO_MAX_MULTIPLIER))

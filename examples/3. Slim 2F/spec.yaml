@@ -88,10 +88,18 @@ floors:
         area:
           min_tatami: 4.5
           target_tatami: 5.5
-      - id: storage2
-        type: storage
+      - id: bed2_cl
+        type: closet
+        parent_id: bed2
         size_constraints:
           min_width: 910
+        area:
+          target_tatami: 1.0
+      - id: storage2
+        type: wic
+        parent_id: master
+        size_constraints:
+          min_width: 1820
         area:
           min_tatami: 1.0
           target_tatami: 3.0
@@ -101,4 +109,5 @@ floors:
         - [hall2, master, required]
         - [hall2, bed2, required]
         - [bed2, master, required]
+        - [bed2, bed2_cl, required]
         - [storage2, master, preferred]

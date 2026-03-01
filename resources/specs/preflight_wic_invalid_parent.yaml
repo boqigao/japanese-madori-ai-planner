@@ -1,0 +1,33 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 5460
+    depth: 3640
+  north: top
+floors:
+  F1:
+    spaces:
+      - id: entry
+        type: entry
+      - id: hall1
+        type: hall
+      - id: ldk
+        type: ldk
+      - id: wic1
+        type: wic
+        parent_id: ldk
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 2.0
+    topology:
+      adjacency:
+        - [entry, hall1]
+        - [hall1, ldk]
+        - [hall1, wic1]
+        - [wic1, ldk]

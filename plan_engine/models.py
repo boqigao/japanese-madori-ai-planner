@@ -83,7 +83,17 @@ class BuildableRectSpec:
 
 @dataclass(frozen=True)
 class SpaceSpec:
-    """Complete specification for a single space/room."""
+    """Complete specification for a single space/room.
+
+    Attributes:
+        id: Stable floor-local space identifier.
+        type: Canonical space type token (for example ``bedroom`` or ``wic``).
+        space_class: Indoor/outdoor class inferred from ``type``.
+        area: Area constraints in tatami units.
+        size_constraints: Optional dimensional constraints.
+        shape: Allowed geometric shape rules.
+        parent_id: Optional host-space reference used by closet/WIC semantics.
+    """
 
     id: str
     type: str
@@ -91,6 +101,24 @@ class SpaceSpec:
     area: AreaConstraint = field(default_factory=AreaConstraint)
     size_constraints: SizeConstraints = field(default_factory=SizeConstraints)
     shape: ShapeSpec = field(default_factory=ShapeSpec)
+    parent_id: str | None = None
+
+
+@dataclass(frozen=True)
+class EmbeddedClosetSpec:
+    """Closet metadata embedded inside a parent room.
+
+    Attributes:
+        id: Stable closet identifier unique within one floor.
+        parent_id: Host room id that owns this closet.
+        area: Optional area preferences in tatami units.
+        depth_mm: Preferred closet depth in millimeters.
+    """
+
+    id: str
+    parent_id: str
+    area: AreaConstraint = field(default_factory=AreaConstraint)
+    depth_mm: int | None = None
 
 
 @dataclass(frozen=True)
@@ -161,6 +189,7 @@ class FloorSpec:
     id: str
     core: CoreSpec = field(default_factory=CoreSpec)
     spaces: list[SpaceSpec] = field(default_factory=list)
+    embedded_closets: list[EmbeddedClosetSpec] = field(default_factory=list)
     topology: TopologySpec = field(default_factory=TopologySpec)
     buildable_mask: list[BuildableRectSpec] = field(default_factory=list)
 
@@ -237,20 +266,55 @@ class Rect:
 
 @dataclass(frozen=True)
 class SpaceGeometry:
-    """Solved geometry for a space."""
+    """Solved geometry for a space.
+
+    Attributes:
+        id: Stable space identifier.
+        type: Canonical space type token.
+        rects: Solved rectangle components in millimeters.
+        space_class: Indoor/outdoor class.
+        parent_id: Optional host-space reference for closet/WIC semantics.
+    """
 
     id: str
     type: str
     rects: list[Rect]
     space_class: str = "indoor"
+    parent_id: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Return the space geometry as a plain dictionary."""
-        return {
+        payload: dict[str, object] = {
             "id": self.id,
             "type": self.type,
             "class": self.space_class,
             "rects": [r.to_dict() for r in self.rects],
+        }
+        if self.parent_id is not None:
+            payload["parent_id"] = self.parent_id
+        return payload
+
+
+@dataclass(frozen=True)
+class EmbeddedClosetGeometry:
+    """Solved geometry for one embedded closet strip inside a parent room.
+
+    Attributes:
+        id: Closet identifier.
+        parent_id: Host room identifier.
+        rect: Embedded closet rectangle in millimeters.
+    """
+
+    id: str
+    parent_id: str
+    rect: Rect
+
+    def to_dict(self) -> dict[str, object]:
+        """Return embedded closet geometry as a plain dictionary."""
+        return {
+            "id": self.id,
+            "parent_id": self.parent_id,
+            "rect": self.rect.to_dict(),
         }
 
 
@@ -444,6 +508,7 @@ class FloorSolution:
     spaces: dict[str, SpaceGeometry]
     stair: StairGeometry | None
     topology: list[tuple[str, str]]
+    embedded_closets: list[EmbeddedClosetGeometry] = field(default_factory=list)
     buildable_mask: list[Rect] = field(default_factory=list)
     indoor_buildable_area_mm2: int | None = None
 
@@ -454,6 +519,8 @@ class FloorSolution:
             "spaces": ordered_spaces,
             "topology": [[a, b] for a, b in self.topology],
         }
+        if self.embedded_closets:
+            payload["embedded_closets"] = [closet.to_dict() for closet in self.embedded_closets]
         if self.stair is not None:
             payload["stair"] = self.stair.to_dict()
         if self.buildable_mask:

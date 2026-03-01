@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from plan_engine.constants import (
     MAJOR_ROOM_TYPES,
+    WALK_IN_CLOSET_SPACE_TYPES,
     WET_MODULE_SIZES_MM,
     is_indoor_space_type,
     mm_to_cells,
@@ -13,6 +14,10 @@ from plan_engine.constants import (
 from plan_engine.models import BedroomReachabilityViolation, ValidationReport
 from plan_engine.solver.rect_var import _compute_stair_footprint, _find_global_stair
 from plan_engine.solver.space_specs import _max_area_cells, _min_area_cells, _target_area_cells
+from plan_engine.solver.space_specs import (
+    _embedded_closet_max_area_cells,
+    _embedded_closet_min_area_cells,
+)
 
 if TYPE_CHECKING:
     from plan_engine.models import PlanSpec, SpaceSpec
@@ -135,6 +140,8 @@ def run_preflight(spec: PlanSpec) -> PreflightResult:
             envelope_h_cells=envelope_h,
             report=report,
         )
+        _check_closet_semantics(spec, floor_id, report)
+        _warn_bedrooms_without_closet(spec, floor_id, report)
         _check_toilet_circulation_topology(spec, floor_id, report)
         _check_wet_core_circulation_topology(spec, floor_id, report)
         _check_wet_cluster_fit(spec, floor_id, envelope_w, envelope_h, report)
@@ -253,6 +260,9 @@ def _floor_area_budget(
         min_cells += _min_area_cells(space, spec.grid.minor)
         max_area = _max_area_cells(space, spec.grid.minor)
         max_cells += buildable_area if max_area is None else max_area
+    for closet in floor.embedded_closets:
+        min_cells += _embedded_closet_min_area_cells(closet, spec.grid.minor)
+        max_cells += _embedded_closet_max_area_cells(closet, spec.grid.minor)
     return min_cells, max_cells
 
 
@@ -467,6 +477,121 @@ def _check_reference_consistency(spec: PlanSpec, report: ValidationReport) -> No
             continue
         if hall_map[hall_id] != "hall":
             report.errors.append(f"preflight: stair connect target '{hall_id}' on {floor_id} must be type hall")
+
+
+def _check_closet_semantics(spec: PlanSpec, floor_id: str, report: ValidationReport) -> None:
+    """Validate embedded-closet metadata and WIC parent/access declarations.
+
+    Args:
+        spec: Parsed plan specification.
+        floor_id: Floor identifier to validate.
+        report: Mutable preflight report.
+
+    Returns:
+        None.
+    """
+    floor = spec.floors[floor_id]
+    space_type_by_id = {space.id: space.type for space in floor.spaces}
+    if not floor.embedded_closets and not any(space.type in WALK_IN_CLOSET_SPACE_TYPES for space in floor.spaces):
+        return
+
+    global_stair = _find_global_stair(spec)
+    stair_id = floor.core.stair.id if floor.core.stair is not None else global_stair.id if global_stair else None
+    floor_has_stair = floor.core.stair is not None or (global_stair is not None and floor_id in global_stair.connects)
+
+    circulation_ids = {
+        space_id
+        for space_id, space_type in space_type_by_id.items()
+        if space_type in CIRCULATION_SPACE_TYPES
+    }
+    if floor_has_stair and stair_id is not None:
+        circulation_ids.add(stair_id)
+
+    neighbor_map: dict[str, set[str]] = {space.id: set() for space in floor.spaces}
+    for edge in floor.topology.adjacency:
+        left_id, right_id = _edge_ids(edge)
+        neighbor_map.setdefault(left_id, set()).add(right_id)
+        neighbor_map.setdefault(right_id, set()).add(left_id)
+
+    for closet in floor.embedded_closets:
+        parent_type = space_type_by_id.get(closet.parent_id)
+        if parent_type is None:
+            report.errors.append(
+                f"preflight: {floor_id}:{closet.id} references unknown parent_id '{closet.parent_id}'"
+            )
+            continue
+        if parent_type not in BEDROOM_SPACE_TYPES:
+            report.errors.append(
+                f"preflight: {floor_id}:{closet.id} closet parent '{closet.parent_id}' must be bedroom/master_bedroom"
+            )
+
+    for space in floor.spaces:
+        if space.type not in WALK_IN_CLOSET_SPACE_TYPES:
+            continue
+        if space.parent_id is None:
+            report.errors.append(f"preflight: {floor_id}:{space.id} wic requires parent_id")
+            continue
+        parent_type = space_type_by_id.get(space.parent_id)
+        if parent_type is None:
+            report.errors.append(
+                f"preflight: {floor_id}:{space.id} references unknown parent_id '{space.parent_id}'"
+            )
+            continue
+        if space.type in WALK_IN_CLOSET_SPACE_TYPES and parent_type not in BEDROOM_SPACE_TYPES:
+            report.errors.append(
+                f"preflight: {floor_id}:{space.id} wic parent '{space.parent_id}' must be bedroom/master_bedroom"
+            )
+
+        neighbors = neighbor_map.get(space.id, set())
+        if space.parent_id not in neighbors:
+            report.errors.append(
+                f"preflight: {floor_id}:{space.id} wic must declare topology adjacency to parent '{space.parent_id}'"
+            )
+            report.suggestions.append(
+                f"Add topology adjacency like [{space.id}, {space.parent_id}, required] on {floor_id}."
+            )
+
+        if space.type in WALK_IN_CLOSET_SPACE_TYPES:
+            allowed_access = circulation_ids.union({space.parent_id})
+            if not any(neighbor in allowed_access for neighbor in neighbors):
+                report.errors.append(
+                    f"preflight: {floor_id}:{space.id} has no candidate access declaration "
+                    "(expected parent/hall/entry/stair edge)"
+                )
+                report.suggestions.append(
+                    f"Add topology adjacency from {space.id} to {space.parent_id} or hall/entry/stair on {floor_id}."
+                )
+
+
+def _warn_bedrooms_without_closet(spec: PlanSpec, floor_id: str, report: ValidationReport) -> None:
+    """Warn when a bedroom has no associated closet or walk-in closet.
+
+    Args:
+        spec: Parsed plan specification.
+        floor_id: Floor identifier to inspect.
+        report: Mutable report receiving warnings/suggestions.
+
+    Returns:
+        None.
+    """
+    floor = spec.floors[floor_id]
+    bedroom_ids = {space.id for space in floor.spaces if space.type in BEDROOM_SPACE_TYPES}
+    closet_parent_ids = {
+        space.parent_id
+        for space in floor.spaces
+        if space.type in WALK_IN_CLOSET_SPACE_TYPES and space.parent_id is not None
+    }
+    closet_parent_ids.update(closet.parent_id for closet in floor.embedded_closets)
+    for bedroom_id in sorted(bedroom_ids):
+        if bedroom_id in closet_parent_ids:
+            continue
+        report.warnings.append(
+            f"preflight: {floor_id}:{bedroom_id} has no associated closet or WIC"
+        )
+        report.suggestions.append(
+            f"Add embedded closet or WIC for {floor_id}:{bedroom_id} "
+            f"(for example under bedroom '{bedroom_id}': closet: {{id: {bedroom_id}_cl}})."
+        )
 
 
 def _hall_fanout(spec: PlanSpec, floor_id: str) -> int:

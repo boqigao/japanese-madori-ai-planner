@@ -1,0 +1,31 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 5460
+    depth: 3640
+  north: top
+floors:
+  F1:
+    spaces:
+      - id: entry
+        type: entry
+      - id: hall1
+        type: hall
+      - id: bed1
+        type: bedroom
+      - id: wic1
+        type: wic
+        parent_id: bed1
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 2.0
+    topology:
+      adjacency:
+        - [entry, hall1]
+        - [hall1, bed1]

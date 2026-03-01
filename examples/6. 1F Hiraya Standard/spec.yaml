@@ -26,6 +26,9 @@ floors:
         area:
           min_tatami: 2.5
           target_tatami: 4.0
+        shape:
+          allow: [L2]
+          rect_components_max: 3
       - id: ldk
         type: ldk
         area:
@@ -45,6 +48,20 @@ floors:
         area:
           min_tatami: 4.5
           target_tatami: 6.0
+      - id: bed1_cl
+        type: closet
+        parent_id: bed1
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
+      - id: bed2_cl
+        type: closet
+        parent_id: bed2
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: toilet1
         type: toilet
       - id: wash1
@@ -60,11 +77,13 @@ floors:
           target_tatami: 2.5
     topology:
       adjacency:
-        - [entry, hall1]
-        - [hall1, ldk]
-        - [hall1, bed1]
-        - [hall1, bed2]
-        - [hall1, toilet1]
-        - [hall1, wash1]
-        - [hall1, storage1]
-        - [wash1, bath1]
+        - [entry, hall1, required]
+        - [hall1, ldk, required]
+        - [bed1, ldk, required]
+        - [bed2, ldk, required]
+        - [bed1, bed1_cl, required]
+        - [bed2, bed2_cl, required]
+        - [hall1, toilet1, required]
+        - [hall1, wash1, required]
+        - [storage1, ldk, preferred]
+        - [wash1, bath1, required]

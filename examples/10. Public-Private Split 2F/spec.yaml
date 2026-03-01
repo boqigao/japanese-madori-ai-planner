@@ -52,6 +52,13 @@ floors:
         area:
           min_tatami: 4.5
           target_tatami: 5.5
+      - id: study1_cl
+        type: closet
+        parent_id: study1
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: toilet1
         type: toilet
       - id: wash1
@@ -74,6 +81,7 @@ floors:
         - [hall1, stair, required]
         - [wash1, bath1, required]
         - [study1, ldk, required]
+        - [study1, study1_cl, required]
         - [pantry1, ldk, preferred]
   F2:
     spaces:
@@ -101,6 +109,13 @@ floors:
         area:
           min_tatami: 5.0
           target_tatami: 6.0
+      - id: bed2_cl
+        type: closet
+        parent_id: bed2
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: bed3
         type: bedroom
         size_constraints:
@@ -108,6 +123,13 @@ floors:
         area:
           min_tatami: 5.0
           target_tatami: 6.0
+      - id: bed3_cl
+        type: closet
+        parent_id: bed3
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: bed4
         type: bedroom
         size_constraints:
@@ -115,10 +137,18 @@ floors:
         area:
           min_tatami: 4.5
           target_tatami: 5.0
-      - id: wic1
-        type: storage
+      - id: bed4_cl
+        type: closet
+        parent_id: bed4
         size_constraints:
           min_width: 910
+        area:
+          target_tatami: 1.0
+      - id: wic1
+        type: wic
+        parent_id: master
+        size_constraints:
+          min_width: 1820
         area:
           min_tatami: 1.5
           target_tatami: 2.5
@@ -131,4 +161,7 @@ floors:
         - [hall2, bed4, required]
         - [bed3, bed2, required]
         - [bed4, master, required]
+        - [bed2, bed2_cl, required]
+        - [bed3, bed3_cl, required]
+        - [bed4, bed4_cl, required]
         - [wic1, master, preferred]

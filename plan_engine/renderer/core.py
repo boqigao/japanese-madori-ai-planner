@@ -57,9 +57,65 @@ def _should_draw_interior_door(left_type: str, right_type: str) -> bool:
         only via washroom connections. Outdoor-to-outdoor edges are suppressed.
     """
     types = {left_type, right_type}
+    bedroom_types = {"bedroom", "master_bedroom"}
+    closet_types = {"closet"}
     if types.issubset({"balcony", "veranda"}):
         return False
+    if types.intersection(closet_types):
+        return False
+    if left_type in bedroom_types and right_type in bedroom_types:
+        return False
     return not ("bath" in types and "washroom" not in types)
+
+
+def _subtract_colinear_segment(
+    base: tuple[tuple[int, int], tuple[int, int]],
+    cut: tuple[tuple[int, int], tuple[int, int]],
+) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Subtract one colinear cut segment from a base segment.
+
+    Args:
+        base: Base axis-aligned segment to keep where possible.
+        cut: Segment to remove from ``base`` when they are colinear and overlap.
+
+    Returns:
+        Remaining segment pieces after subtraction. Returns ``[base]`` when the
+        segments are not colinear/overlapping.
+    """
+    (bx1, by1), (bx2, by2) = base
+    (cx1, cy1), (cx2, cy2) = cut
+
+    # Vertical segments on the same x coordinate.
+    if bx1 == bx2 and cx1 == cx2 and bx1 == cx1:
+        base_start, base_end = sorted((by1, by2))
+        cut_start, cut_end = sorted((cy1, cy2))
+        overlap_start = max(base_start, cut_start)
+        overlap_end = min(base_end, cut_end)
+        if overlap_start >= overlap_end:
+            return [base]
+        parts: list[tuple[tuple[int, int], tuple[int, int]]] = []
+        if base_start < overlap_start:
+            parts.append(((bx1, base_start), (bx1, overlap_start)))
+        if overlap_end < base_end:
+            parts.append(((bx1, overlap_end), (bx1, base_end)))
+        return parts
+
+    # Horizontal segments on the same y coordinate.
+    if by1 == by2 and cy1 == cy2 and by1 == cy1:
+        base_start, base_end = sorted((bx1, bx2))
+        cut_start, cut_end = sorted((cx1, cx2))
+        overlap_start = max(base_start, cut_start)
+        overlap_end = min(base_end, cut_end)
+        if overlap_start >= overlap_end:
+            return [base]
+        parts = []
+        if base_start < overlap_start:
+            parts.append(((base_start, by1), (overlap_start, by1)))
+        if overlap_end < base_end:
+            parts.append(((overlap_end, by1), (base_end, by1)))
+        return parts
+
+    return [base]
 
 
 class SvgRenderer:
@@ -234,7 +290,17 @@ class SvgRenderer:
             )
 
     def _draw_spaces(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
-        """Draw colored space rectangles with boundary segments."""
+        """Draw colored space rectangles with boundary segments.
+
+        Embedded closet zones are rendered as built-in hatched areas and
+        intentionally avoid room-like wall strokes. Parent room boundary
+        segments shared with closet zones are trimmed so closet edges read as
+        interior partitions.
+        """
+        closet_rects_by_parent: dict[str, list[Rect]] = {}
+        for closet in floor.embedded_closets:
+            closet_rects_by_parent.setdefault(closet.parent_id, []).append(closet.rect)
+
         for space in _ordered_spaces(floor):
             fill = SPACE_COLORS.get(space.type, "#eeeeee")
             is_outdoor = space.type in {"balcony", "veranda"}
@@ -270,16 +336,91 @@ class SvgRenderer:
                             stroke_opacity=0.6,
                         )
                     )
+
+            shared_with_closet: list[tuple[tuple[int, int], tuple[int, int]]] = []
+            parent_closet_rects = closet_rects_by_parent.get(space.id, [])
+            if parent_closet_rects:
+                for base_rect in space.rects:
+                    for closet_rect in parent_closet_rects:
+                        segment = base_rect.shared_edge_segment(closet_rect)
+                        if segment is not None:
+                            shared_with_closet.append(segment)
+
             for p1, p2 in _space_boundary_segments(space.rects):
-                line_attrs: dict[str, object] = {
-                    "start": (self._x(p1[0]), self._y(p1[1])),
-                    "end": (self._x(p2[0]), self._y(p2[1])),
-                    "stroke": "#2f2f2f",
-                    "stroke_width": 2.2,
-                }
-                if stroke_dash:
-                    line_attrs["stroke_dasharray"] = stroke_dash
-                drawing.add(drawing.line(**line_attrs))
+                segments = [(p1, p2)]
+                for cut in shared_with_closet:
+                    next_segments: list[tuple[tuple[int, int], tuple[int, int]]] = []
+                    for segment in segments:
+                        next_segments.extend(_subtract_colinear_segment(segment, cut))
+                    segments = next_segments
+                for seg_start, seg_end in segments:
+                    line_attrs: dict[str, object] = {
+                        "start": (self._x(seg_start[0]), self._y(seg_start[1])),
+                        "end": (self._x(seg_end[0]), self._y(seg_end[1])),
+                        "stroke": "#2f2f2f",
+                        "stroke_width": 2.2,
+                    }
+                    if stroke_dash:
+                        line_attrs["stroke_dasharray"] = stroke_dash
+                    drawing.add(drawing.line(**line_attrs))
+
+        self._draw_embedded_closets(drawing, floor)
+
+    def _draw_embedded_closets(self, drawing: svgwrite.Drawing, floor: FloorSolution) -> None:
+        """Draw embedded closet overlays inside parent rooms.
+
+        Args:
+            drawing: SVG drawing object to mutate.
+            floor: Solved floor containing embedded closet geometry.
+
+        Returns:
+            None.
+        """
+        for closet in floor.embedded_closets:
+            rect = closet.rect
+            drawing.add(
+                drawing.rect(
+                    insert=(self._x(rect.x), self._y(rect.y)),
+                    size=(rect.w * self.scale, rect.h * self.scale),
+                    fill=SPACE_COLORS.get("closet", "#f7f3ea"),
+                    fill_opacity=0.35,
+                    stroke="#9a9a9a",
+                    stroke_width=0.9,
+                    stroke_dasharray="4,3",
+                )
+            )
+            self._draw_closet_hatch(drawing, rect)
+
+    def _draw_closet_hatch(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
+        """Draw diagonal hatch lines for built-in closet zones.
+
+        Args:
+            drawing: SVG drawing object to mutate.
+            rect: Closet rectangle in millimeter coordinates.
+
+        Returns:
+            None.
+        """
+        spacing_mm = 160
+        start = -rect.h
+        end = rect.w + rect.h
+        for offset in range(start, end + spacing_mm, spacing_mm):
+            x1 = rect.x + max(offset, 0)
+            y1 = rect.y + max(-offset, 0)
+            length = min(rect.x2 - x1, rect.y2 - y1)
+            if length <= 0:
+                continue
+            x2 = x1 + length
+            y2 = y1 + length
+            drawing.add(
+                drawing.line(
+                    start=(self._x(x1), self._y(y1)),
+                    end=(self._x(x2), self._y(y2)),
+                    stroke="#9c9c9c",
+                    stroke_width=0.8,
+                    stroke_opacity=0.7,
+                )
+            )
 
     def _draw_structural_overlay(
         self,
@@ -505,7 +646,7 @@ class SvgRenderer:
                 self._draw_vent_marker(drawing, rect)
                 continue
 
-            if space.type == "storage":
+            if space.type in {"storage", "wic"}:
                 x1 = rect.x + rect.w * 0.12
                 x2 = rect.x2 - rect.w * 0.12
                 y1 = rect.y + rect.h * 0.18
@@ -526,6 +667,17 @@ class SvgRenderer:
                         stroke_width=0.9,
                     )
                 )
+                if space.type == "wic":
+                    mid = rect.y + rect.h * 0.5
+                    drawing.add(
+                        drawing.line(
+                            start=(self._x(x1), self._y(mid)),
+                            end=(self._x(x2), self._y(mid)),
+                            stroke="#9a9a9a",
+                            stroke_width=0.7,
+                            stroke_dasharray="5,3",
+                        )
+                    )
 
     def _draw_vent_marker(self, drawing: svgwrite.Drawing, rect: Rect) -> None:
         """Draw a simple mechanical ventilation marker in a wet room.

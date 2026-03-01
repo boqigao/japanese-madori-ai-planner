@@ -11,6 +11,10 @@ Pipeline: `DSL -> Solver -> Validator -> Renderer`
 - 455mm grid-based planning (`minor=455`, `major=910`)
 - 1F / 2F layouts with shared stair shaft
 - Fixed wet modules (`toilet`, `washroom`, `bath`)
+- Distinct storage semantics:
+  - `storage`: independent storage room
+  - `closet`: built-in closet zone inside a parent room (`parent_id` required; rendered as hatched CL zone)
+  - `wic`: walk-in closet (`parent_id` required, bedroom/master parent)
 - Hall/LDK multi-rectangle support (`L2`)
 - Floor-level indoor buildable masks
 - Outdoor spaces (`balcony`, `veranda`) with explicit indoor-access rules
@@ -105,7 +109,7 @@ For a full step-by-step guide (from land dimensions to valid topology), read:
 It includes:
 
 - Complete `spec.yaml` schema walkthrough
-- Room type and shape rules
+- Room type and shape rules (including `storage` vs `closet` vs `wic`)
 - Buildable mask + balcony/veranda semantics
 - Topology best practices and strength levels
 - Error-to-fix troubleshooting map (`report.txt`)
@@ -144,3 +148,9 @@ openspec/
 - `valid=False`: check `report.txt` `Errors` section first, then `Diagnostics`
 
 If a bedroom is reachable only through another bedroom, preflight rejects it by design.
+
+For closet/WIC modeling:
+- `closet`/`wic` must define `parent_id`
+- `wic` parent must be `bedroom` or `master_bedroom`
+- `wic` shortest side is constrained to at least `1820mm`
+- topology must include at least `wic <-> parent` and normally one circulation edge (`hall`/`entry`/`stair`)

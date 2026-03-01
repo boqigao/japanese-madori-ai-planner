@@ -11,6 +11,7 @@ from plan_engine.solver.workflow import (
     SolveContext,
     add_orientation_preference_constraints,
     add_bath_wash_adjacency_constraints,
+    add_closet_parent_constraints,
     add_floor_packing_constraints,
     add_stair_connection_constraints,
     add_toilet_circulation_constraints,
@@ -56,6 +57,7 @@ class PlanSolver:
         add_bath_wash_adjacency_constraints(spec, ctx)
         add_toilet_circulation_constraints(spec, ctx)
         add_wet_core_circulation_constraints(spec, ctx)
+        add_closet_parent_constraints(spec, ctx)
         add_stair_connection_constraints(ctx)
         add_wc_ldk_non_adjacent_constraints(spec, ctx)
         add_wet_cluster_constraints(spec, ctx)
@@ -118,6 +120,7 @@ class PlanSolver:
             _component_count(space)
             for floor in spec.floors.values()
             for space in floor.spaces
+            if space.type != "closet"
         )
 
         stair = _find_global_stair(spec)

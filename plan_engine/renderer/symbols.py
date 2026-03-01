@@ -39,6 +39,10 @@ def draw_door_symbol(
     Returns:
         Opening segment endpoints in mm coordinates. The same primitive is
         used for indoor-to-indoor and indoor-to-outdoor access edges.
+
+    Notes:
+        Topology/privacy policies (for example bedroom-to-bedroom suppression)
+        are decided by the caller before invoking this primitive.
     """
     wall_cut_width = 7 if exterior else 6
     if p1[0] == p2[0]:

@@ -1,45 +1,56 @@
 valid=True
 errors=0
-warnings=5
-structural=9
+warnings=13
+structural=13
 
 Warnings:
-- F2:master master_bedroom area 11.5jo exceeds 1.3x target (8.0jo)
-- F2:master misses south-facing preference (south edge=bottom)
-- F2:bed2 bedroom short side 2275mm is below 2730mm livability threshold
+- F1:bed1 bedroom short side 2275mm is below 2730mm livability threshold
+- F1:bed1 misses south-facing preference (south edge=bottom)
+- F1:toilet1 misses north-facing service preference (north edge=top)
+- F1:wash1 misses north-facing service preference (north edge=top)
+- F1:bath1 misses north-facing service preference (north edge=top)
+- F1:pantry1 misses north-facing service preference (north edge=top)
+- F2:bed2 bedroom area 10.2jo exceeds 1.3x target (6.0jo)
+- F2:bed2 misses south-facing preference (south edge=bottom)
+- F2:bed3 bedroom area 9.2jo exceeds 1.3x target (6.0jo)
+- F2: secondary bedroom area (10.2jo) exceeds master bedroom (8.2jo)
 - structural: F1: wall-balance ratio 0.42 below target 0.50
-- structural: vertical transfer required on 2 upper-floor bearing segments
+- structural: F2: wall-balance ratio 0.47 below target 0.50
+- structural: vertical transfer required on 6 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=54600mm (V/H=25480/29120), balance=0.42
-- F2: bearing=42770mm (V/H=24570/18200), balance=0.59
-- F2->F1 vertical: supported=19110/24570mm, direct_below=0.78
-- F2->F1 horizontal: supported=18200/18200mm, direct_below=1.00
-- vertical_transfer_required=2
-- F2:w_F2_v_4550_0_4095 unsupported=2275mm at vertical@4550
-- F2:w_F2_v_5460_3185_6370 unsupported=3185mm at vertical@5460
+- F1: bearing=47775mm (V/H=23205/24570), balance=0.42
+- F2: bearing=53690mm (V/H=23205/30485), balance=0.47
+- F2->F1 vertical: supported=17745/23205mm, direct_below=0.76
+- F2->F1 horizontal: supported=22295/30485mm, direct_below=0.73
+- vertical_transfer_required=6
+- F2:w_F2_v_1820_910_2730 unsupported=455mm at vertical@1820
+- F2:w_F2_v_3640_2730_6370 unsupported=3640mm at vertical@3640
+- F2:w_F2_v_4550_0_3640 unsupported=1365mm at vertical@4550
+- F2:w_F2_h_910_0_1820 unsupported=910mm at horizontal@910
+- F2:w_F2_h_2730_0_3640 unsupported=1820mm at horizontal@2730
+- F2:w_F2_h_3640_3640_9100 unsupported=5460mm at horizontal@3640
 
 Diagnostics:
-- F1: envelope=280 cells, buildable=280 cells, min=237, max=403, rooms=8, hall_fanout=5
-- F2: envelope=280 cells, buildable=280 cells, min=183, max=326, rooms=5, hall_fanout=4
+- F1: envelope=280 cells, buildable=280 cells, min=239, max=409, rooms=8, hall_fanout=5
+- F2: envelope=280 cells, buildable=280 cells, min=191, max=337, rooms=5, hall_fanout=4
 - F1: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
 - F2: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
-- F1: stair_portal component=0 edge=left type=U_turn
-- F2: stair_portal component=2 edge=right type=U_turn
+- F1: stair_portal component=0 edge=left type=L_landing
+- F2: stair_portal component=2 edge=bottom type=L_landing
 - F1:ldk orientation major_south edge=bottom status=ok
-- F1:bed1 orientation major_south edge=bottom status=ok
-- F1:toilet1 orientation service_north edge=top status=ok
-- F1:wash1 orientation service_north edge=top status=ok
-- F1:bath1 orientation service_north edge=top status=ok
-- F1:pantry1 orientation service_north edge=top status=ok
-- F1: orientation_summary north=top south=bottom major_south=2/2 service_north=4/4
-- F2:master orientation major_south edge=bottom status=miss
-- F2:bed2 orientation major_south edge=bottom status=ok
+- F1:bed1 orientation major_south edge=bottom status=miss
+- F1:toilet1 orientation service_north edge=top status=miss
+- F1:wash1 orientation service_north edge=top status=miss
+- F1:bath1 orientation service_north edge=top status=miss
+- F1:pantry1 orientation service_north edge=top status=miss
+- F1: orientation_summary north=top south=bottom major_south=1/2 service_north=0/4
+- F2:master orientation major_south edge=bottom status=ok
+- F2:bed2 orientation major_south edge=bottom status=miss
 - F2:bed3 orientation major_south edge=bottom status=ok
-- F2:storage2 orientation service_north edge=top status=ok
-- F2: orientation_summary north=top south=bottom major_south=2/3 service_north=1/1
+- F2: orientation_summary north=top south=bottom major_south=2/3 service_north=0/0
 - F1: area indoor=57.97sqm outdoor=0.00sqm
 - F2: area indoor=57.97sqm outdoor=0.00sqm
 - total_area: indoor=115.93sqm outdoor=0.00sqm

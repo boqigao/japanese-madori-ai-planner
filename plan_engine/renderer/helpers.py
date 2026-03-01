@@ -17,6 +17,8 @@ SPACE_COLORS = {
     "washroom": "#e7fbfb",
     "bath": "#dcecff",
     "storage": "#f0f0f0",
+    "closet": "#f7f3ea",
+    "wic": "#ece7dd",
     "balcony": "#e9f5ff",
     "veranda": "#ecf9f0",
 }
@@ -32,6 +34,8 @@ LEGEND_ORDER = [
     "toilet",
     "washroom",
     "bath",
+    "closet",
+    "wic",
     "storage",
 ]
 
@@ -45,6 +49,8 @@ JP_SPACE_NAMES = {
     "wc": "トイレ",
     "washroom": "洗面",
     "bath": "浴室",
+    "closet": "CL",
+    "wic": "W.I.C",
     "storage": "収納",
     "balcony": "バルコニー",
     "veranda": "ベランダ",
@@ -190,6 +196,10 @@ def _display_space_name(space_id: str, space_type: str) -> str:
         return pretty_type
     if space_type == "storage" and space_id.startswith("pantry"):
         return _humanize_space_id(space_id)
+    if space_type == "closet":
+        return "CL"
+    if space_type == "wic":
+        return "W.I.C"
     if space_type == "hall" and space_id.startswith("hall"):
         return _humanize_space_id(space_id)
     if space_type in {"bedroom", "master_bedroom"} and space_id.startswith("bed"):

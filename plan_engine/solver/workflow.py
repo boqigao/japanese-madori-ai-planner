@@ -9,6 +9,7 @@ from ortools.sat.python import cp_model
 from plan_engine.constants import (
     EDGE_NAMES,
     MAJOR_ROOM_TYPES,
+    WALK_IN_CLOSET_SPACE_TYPES,
     WET_MODULE_SIZES_MM,
     WET_SPACE_TYPES,
     is_indoor_space_type,
@@ -31,6 +32,9 @@ from plan_engine.solver.rect_var import (
 )
 from plan_engine.solver.space_specs import (
     _component_count,
+    _embedded_closet_max_area_cells,
+    _embedded_closet_min_area_cells,
+    _embedded_closet_target_area_cells,
     _max_area_cells,
     _min_area_cells,
     _min_width_cells,
@@ -43,7 +47,7 @@ from plan_engine.solver.space_specs import (
 from plan_engine.stair_logic import ordered_floor_ids, stair_portal_for_floor
 
 if TYPE_CHECKING:
-    from plan_engine.models import PlanSpec, StairSpec
+    from plan_engine.models import FloorSpec, PlanSpec, StairSpec
 
 TOILET_SPACE_TYPES = frozenset({"toilet", "wc"})
 WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath"})
@@ -338,6 +342,34 @@ def _space_edge_touch_bool(
     return touches_edge
 
 
+def _embedded_closet_area_adjustments(
+    floor: FloorSpec,
+    minor_grid: int,
+) -> dict[str, tuple[int, int, int]]:
+    """Aggregate embedded closet area requirements per parent room.
+
+    Args:
+        floor: Floor specification containing embedded closet metadata.
+        minor_grid: Minor grid size in millimeters.
+
+    Returns:
+        Mapping ``{parent_id: (min_cells, target_cells, max_cells)}`` where each
+        tuple is the sum of all embedded closets under that parent.
+    """
+    totals: dict[str, tuple[int, int, int]] = {}
+    for closet in floor.embedded_closets:
+        min_cells = _embedded_closet_min_area_cells(closet, minor_grid)
+        target_cells = _embedded_closet_target_area_cells(closet, minor_grid)
+        max_cells = _embedded_closet_max_area_cells(closet, minor_grid)
+        current = totals.get(closet.parent_id, (0, 0, 0))
+        totals[closet.parent_id] = (
+            current[0] + min_cells,
+            current[1] + target_cells,
+            current[2] + max_cells,
+        )
+    return totals
+
+
 def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
     """Create CP-SAT rectangle variables and space-local constraints.
 
@@ -352,7 +384,11 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
     max_strip_depth_cells = max(1, int(ctx.envelope_h_cells * 0.7))
     for floor_id, floor in spec.floors.items():
         buildable_regions = ctx.floor_buildable_masks[floor_id]
+        embedded_area_by_parent = _embedded_closet_area_adjustments(floor, spec.grid.minor)
         for space in floor.spaces:
+            if space.type == "closet":
+                # Closets are modelled as embedded bedroom features, not independent solver entities.
+                continue
             indoor_space = is_indoor_space_type(space.type)
             component_count = _component_count(space)
             fixed_dims = WET_MODULE_SIZES_MM.get(space.type)
@@ -411,18 +447,23 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                 f"{_slug(floor_id)}_{_slug(space.id)}_area_sum",
             )
             ctx.model.Add(area_sum == sum(r.area for r in rects))
-            ctx.model.Add(area_sum >= _min_area_cells(space, spec.grid.minor))
+            embedded_min_cells, embedded_target_cells, embedded_max_cells = embedded_area_by_parent.get(
+                space.id, (0, 0, 0)
+            )
+            effective_min_area_cells = _min_area_cells(space, spec.grid.minor) + embedded_min_cells
+            ctx.model.Add(area_sum >= effective_min_area_cells)
             if space.type == "hall":
                 ctx.hall_area_penalties.append(area_sum)
 
             target_area_cells = _target_area_cells(space, spec.grid.minor)
-            if target_area_cells is not None:
+            if target_area_cells is not None or embedded_target_cells > 0:
+                effective_target_cells = (target_area_cells or 0) + embedded_target_cells
                 shortfall = ctx.model.NewIntVar(
                     0,
                     ctx.max_area * component_count,
                     f"{_slug(floor_id)}_{_slug(space.id)}_area_shortfall",
                 )
-                ctx.model.Add(shortfall >= target_area_cells - area_sum)
+                ctx.model.Add(shortfall >= effective_target_cells - area_sum)
                 ctx.target_shortfalls.append((shortfall, _shortfall_weight(space.type)))
 
                 overshoot = ctx.model.NewIntVar(
@@ -430,12 +471,12 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
                     ctx.max_area * component_count,
                     f"{_slug(floor_id)}_{_slug(space.id)}_area_overshoot",
                 )
-                ctx.model.Add(overshoot >= area_sum - target_area_cells)
+                ctx.model.Add(overshoot >= area_sum - effective_target_cells)
                 ctx.target_overshoots.append((overshoot, _overshoot_weight(space.type)))
 
             max_area_cells = _max_area_cells(space, spec.grid.minor)
             if max_area_cells is not None:
-                ctx.model.Add(area_sum <= max_area_cells)
+                ctx.model.Add(area_sum <= max_area_cells + embedded_max_cells)
 
             ctx.floor_area_vars[floor_id].append(area_sum)
             if indoor_space:
@@ -941,6 +982,96 @@ def add_wet_core_circulation_constraints(spec: PlanSpec, ctx: SolveContext) -> N
         ctx.model.AddBoolOr(touch_vars)
 
 
+def add_closet_parent_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
+    """Enforce walk-in closet (WIC) parent linkage and access constraints.
+
+    Args:
+        spec: Parsed plan specification containing WIC declarations.
+        ctx: Mutable solve context carrying CP-SAT variables and placements.
+
+    Returns:
+        None. Constraints are added directly to ``ctx.model``.
+
+    Raises:
+        ValueError: If WIC declarations are inconsistent.
+    """
+    for floor_id, floor in spec.floors.items():
+        type_by_id = {space.id: space.type for space in floor.spaces}
+        stair_present = (
+            ctx.stair_spec is not None
+            and floor_id in ctx.floors_with_stair
+            and ctx.stair_spec.id in ctx.placements[floor_id]
+        )
+        circulation_ids = {
+            space_id for space_id, space_type in type_by_id.items() if space_type in CIRCULATION_SPACE_TYPES
+        }
+        if stair_present and ctx.stair_spec is not None:
+            circulation_ids.add(ctx.stair_spec.id)
+
+        declared_neighbors: dict[str, set[str]] = {space_id: set() for space_id in ctx.placements[floor_id]}
+        for edge in floor.topology.adjacency:
+            declared_neighbors.setdefault(edge.left_id, set()).add(edge.right_id)
+            declared_neighbors.setdefault(edge.right_id, set()).add(edge.left_id)
+
+        for space in floor.spaces:
+            if space.type not in WALK_IN_CLOSET_SPACE_TYPES:
+                continue
+            if space.parent_id is None:
+                raise ValueError(f"floor {floor_id} wic '{space.id}' requires parent_id")
+            if space.parent_id not in ctx.placements[floor_id]:
+                raise ValueError(
+                    f"floor {floor_id} wic '{space.id}' has unknown parent_id '{space.parent_id}'"
+                )
+            parent_type = type_by_id.get(space.parent_id)
+            if parent_type not in {"bedroom", "master_bedroom"}:
+                raise ValueError(
+                    f"floor {floor_id} wic '{space.id}' parent '{space.parent_id}' must be bedroom/master_bedroom"
+                )
+
+            parent_touch = touching_constraint(
+                model=ctx.model,
+                rects_a=ctx.placements[floor_id][space.id],
+                rects_b=ctx.placements[floor_id][space.parent_id],
+                max_w=ctx.envelope_w_cells,
+                max_h=ctx.envelope_h_cells,
+                prefix=f"{_slug(floor_id)}_closet_parent_{_slug(space.id)}_{_slug(space.parent_id)}",
+                required=False,
+            )
+            ctx.model.Add(parent_touch == 1)
+
+            neighbors = sorted(declared_neighbors.get(space.id, set()))
+            if not neighbors:
+                raise ValueError(
+                    f"floor {floor_id} wic '{space.id}' requires declared topology access to parent/hall/entry/stair"
+                )
+            allowed_neighbors = circulation_ids.union({space.parent_id})
+            access_touch_vars: list[cp_model.IntVar] = []
+            for neighbor_id in neighbors:
+                if neighbor_id not in allowed_neighbors:
+                    continue
+                if neighbor_id not in ctx.placements[floor_id]:
+                    continue
+                access_touch_vars.append(
+                    touching_constraint(
+                        model=ctx.model,
+                        rects_a=ctx.placements[floor_id][space.id],
+                        rects_b=ctx.placements[floor_id][neighbor_id],
+                        max_w=ctx.envelope_w_cells,
+                        max_h=ctx.envelope_h_cells,
+                        prefix=(
+                            f"{_slug(floor_id)}_wic_access_{_slug(space.id)}_{_slug(neighbor_id)}"
+                        ),
+                        required=False,
+                    )
+                )
+            if not access_touch_vars:
+                raise ValueError(
+                    f"floor {floor_id} wic '{space.id}' has no valid access topology target "
+                    "(expected parent/hall/entry/stair)"
+                )
+            ctx.model.AddBoolOr(access_touch_vars)
+
+
 def add_orientation_preference_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
     """Add soft orientation penalties derived from ``site.north``.
 
@@ -1024,9 +1155,12 @@ def _resolve_adjacency_strength(declared_strength: str, left_type: str, right_ty
     pair = tuple(sorted((left_type, right_type)))
     if pair in {
         ("bedroom", "hall"),
+        ("bedroom", "wic"),
         ("hall", "master_bedroom"),
+        ("hall", "wic"),
         ("hall", "storage"),
         ("master_bedroom", "storage"),
+        ("master_bedroom", "wic"),
     }:
         return "preferred"
     return "required"

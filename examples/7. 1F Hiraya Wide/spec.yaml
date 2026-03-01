@@ -25,14 +25,14 @@ floors:
           min_width: 910
         area:
           min_tatami: 2.5
-          target_tatami: 4.5
+          target_tatami: 4.0
         shape:
           allow: [L2]
           rect_components_max: 3
       - id: ldk
         type: ldk
         area:
-          min_tatami: 14.0
+          min_tatami: 13.5
           target_tatami: 18.0
       - id: master
         type: master_bedroom
@@ -53,25 +53,33 @@ floors:
         size_constraints:
           min_width: 1820
         area:
-          min_tatami: 4.5
+          min_tatami: 4.0
           target_tatami: 6.0
+      - id: bed2_cl
+        type: closet
+        parent_id: bed2
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 0.5
+      - id: bed3_cl
+        type: closet
+        parent_id: bed3
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 0.5
       - id: toilet1
         type: toilet
       - id: wash1
         type: washroom
       - id: bath1
         type: bath
-      - id: pantry1
-        type: storage
-        size_constraints:
-          min_width: 910
-        area:
-          min_tatami: 1.5
-          target_tatami: 2.5
       - id: wic1
-        type: storage
+        type: wic
+        parent_id: master
         size_constraints:
-          min_width: 910
+          min_width: 1820
         area:
           min_tatami: 1.5
           target_tatami: 2.5
@@ -85,7 +93,7 @@ floors:
         - [master, ldk, required]
         - [hall1, bed2, required]
         - [hall1, bed3, required]
-        - [bed2, master, required]
-        - [bed3, bed2, required]
-        - [pantry1, ldk, preferred]
+        - [bed2, master, optional]
+        - [bed2, bed2_cl, required]
+        - [bed3, bed3_cl, required]
         - [wic1, master, preferred]

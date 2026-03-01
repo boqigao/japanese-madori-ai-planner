@@ -1,29 +1,30 @@
 valid=True
 errors=0
-warnings=4
+warnings=5
 structural=3
 
 Warnings:
 - no stair declared
-- F1:bed2 misses south-facing preference (south edge=bottom)
-- F1:storage1 misses north-facing service preference (north edge=top)
-- structural: F1: wall-balance ratio 0.42 below target 0.50
+- F1:ldk misses south-facing preference (south edge=bottom)
+- F1:wash1 misses north-facing service preference (north edge=top)
+- F1:bath1 misses north-facing service preference (north edge=top)
+- structural: F1: wall-balance ratio 0.36 below target 0.50
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=53235mm (V/H=25935/27300), balance=0.42
+- F1: bearing=57330mm (V/H=24570/32760), balance=0.36
 
 Diagnostics:
-- F1: envelope=280 cells, buildable=280 cells, min=261, max=472, rooms=9, hall_fanout=7
+- F1: envelope=280 cells, buildable=280 cells, min=273, max=492, rooms=9, hall_fanout=4
 - F1: area_breakdown indoor=57967000mm2 outdoor=0mm2 buildable=57967000mm2
-- F1:ldk orientation major_south edge=bottom status=ok
+- F1:ldk orientation major_south edge=bottom status=miss
 - F1:bed1 orientation major_south edge=bottom status=ok
-- F1:bed2 orientation major_south edge=bottom status=miss
+- F1:bed2 orientation major_south edge=bottom status=ok
 - F1:toilet1 orientation service_north edge=top status=ok
-- F1:wash1 orientation service_north edge=top status=ok
-- F1:bath1 orientation service_north edge=top status=ok
-- F1:storage1 orientation service_north edge=top status=miss
-- F1: orientation_summary north=top south=bottom major_south=2/3 service_north=3/4
+- F1:wash1 orientation service_north edge=top status=miss
+- F1:bath1 orientation service_north edge=top status=miss
+- F1:storage1 orientation service_north edge=top status=ok
+- F1: orientation_summary north=top south=bottom major_south=2/3 service_north=2/4
 - F1: area indoor=57.97sqm outdoor=0.00sqm
 - total_area: indoor=57.97sqm outdoor=0.00sqm

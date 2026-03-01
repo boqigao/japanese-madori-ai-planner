@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
-from plan_engine.constants import cells_to_mm
-from plan_engine.models import FloorSolution, PlanSolution, PlanSpec, Rect, SpaceGeometry, StairGeometry, StairSpec
+from plan_engine.constants import cells_to_mm, tatami_to_cells
+from plan_engine.models import (
+    EmbeddedClosetGeometry,
+    EmbeddedClosetSpec,
+    FloorSolution,
+    PlanSolution,
+    PlanSpec,
+    Rect,
+    SpaceGeometry,
+    StairGeometry,
+    StairSpec,
+)
 from plan_engine.stair_logic import stair_portal_for_floor
 from plan_engine.structural import build_structure_report, extract_solution_walls
 
@@ -41,6 +52,8 @@ def build_solution(
     for floor_id, floor in spec.floors.items():
         solved_spaces: dict[str, SpaceGeometry] = {}
         for space in floor.spaces:
+            if space.type == "closet":
+                continue
             rects = [
                 Rect(
                     x=cells_to_mm(solver.Value(rect.x), spec.grid.minor),
@@ -55,7 +68,13 @@ def build_solution(
                 type=space.type,
                 rects=rects,
                 space_class=space.space_class,
+                parent_id=space.parent_id,
             )
+        embedded_closets = _build_embedded_closet_geometries(
+            closet_specs=floor.embedded_closets,
+            solved_spaces=solved_spaces,
+            minor_grid=spec.grid.minor,
+        )
 
         stair_geometry = None
         if stair_spec is not None and stair_spec.id in placements[floor_id] and stair_footprint is not None:
@@ -115,6 +134,7 @@ def build_solution(
         floor_solutions[floor_id] = FloorSolution(
             id=floor_id,
             spaces=solved_spaces,
+            embedded_closets=embedded_closets,
             stair=stair_geometry,
             topology=[edge.to_tuple() for edge in floor.topology.adjacency],
             buildable_mask=buildable_mask_rects,
@@ -144,3 +164,124 @@ def build_solution(
         walls=walls_by_floor,
         structure_report=structure_report,
     )
+
+
+def _build_embedded_closet_geometries(
+    closet_specs: list[EmbeddedClosetSpec],
+    solved_spaces: dict[str, SpaceGeometry],
+    minor_grid: int,
+) -> list[EmbeddedClosetGeometry]:
+    """Create deterministic in-room closet rectangles for rendering/validation.
+
+    Args:
+        closet_specs: Embedded closet declarations for one floor.
+        solved_spaces: Solved spaces keyed by id.
+        minor_grid: Minor grid size in millimeters.
+
+    Returns:
+        Embedded closet geometries located inside their parent room.
+    """
+    geometries: list[EmbeddedClosetGeometry] = []
+    for closet in closet_specs:
+        parent = solved_spaces.get(closet.parent_id)
+        if parent is None or not parent.rects:
+            continue
+        host = max(parent.rects, key=lambda rect: rect.area)
+        target_cells = _embedded_closet_target_cells(closet, minor_grid)
+        target_area_mm2 = target_cells * (minor_grid * minor_grid)
+        depth_cells_candidates = _depth_candidates(
+            requested_depth_mm=closet.depth_mm,
+            host=host,
+            minor_grid=minor_grid,
+        )
+        closet_rect = _fit_closet_strip(
+            host=host,
+            target_area_mm2=target_area_mm2,
+            depth_cells_candidates=depth_cells_candidates,
+            minor_grid=minor_grid,
+        )
+        geometries.append(
+            EmbeddedClosetGeometry(
+                id=closet.id,
+                parent_id=closet.parent_id,
+                rect=closet_rect,
+            )
+        )
+    return geometries
+
+
+def _embedded_closet_target_cells(closet: EmbeddedClosetSpec, minor_grid: int) -> int:
+    """Resolve closet target area in cells from explicit or default tatami values."""
+    if closet.area.target_tatami is not None:
+        return max(1, tatami_to_cells(closet.area.target_tatami, minor_grid))
+    if closet.area.min_tatami is not None:
+        return max(1, tatami_to_cells(closet.area.min_tatami, minor_grid))
+    return max(1, tatami_to_cells(1.0, minor_grid))
+
+
+def _depth_candidates(requested_depth_mm: int | None, host: Rect, minor_grid: int) -> list[int]:
+    """Return candidate closet depths in cells, ordered by preference."""
+    candidates: list[int] = []
+    if requested_depth_mm is not None and requested_depth_mm % minor_grid == 0:
+        requested_cells = max(1, requested_depth_mm // minor_grid)
+        candidates.append(requested_cells)
+    candidates.extend([2, 1, 3, 4])
+    unique: list[int] = []
+    max_dim_cells = max(1, max(host.w, host.h) // minor_grid)
+    for depth in candidates:
+        if depth <= 0 or depth > max_dim_cells:
+            continue
+        if depth not in unique:
+            unique.append(depth)
+    return unique or [1]
+
+
+def _fit_closet_strip(
+    host: Rect,
+    target_area_mm2: int,
+    depth_cells_candidates: list[int],
+    minor_grid: int,
+) -> Rect:
+    """Fit one rectangular closet strip inside the host room.
+
+    The algorithm tries horizontal-top strips first, then vertical-right strips,
+    minimizing positive area overshoot while keeping the strip grid-aligned.
+    """
+    best: tuple[int, Rect] | None = None
+    for depth_cells in depth_cells_candidates:
+        depth_mm = depth_cells * minor_grid
+        if depth_mm <= 0:
+            continue
+
+        if host.h >= depth_mm:
+            width_mm = min(host.w, _ceil_to_mm_cells(target_area_mm2 / depth_mm, minor_grid))
+            if width_mm > 0:
+                candidate = Rect(x=host.x, y=host.y, w=width_mm, h=depth_mm)
+                overshoot = max(0, candidate.area - target_area_mm2)
+                if best is None or overshoot < best[0]:
+                    best = (overshoot, candidate)
+
+        if host.w >= depth_mm:
+            height_mm = min(host.h, _ceil_to_mm_cells(target_area_mm2 / depth_mm, minor_grid))
+            if height_mm > 0:
+                candidate = Rect(
+                    x=host.x2 - depth_mm,
+                    y=host.y,
+                    w=depth_mm,
+                    h=height_mm,
+                )
+                overshoot = max(0, candidate.area - target_area_mm2)
+                if best is None or overshoot < best[0]:
+                    best = (overshoot, candidate)
+
+    if best is not None:
+        return best[1]
+
+    fallback_depth = min(host.h, minor_grid)
+    fallback_width = min(host.w, minor_grid)
+    return Rect(x=host.x, y=host.y, w=fallback_width, h=fallback_depth)
+
+
+def _ceil_to_mm_cells(raw_mm: float, minor_grid: int) -> int:
+    """Round up a millimeter value to a positive minor-grid multiple."""
+    return max(minor_grid, int(math.ceil(raw_mm / minor_grid) * minor_grid))

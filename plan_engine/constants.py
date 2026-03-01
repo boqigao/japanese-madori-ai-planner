@@ -9,6 +9,9 @@ TATAMI_MM2 = 1_620_000
 MAJOR_ROOM_TYPES = {"ldk", "bedroom", "master_bedroom"}
 WET_SPACE_TYPES = {"toilet", "wc", "washroom", "bath"}
 OUTDOOR_SPACE_TYPES = {"balcony", "veranda"}
+EMBEDDED_CLOSET_SPACE_TYPES = {"closet"}
+CLOSET_SPACE_TYPES = {"closet"}
+WALK_IN_CLOSET_SPACE_TYPES = {"wic"}
 STAIR_TYPES = {"straight", "L_landing", "U_turn"}
 EDGE_NAMES = {"left", "right", "top", "bottom"}
 
@@ -28,6 +31,11 @@ def is_outdoor_space_type(space_type: str) -> bool:
 def is_indoor_space_type(space_type: str) -> bool:
     """Return True when ``space_type`` is classified as indoor."""
     return space_type not in OUTDOOR_SPACE_TYPES
+
+
+def is_closet_space_type(space_type: str) -> bool:
+    """Return True when ``space_type`` is a closet-like space token."""
+    return space_type in CLOSET_SPACE_TYPES
 
 
 def ceil_to_grid(value: int, grid: int) -> int:

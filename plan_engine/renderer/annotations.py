@@ -35,15 +35,23 @@ def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution)
         area_sqm = area_mm2 / 1_000_000
         area_jo = area_mm2 / TATAMI_MM2
         title = _display_space_name(space.id, space.type)
+        parent_line = None
+        if space.type == "wic" and space.parent_id:
+            parent_line = f"to {space.parent_id}"
+
         if len(space.rects) == 1:
             dims = _space_dimensions(space.rects)
             lines = [title, f"{dims[0]}x{dims[1]}mm", f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
+            if parent_line is not None:
+                lines.insert(1, parent_line)
         elif space.type == "hall":
             lines = [title, f"{area_sqm:.1f}sqm / {area_jo:.1f}jo"]
         else:
             dims = _space_dimensions(space.rects)
             component_text = _component_dims_text(space.rects)
             lines = [title, f"L-shape ({len(space.rects)} parts)"]
+            if parent_line is not None:
+                lines.append(parent_line)
             if min(dims[0], dims[1]) >= 2000:
                 lines.append(component_text)
             lines.append(f"{area_sqm:.1f}sqm / {area_jo:.1f}jo")
@@ -58,6 +66,19 @@ def draw_space_labels(renderer, drawing: svgwrite.Drawing, floor: FloorSolution)
                     text_anchor="middle",
                 )
             )
+
+    for closet in floor.embedded_closets:
+        anchor_x = closet.rect.x + closet.rect.w / 2
+        anchor_y = closet.rect.y + closet.rect.h / 2
+        drawing.add(
+            drawing.text(
+                "CL",
+                insert=(renderer._x(anchor_x), renderer._y(anchor_y)),
+                fill="#4a4a4a",
+                font_size=10,
+                text_anchor="middle",
+            )
+        )
 
 
 def draw_title_block(
@@ -108,6 +129,8 @@ def draw_legend(renderer, drawing: svgwrite.Drawing, floor: FloorSolution, site_
         None.
     """
     used_types = {space.type for space in floor.spaces.values()}
+    if floor.embedded_closets:
+        used_types.add("closet")
     legend_items = [space_type for space_type in LEGEND_ORDER if space_type in used_types]
     if not legend_items:
         return

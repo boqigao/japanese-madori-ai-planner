@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections import deque
 from typing import TYPE_CHECKING
 
-from plan_engine.constants import is_indoor_space_type, is_outdoor_space_type
+from plan_engine.constants import (
+    WALK_IN_CLOSET_SPACE_TYPES,
+    is_indoor_space_type,
+    is_outdoor_space_type,
+)
 
 if TYPE_CHECKING:
     from plan_engine.models import FloorSolution, PlanSolution, Rect, ValidationReport
@@ -77,6 +81,14 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
     _validate_outdoor_access_realization(solution, floor_graphs, report)
     _validate_toilet_topology_realization(solution, floor_graphs, report)
     _validate_wet_core_topology_realization(solution, floor_graphs, report)
+    _validate_wic_topology_realization(solution, floor_graphs, report)
+    _validate_bedroom_reachability_no_pass_through(
+        global_graph=global_graph,
+        entry_nodes=entry_nodes,
+        bedroom_nodes=bedroom_nodes,
+        outdoor_nodes=outdoor_nodes,
+        report=report,
+    )
     _validate_toilet_bedroom_pass_through(
         global_graph=global_graph,
         entry_nodes=entry_nodes,
@@ -95,6 +107,66 @@ def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> N
                 ldk_rects = floor.spaces[ldk_id].rects
                 if _entities_touch(wc_rects, ldk_rects):
                     report.errors.append(f"{floor_id}:{wc_id} is directly connected to {ldk_id}")
+
+
+def _validate_wic_topology_realization(
+    solution: PlanSolution,
+    floor_graphs: dict[str, dict[str, set[str]]],
+    report: ValidationReport,
+) -> None:
+    """Validate WIC parent linkage and access realization.
+
+    Args:
+        solution: Solved plan containing per-floor spaces and topology.
+        floor_graphs: Realized per-floor adjacency graphs from topology edges.
+        report: Mutable validation report to append errors.
+
+    Returns:
+        None.
+    """
+    for floor_id, floor in solution.floors.items():
+        floor_graph = floor_graphs.get(floor_id, {})
+        type_by_id = {space_id: space.type for space_id, space in floor.spaces.items()}
+        circulation_ids = {
+            space_id
+            for space_id, space in floor.spaces.items()
+            if space.type in CIRCULATION_SPACE_TYPES
+        }
+        if floor.stair is not None:
+            circulation_ids.add(floor.stair.id)
+
+        declared_neighbors: dict[str, set[str]] = {space_id: set() for space_id in floor.spaces}
+        for left_id, right_id in floor.topology:
+            declared_neighbors.setdefault(left_id, set()).add(right_id)
+            declared_neighbors.setdefault(right_id, set()).add(left_id)
+
+        for space_id, space in floor.spaces.items():
+            if space.type not in WALK_IN_CLOSET_SPACE_TYPES:
+                continue
+            if space.parent_id is None:
+                report.errors.append(f"{floor_id}:{space_id} wic requires parent_id")
+                continue
+            if space.parent_id not in type_by_id:
+                report.errors.append(
+                    f"{floor_id}:{space_id} parent_id '{space.parent_id}' is missing in solved floor spaces"
+                )
+                continue
+            if space.parent_id not in declared_neighbors.get(space_id, set()):
+                report.errors.append(
+                    f"{floor_id}:{space_id} missing topology edge to parent '{space.parent_id}'"
+                )
+            if space.parent_id not in floor_graph.get(space_id, set()):
+                report.errors.append(
+                    f"{floor_id}:{space_id} parent edge to '{space.parent_id}' is not physically realized"
+                )
+
+            realized_neighbors = floor_graph.get(space_id, set())
+            allowed_neighbors = circulation_ids.union({space.parent_id})
+            if not any(neighbor in allowed_neighbors for neighbor in realized_neighbors):
+                report.errors.append(
+                    f"{floor_id}:{space_id} walk-in closet has no realized access edge "
+                    "(expected parent/hall/entry/stair connectivity)"
+                )
 
 
 def _validate_wet_core_topology_realization(
@@ -283,6 +355,45 @@ def _validate_toilet_bedroom_pass_through(
         path_local = " -> ".join(node.split(":", 1)[1] for node in path_nodes)
         report.errors.append(
             f"{floor_id}:{toilet_id} toilet is only reachable through bedroom transit (path: {path_local})"
+        )
+
+
+def _validate_bedroom_reachability_no_pass_through(
+    global_graph: dict[str, set[str]],
+    entry_nodes: list[str],
+    bedroom_nodes: set[str],
+    outdoor_nodes: set[str],
+    report: ValidationReport,
+) -> None:
+    """Ensure bedrooms are reachable without using another bedroom as transit.
+
+    Args:
+        global_graph: Cross-floor passable adjacency graph.
+        entry_nodes: Entry nodes used as BFS roots.
+        bedroom_nodes: Global node IDs for all bedroom/master bedroom spaces.
+        outdoor_nodes: Global node IDs for balcony/veranda spaces.
+        report: Mutable validation report receiving errors.
+
+    Returns:
+        None.
+    """
+    if not bedroom_nodes:
+        return
+    reachable_all, parent_all = _bfs_with_parents(global_graph, entry_nodes, non_transit_nodes=frozenset())
+    non_transit_nodes = bedroom_nodes.union(outdoor_nodes)
+    reachable_no_bed_transit, _ = _bfs_with_parents(global_graph, entry_nodes, non_transit_nodes=non_transit_nodes)
+
+    for bedroom_node in sorted(bedroom_nodes):
+        if bedroom_node not in reachable_all or bedroom_node in reachable_no_bed_transit:
+            continue
+        path_nodes = _reconstruct_path(parent_all, bedroom_node)
+        transit_bedrooms = [node for node in path_nodes[1:-1] if node in bedroom_nodes]
+        if not transit_bedrooms:
+            continue
+        floor_id, bedroom_id = bedroom_node.split(":", 1)
+        path_local = " -> ".join(node.split(":", 1)[1] for node in path_nodes)
+        report.errors.append(
+            f"{floor_id}:{bedroom_id} bedroom is only reachable through bedroom transit (path: {path_local})"
         )
 
 

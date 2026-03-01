@@ -171,7 +171,7 @@ Common indoor types:
 
 - `entry`, `hall`, `ldk`
 - `bedroom`, `master_bedroom`
-- `storage`
+- `storage`, `closet`, `wic`
 - `toilet`/`wc`, `washroom`, `bath`
 
 Outdoor types:
@@ -183,6 +183,44 @@ Wet module sizes are fixed:
 - toilet/wc: `910 x 1820`
 - washroom: `1820 x 1820`
 - bath: `1820 x 1820`
+
+### 7.1 Storage vs Closet vs WIC (Important)
+
+- `storage`: independent room-level storage (pantry, generic store room)
+- `closet`: built-in closet zone attached to a parent room (`parent_id` required). It is rendered as hatched `CL` area, not as a standalone room block.
+- `wic`: walk-in closet; also needs `parent_id`, and parent must be `bedroom` or `master_bedroom`
+
+Example:
+
+```yaml
+- id: master
+  type: master_bedroom
+  area:
+    target_tatami: 8.0
+
+- id: wic1
+  type: wic
+  parent_id: master
+  size_constraints:
+    min_width: 910
+  area:
+    target_tatami: 2.0
+
+- id: closet_bed2
+  type: closet
+  parent_id: bed2
+  size_constraints:
+    min_width: 910
+  area:
+    target_tatami: 1.0
+```
+
+Hard checks:
+
+- `parent_id` must exist on the same floor
+- `parent_id` cannot point to itself
+- closet/WIC size constraints must still align to 455mm
+- `wic` shortest side must be at least `1820mm`
 
 ## 8. Shape Rules (Current Stage)
 
@@ -248,6 +286,10 @@ topology:
 - Keep circulation simple: `entry -> hall -> rooms`
 - Always connect hall to stair on stair floors
 - Keep toilet and wet-core linked to circulation (hall/entry/stair)
+- For `closet`/`wic`, always add at least parent adjacency:
+  - `[closet_or_wic, parent_room, required]`
+- For `wic`, also add a circulation-side edge when possible:
+  - `[hallX, wicY, required]` or `[entry, wicY, preferred]`
 - Do not force bedroom chains (`bed1 -> bed2 -> bed3`)
 
 ## 11. Balcony/Veranda Semantics

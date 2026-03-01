@@ -35,6 +35,15 @@ def validate_space_presence(spec: PlanSpec, solution: PlanSolution, report: Vali
                 if rect.w <= 0 or rect.h <= 0:
                     report.errors.append(f"{floor_id}:{space_id} has non-positive dimensions")
 
+        expected_embedded_ids = {closet.id for closet in floor_spec.embedded_closets}
+        actual_embedded_ids = {closet.id for closet in floor_solution.embedded_closets}
+        missing_embedded = expected_embedded_ids - actual_embedded_ids
+        extra_embedded = actual_embedded_ids - expected_embedded_ids
+        if missing_embedded:
+            report.errors.append(f"{floor_id}: missing embedded closets {sorted(missing_embedded)}")
+        if extra_embedded:
+            report.errors.append(f"{floor_id}: unexpected embedded closets {sorted(extra_embedded)}")
+
 
 def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: ValidationReport) -> None:
     """Validate geometry invariants for solved floor layouts.
@@ -67,6 +76,29 @@ def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: Validation
                 report.errors.append(
                     f"{floor_id}:{space.id} ({space.type}) must touch exterior boundary with positive edge length"
                 )
+        for closet in floor.embedded_closets:
+            parent = floor.spaces.get(closet.parent_id)
+            if parent is None:
+                report.errors.append(
+                    f"{floor_id}:{closet.id} references missing parent_id '{closet.parent_id}'"
+                )
+                continue
+            if not any(_contains_rect(parent_rect, closet.rect) for parent_rect in parent.rects):
+                report.errors.append(
+                    f"{floor_id}:{closet.id} is not inside parent '{closet.parent_id}'"
+                )
+            if closet.rect.x < 0 or closet.rect.y < 0 or closet.rect.x2 > width or closet.rect.y2 > depth:
+                report.errors.append(f"{floor_id}:{closet.id} is outside site envelope")
+            for value_name, value in (
+                ("x", closet.rect.x),
+                ("y", closet.rect.y),
+                ("w", closet.rect.w),
+                ("h", closet.rect.h),
+            ):
+                if value % minor != 0:
+                    report.errors.append(
+                        f"{floor_id}:{closet.id} {value_name}={value} is not aligned to {minor}mm grid"
+                    )
         if floor.stair is not None:
             for index, component in enumerate(floor.stair.components):
                 all_rects.append((f"{floor.stair.id}_component_{index}", component))
@@ -138,4 +170,19 @@ def _is_inside_any(rect: Rect, containers: list[Rect]) -> bool:
         and rect.x2 <= container.x2
         and rect.y2 <= container.y2
         for container in containers
+    )
+
+
+def _entities_touch(rects_a: list[Rect], rects_b: list[Rect]) -> bool:
+    """Return True when any rectangle in ``rects_a`` shares an edge with ``rects_b``."""
+    return any(rect_a.shares_edge_with(rect_b) for rect_a in rects_a for rect_b in rects_b)
+
+
+def _contains_rect(container: Rect, inner: Rect) -> bool:
+    """Return True when ``inner`` is fully inside ``container``."""
+    return (
+        inner.x >= container.x
+        and inner.y >= container.y
+        and inner.x2 <= container.x2
+        and inner.y2 <= container.y2
     )

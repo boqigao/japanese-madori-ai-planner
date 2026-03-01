@@ -31,6 +31,8 @@ def test_display_space_name_en_and_ja(monkeypatch) -> None:
     monkeypatch.setenv("PLAN_ENGINE_LABEL_LANG", "en")
     assert _display_space_name("bed2", "bedroom") == "Bedroom 2"
     assert _display_space_name("auto_fill_1", "storage") == "Storage"
+    assert _display_space_name("bed2_cl", "closet") == "CL"
+    assert _display_space_name("wic1", "wic") == "W.I.C"
 
     monkeypatch.setenv("PLAN_ENGINE_LABEL_LANG", "ja")
     assert _display_space_name("bed2", "bedroom").startswith("洋室")

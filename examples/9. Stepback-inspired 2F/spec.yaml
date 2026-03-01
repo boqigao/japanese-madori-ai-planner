@@ -14,7 +14,7 @@ floors:
     core:
       stair:
         id: stair
-        type: U_turn
+        type: L_landing
         width: 910
         floor_height: 2730
         riser_pref: 230
@@ -52,6 +52,13 @@ floors:
         area:
           min_tatami: 4.5
           target_tatami: 5.5
+      - id: bed1_cl
+        type: closet
+        parent_id: bed1
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: pantry1
         type: storage
         size_constraints:
@@ -74,6 +81,7 @@ floors:
         - [hall1, stair, required]
         - [wash1, bath1, required]
         - [bed1, ldk, required]
+        - [bed1, bed1_cl, required]
         - [pantry1, ldk, preferred]
   F2:
     spaces:
@@ -94,6 +102,13 @@ floors:
         area:
           min_tatami: 6.5
           target_tatami: 8.0
+      - id: master_cl
+        type: closet
+        parent_id: master
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: bed2
         type: bedroom
         size_constraints:
@@ -101,6 +116,13 @@ floors:
         area:
           min_tatami: 5.0
           target_tatami: 6.0
+      - id: bed2_cl
+        type: closet
+        parent_id: bed2
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: bed3
         type: bedroom
         size_constraints:
@@ -108,6 +130,13 @@ floors:
         area:
           min_tatami: 5.0
           target_tatami: 6.0
+      - id: bed3_cl
+        type: closet
+        parent_id: bed3
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
       - id: roof_buffer
         type: storage
         size_constraints:
@@ -122,4 +151,7 @@ floors:
         - [hall2, bed2, required]
         - [hall2, bed3, required]
         - [bed3, bed2, required]
+        - [master, master_cl, required]
+        - [bed2, bed2_cl, required]
+        - [bed3, bed3_cl, required]
         - [roof_buffer, master, preferred]
