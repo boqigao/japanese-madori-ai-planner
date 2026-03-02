@@ -1,0 +1,136 @@
+version: 0.2
+units: mm
+grid:
+  minor: 455
+  major: 910
+site:
+  envelope:
+    type: rectangle
+    width: 9100
+    depth: 6370
+  north: top
+floors:
+  F1:
+    core:
+      stair:
+        id: stair
+        type: U_turn
+        width: 910
+        floor_height: 2730
+        riser_pref: 230
+        tread_pref: 210
+        connects:
+          F1: hall1
+          F2: hall2
+    spaces:
+      - id: entry
+        type: entry
+        size_constraints:
+          min_width: 1365
+        area:
+          target_tatami: 2.0
+      - id: hall1
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 4.0
+        shape:
+          allow: [L2]
+          rect_components_max: 3
+      - id: ldk
+        type: ldk
+        area:
+          target_tatami: 15.0
+        shape:
+          allow: [L2]
+          rect_components_max: 2
+      - id: toilet1
+        type: toilet
+      - id: wash1
+        type: washroom
+      - id: bath1
+        type: bath
+      - id: storage1
+        type: storage
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 2.5
+    topology:
+      adjacency:
+        - [entry, hall1, required]
+        - [hall1, ldk, required]
+        - [hall1, toilet1, required]
+        - [hall1, wash1, required]
+        - [hall1, storage1, required]
+        - [hall1, stair, required]
+        - [wash1, bath1, required]
+  F2:
+    spaces:
+      - id: hall2
+        type: hall
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 4.0
+        shape:
+          allow: [L2]
+          rect_components_max: 3
+      - id: master
+        type: master_bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          target_tatami: 8.0
+      - id: bed2
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          target_tatami: 6.0
+      - id: bed3
+        type: bedroom
+        size_constraints:
+          min_width: 1820
+        area:
+          target_tatami: 6.0
+      - id: toilet2
+        type: toilet
+      - id: ws2
+        type: washstand
+      - id: shower2
+        type: shower
+      - id: master_cl
+        type: closet
+        parent_id: master
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
+      - id: bed2_cl
+        type: closet
+        parent_id: bed2
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
+      - id: bed3_cl
+        type: closet
+        parent_id: bed3
+        size_constraints:
+          min_width: 910
+        area:
+          target_tatami: 1.0
+    topology:
+      adjacency:
+        - [hall2, master, required]
+        - [hall2, bed2, required]
+        - [hall2, bed3, required]
+        - [hall2, toilet2, required]
+        - [hall2, ws2, required]
+        - [ws2, shower2, required]
+        - [master, master_cl, required]
+        - [bed2, bed2_cl, required]
+        - [bed3, bed3_cl, required]
+        - [hall2, stair, required]

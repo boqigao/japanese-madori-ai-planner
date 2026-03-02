@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from plan_engine.constants import (
     WALK_IN_CLOSET_SPACE_TYPES,
+    WET_CORE_SPACE_TYPES,
     is_indoor_space_type,
     is_outdoor_space_type,
 )
@@ -15,7 +16,6 @@ if TYPE_CHECKING:
 TOILET_SPACE_TYPES = frozenset({"toilet", "wc"})
 BEDROOM_SPACE_TYPES = frozenset({"bedroom", "master_bedroom"})
 CIRCULATION_SPACE_TYPES = frozenset({"hall", "entry"})
-WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath"})
 
 
 def validate_connectivity(solution: PlanSolution, report: ValidationReport) -> None:

@@ -23,6 +23,15 @@ def draw_fixtures(renderer, drawing: svgwrite.Drawing, floor: FloorSolution) -> 
         if not space.rects:
             continue
         rect = max(space.rects, key=lambda value: value.area)
+
+        # Compact wet types have small fixed modules — draw before size check.
+        if space.type == "washstand":
+            _draw_washstand(renderer, drawing, rect)
+            continue
+        if space.type == "shower":
+            _draw_shower(renderer, drawing, rect)
+            continue
+
         if rect.w < 1365 or rect.h < 1365:
             continue
 
@@ -261,3 +270,57 @@ def draw_vent_marker(renderer, drawing: svgwrite.Drawing, rect: Rect) -> None:
             stroke_width=0.8,
         )
     )
+
+
+def _draw_washstand(renderer, drawing: svgwrite.Drawing, rect: Rect) -> None:
+    """Draw a single sink symbol centered in a washstand module."""
+    sink_w = min(rect.w * 0.60, 500)
+    sink_h = min(rect.h * 0.36, 340)
+    sink_x = rect.x + (rect.w - sink_w) / 2
+    sink_y = rect.y + rect.h * 0.22
+    drawing.add(
+        drawing.rect(
+            insert=(renderer._x(sink_x), renderer._y(sink_y)),
+            size=(sink_w * renderer.scale, sink_h * renderer.scale),
+            fill="none",
+            stroke="#6f6f6f",
+            stroke_width=1.0,
+        )
+    )
+    drawing.add(
+        drawing.line(
+            start=(renderer._x(rect.x + rect.w * 0.18), renderer._y(sink_y - 80)),
+            end=(renderer._x(rect.x + rect.w * 0.82), renderer._y(sink_y - 80)),
+            stroke="#8f8f8f",
+            stroke_width=0.8,
+        )
+    )
+    draw_vent_marker(renderer, drawing, rect)
+
+
+def _draw_shower(renderer, drawing: svgwrite.Drawing, rect: Rect) -> None:
+    """Draw a shower symbol (drain circle + spray lines) in a shower module."""
+    cx = rect.x + rect.w * 0.5
+    cy = rect.y + rect.h * 0.5
+    drain_r = max(3, min(rect.w, rect.h) * renderer.scale * 0.08)
+    drawing.add(
+        drawing.circle(
+            center=(renderer._x(cx), renderer._y(cy)),
+            r=drain_r,
+            fill="none",
+            stroke="#6f6f6f",
+            stroke_width=1.0,
+        )
+    )
+    # Spray lines radiating from center.
+    spray_len = min(rect.w, rect.h) * 0.22
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (0.7, 0.7), (-0.7, 0.7), (0.7, -0.7), (-0.7, -0.7)):
+        drawing.add(
+            drawing.line(
+                start=(renderer._x(cx + dx * spray_len * 0.4), renderer._y(cy + dy * spray_len * 0.4)),
+                end=(renderer._x(cx + dx * spray_len), renderer._y(cy + dy * spray_len)),
+                stroke="#6f6f6f",
+                stroke_width=0.7,
+            )
+        )
+    draw_vent_marker(renderer, drawing, rect)

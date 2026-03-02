@@ -57,6 +57,8 @@ SOUTH_PREFERENCE_WEIGHT_BY_TYPE: dict[str, int] = {
 NORTH_PREFERENCE_WEIGHT_BY_TYPE: dict[str, int] = {
     "washroom": 30,
     "bath": 30,
+    "washstand": 30,
+    "shower": 30,
     "toilet": 26,
     "wc": 26,
     "storage": 22,

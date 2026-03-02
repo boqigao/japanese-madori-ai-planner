@@ -272,6 +272,46 @@ def test_solver_major_room_exterior_success_fixture_is_satisfiable() -> None:
     assert any(rect.x == 0 or rect.y == 0 for rect in bedroom.rects)
 
 
+def _compact_wet_spec(include_washstand: bool) -> PlanSpec:
+    """Build a single-floor spec with compact wet types (shower ± washstand)."""
+    spaces = [
+        SpaceSpec(id="hall1", type="hall", shape=ShapeSpec(allow=["L2"], rect_components_max=4)),
+        SpaceSpec(id="shower1", type="shower"),
+        SpaceSpec(id="storage1", type="storage"),
+    ]
+    adjacency = [
+        AdjacencyRule(left_id="hall1", right_id="storage1", strength="required"),
+    ]
+    if include_washstand:
+        spaces.insert(2, SpaceSpec(id="ws1", type="washstand"))
+        adjacency.extend([
+            AdjacencyRule(left_id="hall1", right_id="ws1", strength="required"),
+            AdjacencyRule(left_id="ws1", right_id="shower1", strength="required"),
+        ])
+    else:
+        adjacency.append(AdjacencyRule(left_id="hall1", right_id="shower1", strength="required"))
+    return PlanSpec(
+        version="0.2",
+        units="mm",
+        grid=GridSpec(minor=455, major=910),
+        site=SiteSpec(envelope=EnvelopeSpec(type="rectangle", width=5460, depth=4550), north="top"),
+        floors={
+            "F1": FloorSpec(
+                id="F1",
+                core=CoreSpec(stair=None),
+                spaces=spaces,
+                topology=TopologySpec(adjacency=adjacency),
+            )
+        },
+    )
+
+
+def test_solver_rejects_shower_without_washstand() -> None:
+    spec = _compact_wet_spec(include_washstand=False)
+    with pytest.raises(ValueError, match="shower but no washstand"):
+        PlanSolver(max_time_seconds=10.0, num_workers=2).solve(spec)
+
+
 class TestBedroomAspectRatioConstraint:
     """Verify the bedroom aspect ratio hard constraint (max 1:1.80)."""
 

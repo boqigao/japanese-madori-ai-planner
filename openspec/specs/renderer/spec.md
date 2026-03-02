@@ -194,6 +194,18 @@ The system MUST draw lightweight furniture/fixture symbols in applicable spaces.
 - WHEN the renderer draws fixtures
 - THEN simplified fixture outlines (toilet bowl, sink, bathtub) are rendered
 
+#### Scenario: Washstand fixture is drawn
+
+- **GIVEN** a solved floor with space type `washstand` and rect {x, y, w=910, h=910}
+- **WHEN** the renderer iterates fixture drawing in `fixtures.py`
+- **THEN** a sink symbol is drawn within the washstand bounds at approximately centered position
+
+#### Scenario: Shower fixture is drawn
+
+- **GIVEN** a solved floor with space type `shower` and rect {x, y, w=910, h=1365}
+- **WHEN** the renderer iterates fixture drawing in `fixtures.py`
+- **THEN** a shower head symbol is drawn within the shower bounds, and no bathtub rectangle is present
+
 ### Requirement: Structural Wall Overlay (Optional)
 The system MUST support an optional structural wall overlay controlled by the `PLAN_ENGINE_DRAW_STRUCTURAL_WALLS` environment variable.
 

@@ -18,6 +18,7 @@ from plan_engine.preflight.closets import (
 )
 from plan_engine.preflight.topology import _check_topology_reachability, _hall_fanout
 from plan_engine.preflight.wet import (
+    _check_shower_requires_washstand,
     _check_toilet_circulation_topology,
     _check_wet_cluster_fit,
     _check_wet_core_circulation_topology,
@@ -151,6 +152,7 @@ def run_preflight(spec: PlanSpec) -> PreflightResult:
         _check_closet_semantics(spec, floor_id, report)
         _warn_bedrooms_without_closet(spec, floor_id, report)
         _warn_closet_wall_feasibility(spec, floor_id, report)
+        _check_shower_requires_washstand(spec, floor_id, report)
         _check_toilet_circulation_topology(spec, floor_id, report)
         _check_wet_core_circulation_topology(spec, floor_id, report)
         _check_wet_cluster_fit(spec, floor_id, envelope_w, envelope_h, report)

@@ -147,3 +147,13 @@ def test_load_plan_spec_rejects_bad_topology_pairs(tmp_path: Path) -> None:
     path = _write_yaml(tmp_path / "bad_topology.yaml", payload)
     with pytest.raises(ValueError, match="2-item or 3-item lists"):
         load_plan_spec(path)
+
+
+@pytest.mark.parametrize("space_type", ["washstand", "shower"])
+def test_load_plan_spec_accepts_compact_wet_types(tmp_path: Path, space_type: str) -> None:
+    payload = _minimal_payload()
+    payload["floors"]["F1"]["spaces"].append({"id": f"{space_type}1", "type": space_type})
+    path = _write_yaml(tmp_path / f"{space_type}.yaml", payload)
+    spec = load_plan_spec(path)
+    types = [s.type for s in spec.floors["F1"].spaces]
+    assert space_type in types

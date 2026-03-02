@@ -16,6 +16,17 @@ if TYPE_CHECKING:
     from plan_engine.models import PlanSpec, ValidationReport
 
 
+def _check_shower_requires_washstand(spec: PlanSpec, floor_id: str, report: ValidationReport) -> None:
+    """Validate that a floor with shower also has at least one washstand."""
+    floor = spec.floors[floor_id]
+    has_shower = any(s.type == "shower" for s in floor.spaces)
+    has_washstand = any(s.type == "washstand" for s in floor.spaces)
+    if has_shower and not has_washstand:
+        report.errors.append(
+            f"preflight: {floor_id} has shower but no washstand (shower requires adjacent washstand)"
+        )
+
+
 def _check_wet_cluster_fit(
     spec: PlanSpec,
     floor_id: str,

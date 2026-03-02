@@ -7,7 +7,7 @@ MAJOR_GRID_MM = 910
 TATAMI_MM2 = 1_620_000
 
 MAJOR_ROOM_TYPES = {"ldk", "bedroom", "master_bedroom"}
-WET_SPACE_TYPES = {"toilet", "wc", "washroom", "bath"}
+WET_SPACE_TYPES = {"toilet", "wc", "washroom", "bath", "washstand", "shower"}
 OUTDOOR_SPACE_TYPES = {"balcony", "veranda"}
 EMBEDDED_CLOSET_SPACE_TYPES = {"closet"}
 CLOSET_SPACE_TYPES = {"closet"}
@@ -15,7 +15,7 @@ WALK_IN_CLOSET_SPACE_TYPES = {"wic"}
 STAIR_TYPES = {"straight", "L_landing", "U_turn"}
 BEDROOM_SPACE_TYPES = frozenset({"bedroom", "master_bedroom"})
 TOILET_SPACE_TYPES = frozenset({"toilet", "wc"})
-WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath"})
+WET_CORE_SPACE_TYPES = frozenset({"washroom", "bath", "washstand", "shower"})
 CIRCULATION_SPACE_TYPES = frozenset({"hall", "entry"})
 EDGE_NAMES = {"left", "right", "top", "bottom"}
 WINDOW_SPACE_TYPES = {"ldk", "bedroom", "master_bedroom", "entry"}
@@ -25,6 +25,8 @@ WET_MODULE_SIZES_MM: dict[str, tuple[int, int]] = {
     "wc": (910, 1820),
     "washroom": (1820, 1820),
     "bath": (1820, 1820),
+    "washstand": (910, 910),
+    "shower": (910, 1365),
 }
 
 
@@ -85,4 +87,6 @@ def should_draw_interior_door(left_type: str, right_type: str) -> bool:
         return False
     if left_type in BEDROOM_SPACE_TYPES and right_type in BEDROOM_SPACE_TYPES:
         return False
-    return not ("bath" in types and "washroom" not in types)
+    if "bath" in types and "washroom" not in types:
+        return False
+    return not ("shower" in types and "washstand" not in types)
