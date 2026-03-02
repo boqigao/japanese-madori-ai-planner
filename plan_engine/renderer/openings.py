@@ -11,6 +11,7 @@ from plan_engine.renderer.helpers import (
     _segment_length,
     _shared_segment,
     _should_draw_interior_door,
+    _subtract_segments,
 )
 
 if TYPE_CHECKING:
@@ -181,21 +182,19 @@ def draw_windows(
             unique_segments.append(segment)
 
         for segment in unique_segments:
-            key = _segment_key(segment)
-            if key in blocked_segments:
-                continue
-            length = _segment_length(segment[0], segment[1])
-            if length < min_window_segment:
-                continue
-            if length >= 3600:
-                opening_segments.append(
-                    renderer._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.28)
-                )
-                opening_segments.append(
-                    renderer._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.72)
-                )
-            else:
-                opening_segments.append(renderer._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5))
+            for sub_seg in _subtract_segments(segment, blocked_segments):
+                length = _segment_length(sub_seg[0], sub_seg[1])
+                if length < min_window_segment:
+                    continue
+                if length >= 3600:
+                    opening_segments.append(
+                        renderer._draw_window_symbol(drawing, sub_seg[0], sub_seg[1], offset_ratio=0.28)
+                    )
+                    opening_segments.append(
+                        renderer._draw_window_symbol(drawing, sub_seg[0], sub_seg[1], offset_ratio=0.72)
+                    )
+                else:
+                    opening_segments.append(renderer._draw_window_symbol(drawing, sub_seg[0], sub_seg[1], offset_ratio=0.5))
     return opening_segments
 
 

@@ -270,3 +270,33 @@ def test_solver_major_room_exterior_success_fixture_is_satisfiable() -> None:
 
     bedroom = solution.floors["F1"].spaces["bed1"]
     assert any(rect.x == 0 or rect.y == 0 for rect in bedroom.rects)
+
+
+class TestBedroomAspectRatioConstraint:
+    """Verify the bedroom aspect ratio hard constraint (max 1:1.80)."""
+
+    @staticmethod
+    def _check_feasibility(w_cells: int, h_cells: int) -> bool:
+        """Return True if a rect with given w/h satisfies 5*w<=9*h and 5*h<=9*w."""
+        model = cp_model.CpModel()
+        w = model.NewIntVar(w_cells, w_cells, "w")
+        h = model.NewIntVar(h_cells, h_cells, "h")
+        model.Add(5 * w <= 9 * h)
+        model.Add(5 * h <= 9 * w)
+        solver = cp_model.CpSolver()
+        return solver.Solve(model) == cp_model.OPTIMAL
+
+    def test_square_bedroom_accepted(self) -> None:
+        assert self._check_feasibility(8, 8)  # 3640x3640, ratio 1:1.00
+
+    def test_standard_6jo_accepted(self) -> None:
+        assert self._check_feasibility(6, 8)  # 2730x3640, ratio 1:1.33
+
+    def test_compact_boundary_accepted(self) -> None:
+        assert self._check_feasibility(5, 9)  # 2275x4095, ratio 1:1.80
+
+    def test_elongated_rejected(self) -> None:
+        assert not self._check_feasibility(5, 12)  # 2275x5460, ratio 1:2.40
+
+    def test_corridor_rejected(self) -> None:
+        assert not self._check_feasibility(4, 10)  # 1820x4550, ratio 1:2.50

@@ -218,8 +218,8 @@ def create_space_variables(spec: PlanSpec, ctx: SolveContext) -> None:
             if space.type not in {"hall", "toilet", "wc", "washroom", "bath"}:
                 for idx, rect in enumerate(rects):
                     if space.type in {"bedroom", "master_bedroom"}:
-                        ctx.model.Add(2 * rect.w <= 5 * rect.h)
-                        ctx.model.Add(2 * rect.h <= 5 * rect.w)
+                        ctx.model.Add(5 * rect.w <= 9 * rect.h)
+                        ctx.model.Add(5 * rect.h <= 9 * rect.w)
                     else:
                         ctx.model.Add(rect.w <= 4 * rect.h)
                         ctx.model.Add(rect.h <= 4 * rect.w)

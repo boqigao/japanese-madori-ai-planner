@@ -7,7 +7,7 @@ site:
   envelope:
     type: rectangle
     width: 9100
-    depth: 5460
+    depth: 6370
   north: top
 floors:
   F1:

@@ -13,7 +13,7 @@ from plan_engine.models import (
     SpaceGeometry,
 )
 from plan_engine.renderer.core import SvgRenderer
-from plan_engine.renderer.helpers import _should_draw_interior_door, _subtract_colinear_segment
+from plan_engine.renderer.helpers import _should_draw_interior_door, _subtract_colinear_segment, _subtract_segments
 from plan_engine.renderer.openings import _trim_segment_for_closets
 
 
@@ -144,8 +144,122 @@ def test_window_excluded_on_cl_blocked_exterior(tmp_path: Path, monkeypatch) -> 
 
 
 # ---------------------------------------------------------------------------
+# _subtract_segments tests
+# ---------------------------------------------------------------------------
+
+
+class TestSubtractSegments:
+    """Tests for _subtract_segments helper."""
+
+    def test_no_overlap_returns_original(self):
+        """Blocked segment on different axis line leaves candidate unchanged."""
+        seg = ((0, 0), (9100, 0))  # horizontal at y=0
+        blocked = {((0, 5460), (9100, 5460))}  # different y
+        assert _subtract_segments(seg, blocked) == [seg]
+
+    def test_partial_overlap_at_right_end(self):
+        """Blocked covers right portion, leaving left remainder."""
+        seg = ((5460, 0), (9100, 0))  # horizontal, 3640mm
+        blocked = {((8190, 0), (9100, 0))}  # blocks rightmost 910mm
+        result = _subtract_segments(seg, blocked)
+        assert result == [((5460, 0), (8190, 0))]
+
+    def test_partial_overlap_at_left_end(self):
+        """Blocked covers left portion, leaving right remainder."""
+        seg = ((0, 0), (2730, 0))
+        blocked = {((0, 0), (910, 0))}
+        result = _subtract_segments(seg, blocked)
+        assert result == [((910, 0), (2730, 0))]
+
+    def test_full_overlap_returns_empty(self):
+        """Blocked fully covers candidate — nothing left."""
+        seg = ((6370, 0), (9100, 0))
+        blocked = {((6370, 0), (9100, 0))}
+        assert _subtract_segments(seg, blocked) == []
+
+    def test_two_blocked_portions_leave_middle(self):
+        """Two blocked portions at ends leave the middle sub-segment."""
+        seg = ((0, 0), (9100, 0))
+        blocked = {((0, 0), (910, 0)), ((8190, 0), (9100, 0))}
+        result = _subtract_segments(seg, blocked)
+        assert result == [((910, 0), (8190, 0))]
+
+    def test_blocked_extends_beyond_candidate(self):
+        """Blocked segment larger than candidate — fully consumed."""
+        seg = ((1820, 0), (3640, 0))
+        blocked = {((0, 0), (5460, 0))}
+        assert _subtract_segments(seg, blocked) == []
+
+    def test_vertical_segment_subtraction(self):
+        """Subtraction works on vertical segments too."""
+        seg = ((9100, 0), (9100, 5460))  # vertical at x=9100
+        blocked = {((9100, 0), (9100, 3185))}  # blocks upper portion
+        result = _subtract_segments(seg, blocked)
+        assert result == [((9100, 3185), (9100, 5460))]
+
+    def test_middle_blocked_splits_into_two(self):
+        """Blocked in the middle produces two sub-segments."""
+        seg = ((0, 0), (9100, 0))
+        blocked = {((3640, 0), (5460, 0))}
+        result = _subtract_segments(seg, blocked)
+        assert result == [((0, 0), (3640, 0)), ((5460, 0), (9100, 0))]
+
+
+# ---------------------------------------------------------------------------
 # _trim_segment_for_closets tests
 # ---------------------------------------------------------------------------
+
+
+def test_partial_cl_block_reduces_window_count(tmp_path: Path, monkeypatch) -> None:
+    """When CL partially blocks a long exterior wall, window count drops from 2 to 1."""
+    monkeypatch.setenv("PLAN_ENGINE_LABEL_LANG", "en")
+
+    # Bedroom 3640mm wide on top wall (≥3600 → would be 2 windows without CL).
+    # CL blocks rightmost 910mm → remaining 2730mm → 1 window.
+    bed_rect = Rect(5460, 0, 3640, 3185)
+    cl_rect = Rect(8190, 0, 910, 3185)
+    blocked_top = ((8190, 0), (9100, 0))
+    blocked_right = ((9100, 0), (9100, 3185))
+
+    solution = PlanSolution(
+        units="mm",
+        grid=GridSpec(455, 910),
+        envelope=EnvelopeSpec(type="rectangle", width=9100, depth=5460),
+        north="top",
+        floors={
+            "F1": FloorSolution(
+                id="F1",
+                spaces={
+                    "hall1": SpaceGeometry("hall1", "hall", [Rect(0, 0, 5460, 5460)]),
+                    "bed3": SpaceGeometry("bed3", "bedroom", [bed_rect]),
+                },
+                embedded_closets=[
+                    EmbeddedClosetGeometry(
+                        id="cl3",
+                        parent_id="bed3",
+                        rect=cl_rect,
+                        blocked_exterior_segments=[blocked_top, blocked_right],
+                    )
+                ],
+                stair=None,
+                topology=[("hall1", "bed3")],
+            )
+        },
+    )
+
+    outputs = SvgRenderer(scale=0.1, margin_px=20).render(solution, tmp_path)
+    svg_path = next(p for p in outputs if p.suffix == ".svg")
+    root = ET.fromstring(svg_path.read_text(encoding="utf-8"))
+    ns = {"svg": "http://www.w3.org/2000/svg"}
+
+    # Count window lines (blue #66a7ff lines). Each window symbol draws 2 parallel lines.
+    blue_lines = [
+        el for el in root.findall(".//svg:line", ns) if el.get("stroke") == "#66a7ff"
+    ]
+    # With partial blocking: top wall → 1 window (2 lines), right wall → 0 windows.
+    # Without blocking: top wall would have 2 windows (4 lines) + right wall 1 window (2 lines) = 6 lines.
+    # Now expecting only 2 blue lines (1 window on remaining top wall segment).
+    assert len(blue_lines) == 2, f"Expected 2 blue lines (1 window), got {len(blue_lines)}"
 
 
 def test_trim_segment_no_overlap() -> None:

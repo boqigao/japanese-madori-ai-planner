@@ -1,32 +1,33 @@
 valid=True
 errors=0
-warnings=7
+warnings=8
 structural=3
 
 Warnings:
 - preflight: F1:bed3 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
+- F1: topology edge bed2<->master is not physically realized
 - no stair declared
-- F1:bed2 bedroom short side 1820mm is below 2730mm livability threshold
+- F1:master misses south-facing preference (south edge=bottom)
 - F1:bed2 misses south-facing preference (south edge=bottom)
-- F1:bed3 misses south-facing preference (south edge=bottom)
-- F1:hall1 hall width 910mm with 6 doors may cause circulation conflicts
-- structural: F1: wall-balance ratio 0.37 below target 0.50
+- F1:wash1 misses north-facing service preference (north edge=top)
+- F1:bath1 misses north-facing service preference (north edge=top)
+- structural: F1: wall-balance ratio 0.44 below target 0.50
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=70070mm (V/H=30940/39130), balance=0.37
+- F1: bearing=65520mm (V/H=26845/38675), balance=0.44
 
 Diagnostics:
 - F1: envelope=336 cells, buildable=336 cells, min=314, max=581, rooms=10, hall_fanout=6
 - F1: area_breakdown indoor=69560400mm2 outdoor=0mm2 buildable=69560400mm2
 - F1:ldk orientation major_south edge=bottom status=ok
-- F1:master orientation major_south edge=bottom status=ok
+- F1:master orientation major_south edge=bottom status=miss
 - F1:bed2 orientation major_south edge=bottom status=miss
-- F1:bed3 orientation major_south edge=bottom status=miss
+- F1:bed3 orientation major_south edge=bottom status=ok
 - F1:toilet1 orientation service_north edge=top status=ok
-- F1:wash1 orientation service_north edge=top status=ok
-- F1:bath1 orientation service_north edge=top status=ok
-- F1: orientation_summary north=top south=bottom major_south=2/4 service_north=3/3
+- F1:wash1 orientation service_north edge=top status=miss
+- F1:bath1 orientation service_north edge=top status=miss
+- F1: orientation_summary north=top south=bottom major_south=2/4 service_north=1/3
 - F1: area indoor=69.56sqm outdoor=0.00sqm
 - total_area: indoor=69.56sqm outdoor=0.00sqm

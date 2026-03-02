@@ -282,6 +282,81 @@ def _segment_key(segment: tuple[tuple[int, int], tuple[int, int]]) -> tuple[tupl
     return p2, p1
 
 
+def _subtract_segments(
+    segment: tuple[tuple[int, int], tuple[int, int]],
+    blocked: set[tuple[tuple[int, int], tuple[int, int]]],
+) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    """Subtract blocked portions from a candidate segment, returning unblocked remainders.
+
+    Only blocked segments on the same axis line (same x for vertical, same y
+    for horizontal) are considered.  The result is a list of zero or more
+    sub-segments that do not overlap any blocked segment.
+
+    Args:
+        segment: Candidate axis-aligned segment ``((x1, y1), (x2, y2))``.
+        blocked: Set of blocked segments (normalized via ``_segment_key``).
+
+    Returns:
+        List of remaining sub-segments after subtraction.
+    """
+    (x1, y1), (x2, y2) = segment
+    is_vertical = x1 == x2
+
+    if is_vertical:
+        coord = x1
+        lo, hi = (min(y1, y2), max(y1, y2))
+    else:
+        coord = y1
+        lo, hi = (min(x1, x2), max(x1, x2))
+
+    # Collect overlapping blocked intervals on the same axis line.
+    cuts: list[tuple[int, int]] = []
+    for bseg in blocked:
+        (bx1, by1), (bx2, by2) = bseg
+        if is_vertical:
+            if bx1 != bx2 or bx1 != coord:
+                continue
+            b_lo, b_hi = min(by1, by2), max(by1, by2)
+        else:
+            if by1 != by2 or by1 != coord:
+                continue
+            b_lo, b_hi = min(bx1, bx2), max(bx1, bx2)
+        # Clip to candidate range.
+        c_lo = max(lo, b_lo)
+        c_hi = min(hi, b_hi)
+        if c_lo < c_hi:
+            cuts.append((c_lo, c_hi))
+
+    if not cuts:
+        return [segment]
+
+    # Merge overlapping cuts and subtract from [lo, hi].
+    cuts.sort()
+    merged: list[tuple[int, int]] = [cuts[0]]
+    for c_lo, c_hi in cuts[1:]:
+        if c_lo <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], c_hi))
+        else:
+            merged.append((c_lo, c_hi))
+
+    result: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    prev = lo
+    for c_lo, c_hi in merged:
+        if prev < c_lo:
+            if is_vertical:
+                result.append(((coord, prev), (coord, c_lo)))
+            else:
+                result.append(((prev, coord), (c_lo, coord)))
+        prev = c_hi
+    if prev < hi:
+        if is_vertical:
+            result.append(((coord, prev), (coord, hi)))
+        else:
+            result.append(((prev, coord), (hi, coord)))
+
+    return result
+
+
 def _door_line_key(segment: tuple[tuple[int, int], tuple[int, int]]) -> tuple[str, int]:
     """Create a hashable key identifying the axis and position of a door's wall."""
     p1, p2 = segment

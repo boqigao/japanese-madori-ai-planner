@@ -1,7 +1,7 @@
 valid=True
 errors=0
-warnings=14
-structural=13
+warnings=13
+structural=10
 
 Warnings:
 - preflight: F1:bed1 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
@@ -11,28 +11,24 @@ Warnings:
 - F1:wash1 misses north-facing service preference (north edge=top)
 - F1:bath1 misses north-facing service preference (north edge=top)
 - F1:pantry1 misses north-facing service preference (north edge=top)
-- F2:bed2 bedroom area 10.2jo exceeds 1.3x target (6.0jo)
+- F2:bed2 bedroom area 8.1jo exceeds 1.3x target (6.0jo)
 - F2:bed2 misses south-facing preference (south edge=bottom)
-- F2:bed3 bedroom area 9.2jo exceeds 1.3x target (6.0jo)
-- F2: secondary bedroom area (10.2jo) exceeds master bedroom (8.2jo)
-- structural: F1: wall-balance ratio 0.42 below target 0.50
-- structural: F2: wall-balance ratio 0.47 below target 0.50
-- structural: vertical transfer required on 6 upper-floor bearing segments
+- F2:bed3 bedroom area 9.8jo exceeds 1.3x target (6.0jo)
+- F2: secondary bedroom area (9.8jo) exceeds master bedroom (9.2jo)
+- structural: F2: wall-balance ratio 0.44 below target 0.50
+- structural: vertical transfer required on 3 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
-- F1: bearing=47775mm (V/H=23205/24570), balance=0.42
-- F2: bearing=53690mm (V/H=23205/30485), balance=0.47
-- F2->F1 vertical: supported=17745/23205mm, direct_below=0.76
-- F2->F1 horizontal: supported=22295/30485mm, direct_below=0.73
-- vertical_transfer_required=6
+- F1: bearing=42770mm (V/H=23205/19565), balance=0.53
+- F2: bearing=40950mm (V/H=15470/25480), balance=0.44
+- F2->F1 vertical: supported=15015/15470mm, direct_below=0.97
+- F2->F1 horizontal: supported=19565/25480mm, direct_below=0.77
+- vertical_transfer_required=3
 - F2:w_F2_v_1820_910_2730 unsupported=455mm at vertical@1820
-- F2:w_F2_v_3640_2730_6370 unsupported=3640mm at vertical@3640
-- F2:w_F2_v_4550_0_3640 unsupported=1365mm at vertical@4550
-- F2:w_F2_h_910_0_1820 unsupported=910mm at horizontal@910
-- F2:w_F2_h_2730_0_3640 unsupported=1820mm at horizontal@2730
-- F2:w_F2_h_3640_3640_9100 unsupported=5460mm at horizontal@3640
+- F2:w_F2_h_910_0_1820 unsupported=1820mm at horizontal@910
+- F2:w_F2_h_2730_0_4095 unsupported=4095mm at horizontal@2730
 
 Diagnostics:
 - F1: envelope=280 cells, buildable=280 cells, min=239, max=409, rooms=8, hall_fanout=5

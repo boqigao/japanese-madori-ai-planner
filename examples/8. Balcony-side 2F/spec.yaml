@@ -7,7 +7,7 @@ site:
   envelope:
     type: rectangle
     width: 9100
-    depth: 5460
+    depth: 6370
   north: top
 floors:
   F1:
@@ -67,11 +67,6 @@ floors:
         - [hall1, stair, required]
         - [wash1, bath1, required]
   F2:
-    buildable:
-      - x: 0
-        y: 0
-        w: 8190
-        h: 5460
     spaces:
       - id: hall2
         type: hall
@@ -81,25 +76,32 @@ floors:
           target_tatami: 4.0
         shape:
           allow: [L2]
-          rect_components_max: 2
+          rect_components_max: 3
       - id: master
         type: master_bedroom
         size_constraints:
           min_width: 1820
         area:
-          target_tatami: 7.0
+          target_tatami: 8.0
       - id: bed2
         type: bedroom
         size_constraints:
           min_width: 1820
         area:
-          target_tatami: 5.5
+          target_tatami: 6.0
       - id: bed3
         type: bedroom
         size_constraints:
           min_width: 1820
         area:
-          target_tatami: 5.5
+          target_tatami: 6.0
+      - id: master_wic
+        type: wic
+        parent_id: master
+        size_constraints:
+          min_width: 1820
+        area:
+          target_tatami: 2.0
       - id: bed2_cl
         type: closet
         parent_id: bed2
@@ -114,19 +116,6 @@ floors:
           min_width: 910
         area:
           target_tatami: 1.0
-      - id: wic1
-        type: wic
-        parent_id: master
-        size_constraints:
-          min_width: 1820
-        area:
-          target_tatami: 2.0
-      - id: balcony1
-        type: balcony
-        size_constraints:
-          min_width: 910
-        area:
-          target_tatami: 2.5
     topology:
       adjacency:
         - [hall2, stair, required]
@@ -135,6 +124,4 @@ floors:
         - [hall2, bed3, required]
         - [bed2, bed2_cl, required]
         - [bed3, bed3_cl, required]
-        - [hall2, wic1, required]
-        - [master, wic1, required]
-        - [master, balcony1, required]
+        - [master, master_wic, preferred]
