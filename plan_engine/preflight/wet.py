@@ -81,9 +81,7 @@ def _check_toilet_circulation_topology(spec: PlanSpec, floor_id: str, report: Va
         circulation_ids.add(floor_stair_id)
 
     if not circulation_ids:
-        report.errors.append(
-            f"preflight: {floor_id} defines toilet/wc but has no hall/entry/stair circulation node"
-        )
+        report.errors.append(f"preflight: {floor_id} defines toilet/wc but has no hall/entry/stair circulation node")
         return
 
     neighbor_map: dict[str, set[str]] = {toilet_id: set() for toilet_id in toilet_ids}
@@ -97,9 +95,7 @@ def _check_toilet_circulation_topology(spec: PlanSpec, floor_id: str, report: Va
     for toilet_id in toilet_ids:
         if any(neighbor in circulation_ids for neighbor in neighbor_map[toilet_id]):
             continue
-        report.errors.append(
-            f"preflight: {floor_id}:{toilet_id} has no circulation topology edge to hall/entry/stair"
-        )
+        report.errors.append(f"preflight: {floor_id}:{toilet_id} has no circulation topology edge to hall/entry/stair")
         report.suggestions.append(
             f"Add topology adjacency like [{toilet_id}, <hall_or_entry_or_stair>, required] on {floor_id}."
         )
@@ -118,11 +114,7 @@ def _check_wet_core_circulation_topology(spec: PlanSpec, floor_id: str, report: 
     """
     floor = spec.floors[floor_id]
     space_type_by_id = {space.id: space.type for space in floor.spaces}
-    wet_core_ids = [
-        space_id
-        for space_id, space_type in space_type_by_id.items()
-        if space_type in WET_CORE_SPACE_TYPES
-    ]
+    wet_core_ids = [space_id for space_id, space_type in space_type_by_id.items() if space_type in WET_CORE_SPACE_TYPES]
     if not wet_core_ids:
         return
 
@@ -137,9 +129,7 @@ def _check_wet_core_circulation_topology(spec: PlanSpec, floor_id: str, report: 
         circulation_ids.add(floor_stair_id)
 
     if not circulation_ids:
-        report.errors.append(
-            f"preflight: {floor_id} defines wet core but has no hall/entry/stair circulation node"
-        )
+        report.errors.append(f"preflight: {floor_id} defines wet core but has no hall/entry/stair circulation node")
         return
 
     has_wet_core_circulation_edge = False
@@ -154,12 +144,9 @@ def _check_wet_core_circulation_topology(spec: PlanSpec, floor_id: str, report: 
     if has_wet_core_circulation_edge:
         return
 
-    report.errors.append(
-        f"preflight: {floor_id} wet core has no circulation topology edge to hall/entry/stair"
-    )
+    report.errors.append(f"preflight: {floor_id} wet core has no circulation topology edge to hall/entry/stair")
     report.suggestions.append(
-        "Add at least one topology adjacency like "
-        f"[<wash_or_bath>, <hall_or_entry_or_stair>, required] on {floor_id}."
+        f"Add at least one topology adjacency like [<wash_or_bath>, <hall_or_entry_or_stair>, required] on {floor_id}."
     )
 
 
@@ -192,10 +179,7 @@ def _can_pack_connected_wet_modules(
 
     def overlaps(rect: tuple[int, int, int, int], others: list[tuple[int, int, int, int]]) -> bool:
         rx, ry, rw, rh = rect
-        for ox, oy, ow, oh in others:
-            if not (rx + rw <= ox or ox + ow <= rx or ry + rh <= oy or oy + oh <= ry):
-                return True
-        return False
+        return any(not (rx + rw <= ox or ox + ow <= rx or ry + rh <= oy or oy + oh <= ry) for ox, oy, ow, oh in others)
 
     def candidate_positions(module: tuple[int, int]) -> list[tuple[int, int]]:
         if not placed:
@@ -223,7 +207,7 @@ def _can_pack_connected_wet_modules(
             rect = (x, y, module[0], module[1])
             if overlaps(rect, placed):
                 continue
-            trial = placed + [rect]
+            trial = [*placed, rect]
             bw, bh = bbox(trial)
             if bw > envelope_w or bh > envelope_h:
                 continue

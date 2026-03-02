@@ -285,12 +285,8 @@ def draw_floor_area_summary(
         )
         for fid in ordered_ids
     ]
-    lines.append(
-        f"Total indoor: {total_indoor_sqm:.1f} sqm ({total_indoor_sqm / sqm_per_tsubo:.1f} tsubo)"
-    )
-    lines.append(
-        f"Total outdoor: {total_outdoor_sqm:.1f} sqm ({total_outdoor_sqm / sqm_per_tsubo:.1f} tsubo)"
-    )
+    lines.append(f"Total indoor: {total_indoor_sqm:.1f} sqm ({total_indoor_sqm / sqm_per_tsubo:.1f} tsubo)")
+    lines.append(f"Total outdoor: {total_outdoor_sqm:.1f} sqm ({total_outdoor_sqm / sqm_per_tsubo:.1f} tsubo)")
 
     box_x = renderer._x(site_rect.x2) + 88
     box_y = renderer.margin_px + 300

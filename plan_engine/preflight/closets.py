@@ -70,9 +70,7 @@ def _check_closet_semantics(spec: PlanSpec, floor_id: str, report: ValidationRep
     floor_has_stair = floor.core.stair is not None or (global_stair is not None and floor_id in global_stair.connects)
 
     circulation_ids = {
-        space_id
-        for space_id, space_type in space_type_by_id.items()
-        if space_type in CIRCULATION_SPACE_TYPES
+        space_id for space_id, space_type in space_type_by_id.items() if space_type in CIRCULATION_SPACE_TYPES
     }
     if floor_has_stair and stair_id is not None:
         circulation_ids.add(stair_id)
@@ -86,9 +84,7 @@ def _check_closet_semantics(spec: PlanSpec, floor_id: str, report: ValidationRep
     for closet in floor.embedded_closets:
         parent_type = space_type_by_id.get(closet.parent_id)
         if parent_type is None:
-            report.errors.append(
-                f"preflight: {floor_id}:{closet.id} references unknown parent_id '{closet.parent_id}'"
-            )
+            report.errors.append(f"preflight: {floor_id}:{closet.id} references unknown parent_id '{closet.parent_id}'")
             continue
         if parent_type not in BEDROOM_SPACE_TYPES:
             report.errors.append(
@@ -103,9 +99,7 @@ def _check_closet_semantics(spec: PlanSpec, floor_id: str, report: ValidationRep
             continue
         parent_type = space_type_by_id.get(space.parent_id)
         if parent_type is None:
-            report.errors.append(
-                f"preflight: {floor_id}:{space.id} references unknown parent_id '{space.parent_id}'"
-            )
+            report.errors.append(f"preflight: {floor_id}:{space.id} references unknown parent_id '{space.parent_id}'")
             continue
         if space.type in WALK_IN_CLOSET_SPACE_TYPES and parent_type not in BEDROOM_SPACE_TYPES:
             report.errors.append(
@@ -155,9 +149,7 @@ def _warn_bedrooms_without_closet(spec: PlanSpec, floor_id: str, report: Validat
     for bedroom_id in sorted(bedroom_ids):
         if bedroom_id in closet_parent_ids:
             continue
-        report.warnings.append(
-            f"preflight: {floor_id}:{bedroom_id} has no associated closet or WIC"
-        )
+        report.warnings.append(f"preflight: {floor_id}:{bedroom_id} has no associated closet or WIC")
         report.suggestions.append(
             f"Add embedded closet or WIC for {floor_id}:{bedroom_id} "
             f"(for example under bedroom '{bedroom_id}': closet: {{id: {bedroom_id}_cl}})."

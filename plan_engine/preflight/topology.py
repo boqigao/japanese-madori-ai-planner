@@ -143,9 +143,7 @@ def _check_topology_reachability(
             ]
             if indoor_neighbors:
                 continue
-            report.errors.append(
-                f"preflight: {floor_id}:{outdoor_id} outdoor space has no indoor access topology edge"
-            )
+            report.errors.append(f"preflight: {floor_id}:{outdoor_id} outdoor space has no indoor access topology edge")
             report.suggestions.append(
                 f"Add topology adjacency like [{outdoor_id}, <indoor_room>, required] on {floor_id}."
             )

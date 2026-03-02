@@ -173,9 +173,7 @@ def _parse_floor(
     if isinstance(topology_raw, dict):
         for pair in topology_raw.get("adjacency", []):
             if not isinstance(pair, list) or len(pair) not in {2, 3}:
-                raise ValueError(
-                    f"topology adjacency entries must be 2-item or 3-item lists in floor {floor_id}"
-                )
+                raise ValueError(f"topology adjacency entries must be 2-item or 3-item lists in floor {floor_id}")
             left_id = str(pair[0])
             right_id = str(pair[1])
             if left_id in embedded_closet_ids or right_id in embedded_closet_ids:
@@ -385,9 +383,7 @@ def _parse_buildable_mask(
         elif {"x", "y", "w", "h"}.issubset(buildable_raw.keys()):
             rect_items = [buildable_raw]
         else:
-            raise ValueError(
-                f"buildable on floor {floor_id} must be a list or a mapping with 'rects'"
-            )
+            raise ValueError(f"buildable on floor {floor_id} must be a list or a mapping with 'rects'")
     else:
         raise ValueError(f"buildable on floor {floor_id} must be a list or mapping")
 
@@ -400,9 +396,7 @@ def _parse_buildable_mask(
             raise ValueError(f"buildable rect #{index} on floor {floor_id} must be a mapping")
         missing = {"x", "y", "w", "h"} - set(rect_raw.keys())
         if missing:
-            raise ValueError(
-                f"buildable rect #{index} on floor {floor_id} is missing keys: {sorted(missing)}"
-            )
+            raise ValueError(f"buildable rect #{index} on floor {floor_id} is missing keys: {sorted(missing)}")
         x = int(rect_raw["x"])
         y = int(rect_raw["y"])
         w = int(rect_raw["w"])
@@ -412,8 +406,7 @@ def _parse_buildable_mask(
         for field_name, value in (("x", x), ("y", y), ("w", w), ("h", h)):
             if value % minor != 0:
                 raise ValueError(
-                    f"buildable rect #{index} field '{field_name}' on floor {floor_id} "
-                    f"must align to {minor}mm grid"
+                    f"buildable rect #{index} field '{field_name}' on floor {floor_id} must align to {minor}mm grid"
                 )
         rects.append(BuildableRectSpec(x=x, y=y, w=w, h=h))
     return rects

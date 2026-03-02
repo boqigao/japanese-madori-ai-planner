@@ -128,9 +128,7 @@ def _validate_wic_topology_realization(
         floor_graph = floor_graphs.get(floor_id, {})
         type_by_id = {space_id: space.type for space_id, space in floor.spaces.items()}
         circulation_ids = {
-            space_id
-            for space_id, space in floor.spaces.items()
-            if space.type in CIRCULATION_SPACE_TYPES
+            space_id for space_id, space in floor.spaces.items() if space.type in CIRCULATION_SPACE_TYPES
         }
         if floor.stair is not None:
             circulation_ids.add(floor.stair.id)
@@ -152,9 +150,7 @@ def _validate_wic_topology_realization(
                 )
                 continue
             if space.parent_id not in declared_neighbors.get(space_id, set()):
-                report.errors.append(
-                    f"{floor_id}:{space_id} missing topology edge to parent '{space.parent_id}'"
-                )
+                report.errors.append(f"{floor_id}:{space_id} missing topology edge to parent '{space.parent_id}'")
             if space.parent_id not in floor_graph.get(space_id, set()):
                 report.errors.append(
                     f"{floor_id}:{space_id} parent edge to '{space.parent_id}' is not physically realized"
@@ -185,9 +181,7 @@ def _validate_wet_core_topology_realization(
         None.
     """
     for floor_id, floor in solution.floors.items():
-        wet_core_ids = [
-            space_id for space_id, space in floor.spaces.items() if space.type in WET_CORE_SPACE_TYPES
-        ]
+        wet_core_ids = [space_id for space_id, space in floor.spaces.items() if space.type in WET_CORE_SPACE_TYPES]
         if not wet_core_ids:
             continue
 
@@ -197,9 +191,7 @@ def _validate_wet_core_topology_realization(
         if floor.stair is not None:
             circulation_ids.add(floor.stair.id)
         if not circulation_ids:
-            report.errors.append(
-                f"{floor_id}: wet core exists but no hall/entry/stair circulation entity is present"
-            )
+            report.errors.append(f"{floor_id}: wet core exists but no hall/entry/stair circulation entity is present")
             continue
 
         declared_pairs: list[tuple[str, str]] = []
@@ -224,9 +216,7 @@ def _validate_wet_core_topology_realization(
                 break
 
         if not realized:
-            report.errors.append(
-                f"{floor_id}: wet core circulation topology is declared but not physically realized"
-            )
+            report.errors.append(f"{floor_id}: wet core circulation topology is declared but not physically realized")
 
 
 def _validate_outdoor_access_realization(
@@ -246,9 +236,7 @@ def _validate_outdoor_access_realization(
     """
     for floor_id, floor in solution.floors.items():
         floor_graph = floor_graphs.get(floor_id, {})
-        indoor_ids = {
-            space_id for space_id, space in floor.spaces.items() if is_indoor_space_type(space.type)
-        }
+        indoor_ids = {space_id for space_id, space in floor.spaces.items() if is_indoor_space_type(space.type)}
         for outdoor_id, outdoor_space in floor.spaces.items():
             if not is_outdoor_space_type(outdoor_space.type):
                 continue
@@ -260,8 +248,7 @@ def _validate_outdoor_access_realization(
                     declared_indoor_neighbors.add(left_id)
             if not declared_indoor_neighbors:
                 report.errors.append(
-                    f"{floor_id}:{outdoor_id} outdoor access topology is missing "
-                    "(expected edge to an indoor space)"
+                    f"{floor_id}:{outdoor_id} outdoor access topology is missing (expected edge to an indoor space)"
                 )
                 continue
             realized_neighbors = floor_graph.get(outdoor_id, set()).intersection(declared_indoor_neighbors)
@@ -422,17 +409,13 @@ def _floor_graph_from_realized_topology(
 
     for left_id, right_id in floor.topology:
         if left_id not in geometry_by_id or right_id not in geometry_by_id:
-            report.warnings.append(
-                f"{floor_id}: topology edge {left_id}<->{right_id} references missing solved entity"
-            )
+            report.warnings.append(f"{floor_id}: topology edge {left_id}<->{right_id} references missing solved entity")
             continue
         if _entities_touch(geometry_by_id[left_id], geometry_by_id[right_id]):
             graph[left_id].add(right_id)
             graph[right_id].add(left_id)
         else:
-            report.warnings.append(
-                f"{floor_id}: topology edge {left_id}<->{right_id} is not physically realized"
-            )
+            report.warnings.append(f"{floor_id}: topology edge {left_id}<->{right_id} is not physically realized")
 
     return graph
 

@@ -103,6 +103,9 @@ class SvgRenderer:
         blocked_segments: set[tuple[tuple[int, int], tuple[int, int]]] = set()
         if entry_wall_segment is not None:
             blocked_segments.add(_segment_key(entry_wall_segment))
+        for closet in floor.embedded_closets:
+            for seg in closet.blocked_exterior_segments:
+                blocked_segments.add(_segment_key(seg))
         window_opening_segments = self._draw_windows(drawing, floor, building_rect, blocked_segments)
         opening_segments = list(window_opening_segments)
         if entry_opening_segment is not None:
@@ -330,7 +333,10 @@ class SvgRenderer:
             )
 
     def _draw_structural_overlay(
-        self, drawing: svgwrite.Drawing, solution: PlanSolution, floor_id: str,
+        self,
+        drawing: svgwrite.Drawing,
+        solution: PlanSolution,
+        floor_id: str,
     ) -> None:
         """Draw structural wall-role overlay (only when PLAN_ENGINE_DRAW_STRUCTURAL_WALLS=1)."""
         if os.getenv("PLAN_ENGINE_DRAW_STRUCTURAL_WALLS", "0") != "1":
@@ -451,12 +457,22 @@ class SvgRenderer:
         """Delegate void guardrail rendering."""
         draw_void_guardrail(self, drawing, rect)
 
-    def _draw_door_symbol(self, drawing, p1, p2, exterior, boundary, reverse_swing, draw_arc=True, force_arc_small=False):
+    def _draw_door_symbol(
+        self, drawing, p1, p2, exterior, boundary, reverse_swing, draw_arc=True, force_arc_small=False
+    ):
         """Delegate door symbol rendering and return the opening segment."""
         return draw_door_symbol(
-            drawing=drawing, p1=p1, p2=p2, exterior=exterior, boundary=boundary,
-            reverse_swing=reverse_swing, draw_arc=draw_arc, force_arc_small=force_arc_small,
-            x_fn=self._x, y_fn=self._y, scale=self.scale,
+            drawing=drawing,
+            p1=p1,
+            p2=p2,
+            exterior=exterior,
+            boundary=boundary,
+            reverse_swing=reverse_swing,
+            draw_arc=draw_arc,
+            force_arc_small=force_arc_small,
+            x_fn=self._x,
+            y_fn=self._y,
+            scale=self.scale,
         )
 
     def _draw_window_symbol(

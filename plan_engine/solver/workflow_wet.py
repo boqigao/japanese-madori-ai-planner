@@ -200,9 +200,7 @@ def add_wet_core_circulation_constraints(spec: PlanSpec, ctx: SolveContext) -> N
     for floor_id, floor in spec.floors.items():
         space_type_by_id = {space.id: space.type for space in floor.spaces}
         wet_core_ids = [
-            space_id
-            for space_id, space_type in space_type_by_id.items()
-            if space_type in WET_CORE_SPACE_TYPES
+            space_id for space_id, space_type in space_type_by_id.items() if space_type in WET_CORE_SPACE_TYPES
         ]
         if not wet_core_ids:
             continue
@@ -229,9 +227,7 @@ def add_wet_core_circulation_constraints(spec: PlanSpec, ctx: SolveContext) -> N
                 declared_pairs.append((right_id, left_id))
 
         if not declared_pairs:
-            raise ValueError(
-                f"floor {floor_id} wet core requires topology adjacency to hall/entry/stair"
-            )
+            raise ValueError(f"floor {floor_id} wet core requires topology adjacency to hall/entry/stair")
 
         touch_vars: list[cp_model.IntVar] = []
         for wet_id, circulation_id in sorted(set(declared_pairs)):
@@ -286,9 +282,7 @@ def add_closet_parent_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
             if space.parent_id is None:
                 raise ValueError(f"floor {floor_id} wic '{space.id}' requires parent_id")
             if space.parent_id not in ctx.placements[floor_id]:
-                raise ValueError(
-                    f"floor {floor_id} wic '{space.id}' has unknown parent_id '{space.parent_id}'"
-                )
+                raise ValueError(f"floor {floor_id} wic '{space.id}' has unknown parent_id '{space.parent_id}'")
             parent_type = type_by_id.get(space.parent_id)
             if parent_type not in {"bedroom", "master_bedroom"}:
                 raise ValueError(
@@ -325,9 +319,7 @@ def add_closet_parent_constraints(spec: PlanSpec, ctx: SolveContext) -> None:
                         rects_b=ctx.placements[floor_id][neighbor_id],
                         max_w=ctx.envelope_w_cells,
                         max_h=ctx.envelope_h_cells,
-                        prefix=(
-                            f"{_slug(floor_id)}_wic_access_{_slug(space.id)}_{_slug(neighbor_id)}"
-                        ),
+                        prefix=(f"{_slug(floor_id)}_wic_access_{_slug(space.id)}_{_slug(neighbor_id)}"),
                         required=False,
                     )
                 )

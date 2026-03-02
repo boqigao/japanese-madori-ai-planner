@@ -108,9 +108,7 @@ def _parse_embedded_closet_spec(
             depth_raw = size_raw.get("min_width")
     depth_mm = int(depth_raw) if depth_raw is not None else None
     if depth_mm is not None and depth_mm % minor != 0:
-        raise ValueError(
-            f"embedded closet '{closet_payload['id']}' depth_mm must align to minor grid"
-        )
+        raise ValueError(f"embedded closet '{closet_payload['id']}' depth_mm must align to minor grid")
 
     return EmbeddedClosetSpec(
         id=str(closet_payload["id"]),
@@ -169,9 +167,7 @@ def _validate_floor_closet_references(
         raise ValueError(f"duplicate embedded closet id detected on {floor_id}")
     duplicate_between = ids.intersection(embedded_ids)
     if duplicate_between:
-        raise ValueError(
-            f"embedded closet ids on {floor_id} conflict with space ids: {sorted(duplicate_between)}"
-        )
+        raise ValueError(f"embedded closet ids on {floor_id} conflict with space ids: {sorted(duplicate_between)}")
     for space in spaces:
         if space.type not in WALK_IN_CLOSET_SPACE_TYPES:
             continue

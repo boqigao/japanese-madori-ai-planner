@@ -21,7 +21,7 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 6370,
+              "x": 0,
               "y": 4550,
               "w": 1820,
               "h": 1820
@@ -34,10 +34,10 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 0,
+              "x": 4550,
               "y": 0,
-              "w": 3640,
-              "h": 2730
+              "w": 4550,
+              "h": 2275
             }
           ]
         },
@@ -47,10 +47,10 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 3640,
-              "y": 0,
-              "w": 2275,
-              "h": 1365
+              "x": 1820,
+              "y": 4095,
+              "w": 1365,
+              "h": 2275
             }
           ]
         },
@@ -60,22 +60,22 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 5915,
-              "y": 0,
-              "w": 910,
-              "h": 910
-            },
-            {
-              "x": 5915,
-              "y": 910,
-              "w": 2275,
+              "x": 1820,
+              "y": 2275,
+              "w": 1365,
               "h": 1820
             },
             {
-              "x": 8190,
-              "y": 2275,
+              "x": 910,
+              "y": 910,
               "w": 910,
-              "h": 2275
+              "h": 1820
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "w": 2275,
+              "h": 910
             }
           ]
         },
@@ -85,10 +85,10 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 0,
-              "y": 2730,
-              "w": 6370,
-              "h": 3640
+              "x": 3185,
+              "y": 2275,
+              "w": 5915,
+              "h": 4095
             }
           ]
         },
@@ -98,9 +98,9 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 3640,
-              "y": 1365,
-              "w": 2275,
+              "x": 1820,
+              "y": 910,
+              "w": 1820,
               "h": 1365
             }
           ]
@@ -111,8 +111,8 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 8190,
-              "y": 4550,
+              "x": 0,
+              "y": 910,
               "w": 910,
               "h": 1820
             }
@@ -124,7 +124,7 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 6370,
+              "x": 0,
               "y": 2730,
               "w": 1820,
               "h": 1820
@@ -171,37 +171,49 @@
           "id": "bed1_cl",
           "parent_id": "bed1",
           "rect": {
-            "x": 2730,
+            "x": 4550,
             "y": 0,
             "w": 910,
-            "h": 2730
-          }
+            "h": 2275
+          },
+          "blocked_exterior_segments": [
+            [
+              [
+                4550,
+                0
+              ],
+              [
+                5460,
+                0
+              ]
+            ]
+          ]
         }
       ],
       "stair": {
         "id": "stair",
         "type": "L_landing",
         "bbox": {
-          "x": 6825,
+          "x": 2275,
           "y": 0,
           "w": 2275,
           "h": 2275
         },
         "components": [
           {
-            "x": 6825,
+            "x": 2275,
             "y": 0,
             "w": 1365,
             "h": 910
           },
           {
-            "x": 8190,
+            "x": 3640,
             "y": 0,
             "w": 910,
             "h": 910
           },
           {
-            "x": 8190,
+            "x": 3640,
             "y": 910,
             "w": 910,
             "h": 1365
@@ -243,10 +255,10 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 0,
-              "y": 3185,
-              "w": 5005,
-              "h": 3185
+              "x": 4550,
+              "y": 0,
+              "w": 4550,
+              "h": 3640
             }
           ]
         },
@@ -256,9 +268,9 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 5005,
+              "x": 3640,
               "y": 3640,
-              "w": 4095,
+              "w": 5460,
               "h": 2730
             }
           ]
@@ -269,22 +281,22 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 6825,
-              "y": 910,
-              "w": 1365,
-              "h": 1365
-            },
-            {
-              "x": 6825,
+              "x": 3640,
               "y": 2275,
-              "w": 2275,
+              "w": 910,
               "h": 1365
             },
             {
-              "x": 5005,
-              "y": 1820,
+              "x": 1820,
+              "y": 910,
               "w": 1820,
               "h": 1820
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "w": 2275,
+              "h": 910
             }
           ]
         },
@@ -295,9 +307,9 @@
           "rects": [
             {
               "x": 0,
-              "y": 0,
-              "w": 5005,
-              "h": 3185
+              "y": 2730,
+              "w": 3640,
+              "h": 3640
             }
           ]
         },
@@ -307,8 +319,8 @@
           "class": "indoor",
           "rects": [
             {
-              "x": 5005,
-              "y": 0,
+              "x": 0,
+              "y": 910,
               "w": 1820,
               "h": 1820
             }
@@ -347,47 +359,91 @@
           "id": "bed2_cl",
           "parent_id": "bed2",
           "rect": {
-            "x": 0,
-            "y": 3185,
-            "w": 1820,
-            "h": 910
-          }
+            "x": 8190,
+            "y": 0,
+            "w": 910,
+            "h": 3640
+          },
+          "blocked_exterior_segments": [
+            [
+              [
+                8190,
+                0
+              ],
+              [
+                9100,
+                0
+              ]
+            ],
+            [
+              [
+                9100,
+                0
+              ],
+              [
+                9100,
+                3640
+              ]
+            ]
+          ]
         },
         {
           "id": "bed3_cl",
           "parent_id": "bed3",
           "rect": {
-            "x": 5005,
+            "x": 8190,
             "y": 3640,
             "w": 910,
             "h": 2730
-          }
+          },
+          "blocked_exterior_segments": [
+            [
+              [
+                8190,
+                6370
+              ],
+              [
+                9100,
+                6370
+              ]
+            ],
+            [
+              [
+                9100,
+                3640
+              ],
+              [
+                9100,
+                6370
+              ]
+            ]
+          ]
         }
       ],
       "stair": {
         "id": "stair",
         "type": "L_landing",
         "bbox": {
-          "x": 6825,
+          "x": 2275,
           "y": 0,
           "w": 2275,
           "h": 2275
         },
         "components": [
           {
-            "x": 6825,
+            "x": 2275,
             "y": 0,
             "w": 1365,
             "h": 910
           },
           {
-            "x": 8190,
+            "x": 3640,
             "y": 0,
             "w": 910,
             "h": 910
           },
           {
-            "x": 8190,
+            "x": 3640,
             "y": 910,
             "w": 910,
             "h": 1365
@@ -438,62 +494,23 @@
         "kind": "exterior"
       },
       {
-        "id": "w_F1_v_3640_0_2730",
+        "id": "w_F1_v_910_910_2730",
         "floor_id": "F1",
         "orientation": "vertical",
-        "line_coord_mm": 3640,
+        "line_coord_mm": 910,
         "span_mm": [
-          0,
+          910,
           2730
         ],
-        "length_mm": 2730,
+        "length_mm": 1820,
         "role": "candidate_bearing",
         "kind": "interior"
       },
       {
-        "id": "w_F1_v_5915_0_2730",
+        "id": "w_F1_v_1820_910_2275",
         "floor_id": "F1",
         "orientation": "vertical",
-        "line_coord_mm": 5915,
-        "span_mm": [
-          0,
-          2730
-        ],
-        "length_mm": 2730,
-        "role": "partition",
-        "kind": "interior"
-      },
-      {
-        "id": "w_F1_v_6370_2730_6370",
-        "floor_id": "F1",
-        "orientation": "vertical",
-        "line_coord_mm": 6370,
-        "span_mm": [
-          2730,
-          6370
-        ],
-        "length_mm": 3640,
-        "role": "candidate_bearing",
-        "kind": "interior"
-      },
-      {
-        "id": "w_F1_v_6825_0_910",
-        "floor_id": "F1",
-        "orientation": "vertical",
-        "line_coord_mm": 6825,
-        "span_mm": [
-          0,
-          910
-        ],
-        "length_mm": 910,
-        "role": "partition",
-        "kind": "interior"
-      },
-      {
-        "id": "w_F1_v_8190_910_2275",
-        "floor_id": "F1",
-        "orientation": "vertical",
-        "line_coord_mm": 8190,
+        "line_coord_mm": 1820,
         "span_mm": [
           910,
           2275
@@ -503,15 +520,67 @@
         "kind": "interior"
       },
       {
-        "id": "w_F1_v_8190_2730_6370",
+        "id": "w_F1_v_1820_2730_6370",
         "floor_id": "F1",
         "orientation": "vertical",
-        "line_coord_mm": 8190,
+        "line_coord_mm": 1820,
         "span_mm": [
           2730,
           6370
         ],
         "length_mm": 3640,
+        "role": "candidate_bearing",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F1_v_2275_0_910",
+        "floor_id": "F1",
+        "orientation": "vertical",
+        "line_coord_mm": 2275,
+        "span_mm": [
+          0,
+          910
+        ],
+        "length_mm": 910,
+        "role": "partition",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F1_v_3185_2275_6370",
+        "floor_id": "F1",
+        "orientation": "vertical",
+        "line_coord_mm": 3185,
+        "span_mm": [
+          2275,
+          6370
+        ],
+        "length_mm": 4095,
+        "role": "partition",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F1_v_3640_910_2275",
+        "floor_id": "F1",
+        "orientation": "vertical",
+        "line_coord_mm": 3640,
+        "span_mm": [
+          910,
+          2275
+        ],
+        "length_mm": 1365,
+        "role": "candidate_bearing",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F1_v_4550_0_2275",
+        "floor_id": "F1",
+        "orientation": "vertical",
+        "line_coord_mm": 4550,
+        "span_mm": [
+          0,
+          2275
+        ],
+        "length_mm": 2275,
         "role": "candidate_bearing",
         "kind": "interior"
       },
@@ -542,67 +611,80 @@
         "kind": "exterior"
       },
       {
-        "id": "w_F1_h_910_6825_8190",
+        "id": "w_F1_h_910_0_910",
         "floor_id": "F1",
         "orientation": "horizontal",
         "line_coord_mm": 910,
         "span_mm": [
-          6825,
-          8190
+          0,
+          910
         ],
-        "length_mm": 1365,
+        "length_mm": 910,
         "role": "candidate_bearing",
         "kind": "interior"
       },
       {
-        "id": "w_F1_h_1365_3640_5915",
+        "id": "w_F1_h_910_1820_3640",
         "floor_id": "F1",
         "orientation": "horizontal",
-        "line_coord_mm": 1365,
+        "line_coord_mm": 910,
         "span_mm": [
-          3640,
-          5915
+          1820,
+          3640
         ],
-        "length_mm": 2275,
-        "role": "partition",
+        "length_mm": 1820,
+        "role": "candidate_bearing",
         "kind": "interior"
       },
       {
-        "id": "w_F1_h_2275_8190_9100",
+        "id": "w_F1_h_2275_1820_9100",
         "floor_id": "F1",
         "orientation": "horizontal",
         "line_coord_mm": 2275,
         "span_mm": [
-          8190,
+          1820,
           9100
         ],
-        "length_mm": 910,
+        "length_mm": 7280,
         "role": "partition",
         "kind": "interior"
       },
       {
-        "id": "w_F1_h_2730_0_8190",
+        "id": "w_F1_h_2730_0_1820",
         "floor_id": "F1",
         "orientation": "horizontal",
         "line_coord_mm": 2730,
         "span_mm": [
           0,
-          8190
+          1820
         ],
-        "length_mm": 8190,
+        "length_mm": 1820,
         "role": "candidate_bearing",
         "kind": "interior"
       },
       {
-        "id": "w_F1_h_4550_6370_9100",
+        "id": "w_F1_h_4095_1820_3185",
+        "floor_id": "F1",
+        "orientation": "horizontal",
+        "line_coord_mm": 4095,
+        "span_mm": [
+          1820,
+          3185
+        ],
+        "length_mm": 1365,
+        "role": "partition",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F1_h_4550_0_1820",
         "floor_id": "F1",
         "orientation": "horizontal",
         "line_coord_mm": 4550,
         "span_mm": [
-          6370,
-          9100
+          0,
+          1820
         ],
-        "length_mm": 2730,
+        "length_mm": 1820,
         "role": "candidate_bearing",
         "kind": "interior"
       },
@@ -635,41 +717,67 @@
         "kind": "exterior"
       },
       {
-        "id": "w_F2_v_5005_0_6370",
+        "id": "w_F2_v_1820_910_2730",
         "floor_id": "F2",
         "orientation": "vertical",
-        "line_coord_mm": 5005,
+        "line_coord_mm": 1820,
         "span_mm": [
-          0,
-          6370
-        ],
-        "length_mm": 6370,
-        "role": "partition",
-        "kind": "interior"
-      },
-      {
-        "id": "w_F2_v_6825_0_1820",
-        "floor_id": "F2",
-        "orientation": "vertical",
-        "line_coord_mm": 6825,
-        "span_mm": [
-          0,
-          1820
+          910,
+          2730
         ],
         "length_mm": 1820,
+        "role": "candidate_bearing",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F2_v_2275_0_910",
+        "floor_id": "F2",
+        "orientation": "vertical",
+        "line_coord_mm": 2275,
+        "span_mm": [
+          0,
+          910
+        ],
+        "length_mm": 910,
         "role": "partition",
         "kind": "interior"
       },
       {
-        "id": "w_F2_v_8190_910_2275",
+        "id": "w_F2_v_3640_910_2275",
         "floor_id": "F2",
         "orientation": "vertical",
-        "line_coord_mm": 8190,
+        "line_coord_mm": 3640,
         "span_mm": [
           910,
           2275
         ],
         "length_mm": 1365,
+        "role": "candidate_bearing",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F2_v_3640_2730_6370",
+        "floor_id": "F2",
+        "orientation": "vertical",
+        "line_coord_mm": 3640,
+        "span_mm": [
+          2730,
+          6370
+        ],
+        "length_mm": 3640,
+        "role": "candidate_bearing",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F2_v_4550_0_3640",
+        "floor_id": "F2",
+        "orientation": "vertical",
+        "line_coord_mm": 4550,
+        "span_mm": [
+          0,
+          3640
+        ],
+        "length_mm": 3640,
         "role": "candidate_bearing",
         "kind": "interior"
       },
@@ -700,67 +808,67 @@
         "kind": "exterior"
       },
       {
-        "id": "w_F2_h_910_6825_8190",
+        "id": "w_F2_h_910_0_1820",
         "floor_id": "F2",
         "orientation": "horizontal",
         "line_coord_mm": 910,
         "span_mm": [
-          6825,
-          8190
-        ],
-        "length_mm": 1365,
-        "role": "candidate_bearing",
-        "kind": "interior"
-      },
-      {
-        "id": "w_F2_h_1820_5005_6825",
-        "floor_id": "F2",
-        "orientation": "horizontal",
-        "line_coord_mm": 1820,
-        "span_mm": [
-          5005,
-          6825
+          0,
+          1820
         ],
         "length_mm": 1820,
         "role": "candidate_bearing",
         "kind": "interior"
       },
       {
-        "id": "w_F2_h_2275_8190_9100",
+        "id": "w_F2_h_910_2275_3640",
+        "floor_id": "F2",
+        "orientation": "horizontal",
+        "line_coord_mm": 910,
+        "span_mm": [
+          2275,
+          3640
+        ],
+        "length_mm": 1365,
+        "role": "candidate_bearing",
+        "kind": "interior"
+      },
+      {
+        "id": "w_F2_h_2275_3640_4550",
         "floor_id": "F2",
         "orientation": "horizontal",
         "line_coord_mm": 2275,
         "span_mm": [
-          8190,
-          9100
+          3640,
+          4550
         ],
         "length_mm": 910,
         "role": "partition",
         "kind": "interior"
       },
       {
-        "id": "w_F2_h_3185_0_5005",
+        "id": "w_F2_h_2730_0_3640",
         "floor_id": "F2",
         "orientation": "horizontal",
-        "line_coord_mm": 3185,
+        "line_coord_mm": 2730,
         "span_mm": [
           0,
-          5005
+          3640
         ],
-        "length_mm": 5005,
-        "role": "partition",
+        "length_mm": 3640,
+        "role": "candidate_bearing",
         "kind": "interior"
       },
       {
-        "id": "w_F2_h_3640_5005_9100",
+        "id": "w_F2_h_3640_3640_9100",
         "floor_id": "F2",
         "orientation": "horizontal",
         "line_coord_mm": 3640,
         "span_mm": [
-          5005,
+          3640,
           9100
         ],
-        "length_mm": 4095,
+        "length_mm": 5460,
         "role": "candidate_bearing",
         "kind": "interior"
       },
@@ -784,30 +892,30 @@
       "F1": {
         "floor_id": "F1",
         "total_wall_length_mm": 61425,
-        "total_bearing_length_mm": 54600,
-        "bearing_vertical_mm": 24115,
-        "bearing_horizontal_mm": 30485,
+        "total_bearing_length_mm": 47775,
+        "bearing_vertical_mm": 23205,
+        "bearing_horizontal_mm": 24570,
         "quadrant_bearing_mm": [
-          15015,
-          15015,
-          7735,
-          16835
+          18427,
+          8873,
+          12740,
+          7735
         ],
-        "wall_balance_ratio": 0.4594594594594595
+        "wall_balance_ratio": 0.4197644760405926
       },
       "F2": {
         "floor_id": "F2",
-        "total_wall_length_mm": 53690,
-        "total_bearing_length_mm": 39585,
-        "bearing_vertical_mm": 14105,
-        "bearing_horizontal_mm": 25480,
+        "total_wall_length_mm": 55510,
+        "total_bearing_length_mm": 53690,
+        "bearing_vertical_mm": 23205,
+        "bearing_horizontal_mm": 30485,
         "quadrant_bearing_mm": [
-          7735,
-          12285,
-          7735,
-          11830
+          19792,
+          9328,
+          12057,
+          12513
         ],
-        "wall_balance_ratio": 0.6296296296296297
+        "wall_balance_ratio": 0.47130153597413094
       }
     },
     "continuity_metrics": [
@@ -815,46 +923,91 @@
         "lower_floor_id": "F1",
         "upper_floor_id": "F2",
         "orientation": "vertical",
-        "upper_bearing_length_mm": 14105,
-        "supported_length_mm": 14105,
-        "direct_below_ratio": 1.0
+        "upper_bearing_length_mm": 23205,
+        "supported_length_mm": 17745,
+        "direct_below_ratio": 0.7647058823529411
       },
       {
         "lower_floor_id": "F1",
         "upper_floor_id": "F2",
         "orientation": "horizontal",
-        "upper_bearing_length_mm": 25480,
-        "supported_length_mm": 19565,
-        "direct_below_ratio": 0.7678571428571429
+        "upper_bearing_length_mm": 30485,
+        "supported_length_mm": 22295,
+        "direct_below_ratio": 0.7313432835820896
       }
     ],
     "vertical_transfer_required": [
       {
         "upper_floor_id": "F2",
-        "segment_id": "w_F2_h_1820_5005_6825",
-        "orientation": "horizontal",
+        "segment_id": "w_F2_v_1820_910_2730",
+        "orientation": "vertical",
         "line_coord_mm": 1820,
         "span_mm": [
-          5005,
-          6825
+          910,
+          2730
+        ],
+        "unsupported_length_mm": 455
+      },
+      {
+        "upper_floor_id": "F2",
+        "segment_id": "w_F2_v_3640_2730_6370",
+        "orientation": "vertical",
+        "line_coord_mm": 3640,
+        "span_mm": [
+          2730,
+          6370
+        ],
+        "unsupported_length_mm": 3640
+      },
+      {
+        "upper_floor_id": "F2",
+        "segment_id": "w_F2_v_4550_0_3640",
+        "orientation": "vertical",
+        "line_coord_mm": 4550,
+        "span_mm": [
+          0,
+          3640
+        ],
+        "unsupported_length_mm": 1365
+      },
+      {
+        "upper_floor_id": "F2",
+        "segment_id": "w_F2_h_910_0_1820",
+        "orientation": "horizontal",
+        "line_coord_mm": 910,
+        "span_mm": [
+          0,
+          1820
+        ],
+        "unsupported_length_mm": 910
+      },
+      {
+        "upper_floor_id": "F2",
+        "segment_id": "w_F2_h_2730_0_3640",
+        "orientation": "horizontal",
+        "line_coord_mm": 2730,
+        "span_mm": [
+          0,
+          3640
         ],
         "unsupported_length_mm": 1820
       },
       {
         "upper_floor_id": "F2",
-        "segment_id": "w_F2_h_3640_5005_9100",
+        "segment_id": "w_F2_h_3640_3640_9100",
         "orientation": "horizontal",
         "line_coord_mm": 3640,
         "span_mm": [
-          5005,
+          3640,
           9100
         ],
-        "unsupported_length_mm": 4095
+        "unsupported_length_mm": 5460
       }
     ],
     "warnings": [
-      "F1: wall-balance ratio 0.46 below target 0.50",
-      "vertical transfer required on 2 upper-floor bearing segments"
+      "F1: wall-balance ratio 0.42 below target 0.50",
+      "F2: wall-balance ratio 0.47 below target 0.50",
+      "vertical transfer required on 6 upper-floor bearing segments"
     ],
     "assumptions": [
       "Bearing roles are heuristic proxies (not final structural certification).",

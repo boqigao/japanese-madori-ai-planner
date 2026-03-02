@@ -48,19 +48,24 @@ class EmbeddedClosetGeometry:
         id: Closet identifier.
         parent_id: Host room identifier.
         rect: Embedded closet rectangle in millimeters.
+        blocked_exterior_segments: Exterior wall segments occupied by this closet.
     """
 
     id: str
     parent_id: str
     rect: Rect
+    blocked_exterior_segments: list[tuple[tuple[int, int], tuple[int, int]]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         """Return embedded closet geometry as a plain dictionary."""
-        return {
+        payload: dict[str, object] = {
             "id": self.id,
             "parent_id": self.parent_id,
             "rect": self.rect.to_dict(),
         }
+        if self.blocked_exterior_segments:
+            payload["blocked_exterior_segments"] = [[list(p1), list(p2)] for p1, p2 in self.blocked_exterior_segments]
+        return payload
 
 
 @dataclass(frozen=True)

@@ -1,25 +1,27 @@
 valid=True
 errors=0
 warnings=8
-structural=6
+structural=8
 
 Warnings:
 - preflight: F1:bed1 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
 - preflight: F1:study1 has closet but all 1 topology neighbors produce doors — closet may conflict with openings
 - F1:study1 bedroom short side 1820mm is below 2730mm livability threshold
 - F1:wash1 misses north-facing service preference (north edge=top)
-- F2:master bedroom short side 2275mm is below 2730mm livability threshold
 - F2:master misses south-facing preference (south edge=bottom)
 - F2:bed4 bedroom short side 2275mm is below 2730mm livability threshold
-- F2: secondary bedroom area (8.4jo) exceeds master bedroom (7.7jo)
+- F2:bed4 misses south-facing preference (south edge=bottom)
+- structural: vertical transfer required on 1 upper-floor bearing segments
 
 Structural:
 - bearing model: proxy roles (exterior=load_bearing, major-grid interior=candidate_bearing)
 - threshold profile: direct_below>=0.50, wall_balance>=0.50 (warn-only mode)
 - F1: bearing=67340mm (V/H=36400/30940), balance=0.57
-- F2: bearing=37310mm (V/H=20930/16380), balance=0.64
-- F2->F1 vertical: supported=20930/20930mm, direct_below=1.00
+- F2: bearing=40040mm (V/H=23660/16380), balance=0.67
+- F2->F1 vertical: supported=20930/23660mm, direct_below=0.88
 - F2->F1 horizontal: supported=16380/16380mm, direct_below=1.00
+- vertical_transfer_required=1
+- F2:w_F2_v_2730_0_5005 unsupported=2730mm at vertical@2730
 
 Diagnostics:
 - F1: envelope=324 cells, buildable=324 cells, min=301, max=523, rooms=9, hall_fanout=5
@@ -39,8 +41,8 @@ Diagnostics:
 - F2:master orientation major_south edge=bottom status=miss
 - F2:bed2 orientation major_south edge=bottom status=ok
 - F2:bed3 orientation major_south edge=bottom status=ok
-- F2:bed4 orientation major_south edge=bottom status=ok
-- F2: orientation_summary north=top south=bottom major_south=3/4 service_north=0/0
+- F2:bed4 orientation major_south edge=bottom status=miss
+- F2: orientation_summary north=top south=bottom major_south=2/4 service_north=0/0
 - F1: area indoor=67.08sqm outdoor=0.00sqm
 - F2: area indoor=67.08sqm outdoor=0.00sqm
 - total_area: indoor=134.15sqm outdoor=0.00sqm

@@ -1,86 +1,89 @@
-## ADDED Requirements
+# Closet Semantics Specification
 
-### Requirement: Wall Classification for Closet Placement
+## Purpose
+Defines the rules for embedded closet placement within parent rooms (bedrooms). Closets are placed as strips spanning the full short side of the parent room, with wall selection based on CL-rect overlap simulation and building boundary detection.
 
-The system MUST classify each wall (top, bottom, left, right) of a parent room into one of: `free` (interior, no door), `exterior` (coincides with building footprint boundary), `door` (shared segment with a topology-adjacent space that receives an interior door), or `both` (exterior and door). Classification MUST use the same door-eligibility rules as the renderer.
-
-#### Scenario: Interior wall with no door-eligible neighbor
-
-- **GIVEN** a bedroom rect at (1820, 910, 3640, 2275) mm and building boundary at (0, 0, 9100, 5460) mm
-- **AND** the bedroom's bottom wall (y2=3185) does not coincide with building boundary (y2=5460)
-- **AND** no topology-adjacent space with a door-eligible type shares a segment on the bottom wall
-- **WHEN** wall classification runs
-- **THEN** the bottom wall is classified as `free`
-
-#### Scenario: Exterior wall detection
-
-- **GIVEN** a bedroom rect whose right edge x2 equals the building footprint right edge x2
-- **WHEN** wall classification runs
-- **THEN** the right wall is classified as `exterior` (or `both` if also a door wall)
-
-#### Scenario: Door wall detection
-
-- **GIVEN** a bedroom with topology adjacency to a hall, and the hall's solved rect shares a positive-length collinear edge on the bedroom's left wall
-- **WHEN** wall classification runs
-- **THEN** the left wall is classified as `door`
+## Requirements
 
 ### Requirement: Full-Wall-Span Closet Placement
 
-The system MUST prefer placing an embedded closet as a strip spanning the full length of the chosen wall at the configured depth. The wall selection MUST follow this priority: (1) `free` walls, shorter wall first; (2) `free` walls, longer wall; (3) partial span on non-free walls avoiding conflicts. The closet rect MUST remain 455mm-grid-aligned.
+The system MUST place an embedded closet as a strip spanning the full short side of the parent room, cut from one end of the long axis. Given a parent room rect with width `W` and height `H`:
 
-#### Scenario: Closet placed on shortest free wall
+- Short side `S = min(W, H)`, Long side `L = max(W, H)`.
+- CL length = `S` (spans the entire short side).
+- CL depth `d` is determined from the closet spec's depth or default 910mm (2 cells), 455mm-grid-aligned.
+- CL is placed at one end of the long axis: the resulting CL rect has dimensions `d × S` (if room is horizontal, W > H) or `S × d` (if room is vertical, H > W).
+- Remaining bedroom rect is `(L - d) × S`, always rectangular.
 
-- **GIVEN** a bedroom (4550 x 2275 mm) with `free` classification on top wall (4550mm long) and right wall (2275mm long)
-- **AND** closet depth is 910mm (2 cells)
+Wall selection among the two long-axis-end candidates uses CL-rect overlap simulation. For each candidate wall, the system computes the CL rect that would result from placement on that wall (`_place_closet_on_wall`) and checks whether it physically overlaps any door segment involving the host room — including doors on perpendicular walls near the CL strip corner. Scoring per candidate: `(blocks_any_door, is_exterior)`.
+
+1. Avoid walls where the simulated CL rect would overlap any door segment. This covers doors on the candidate wall itself AND doors on perpendicular walls whose segment falls within the CL strip zone.
+2. Among non-blocking candidates, prefer interior walls (not on building boundary) to preserve exterior walls for windows.
+
+If `S × d > 2 × target_area`, reduce depth to `d' = ceil(target_area / S)` rounded up to the next 455mm multiple. Minimum depth is 455mm (1 cell).
+
+#### Scenario: Horizontal bedroom — CL on interior end
+
+- **GIVEN** a bedroom rect (0, 3185, 5460, 2275) mm with building boundary (0, 0, 9100, 5460)
+- **AND** short side = 2275mm (left/right walls), long side = 5460mm (top/bottom direction)
+- **AND** left wall (x=0) is on building boundary (exterior), right wall (x2=5460) is interior
+- **AND** CL depth = 910mm
 - **WHEN** closet placement runs
-- **THEN** closet is placed spanning the full right wall: rect (3640, 910, 910, 2275) mm
+- **THEN** CL rect = (4550, 3185, 910, 2275) — at the right (interior) end, spanning full short side 2275mm
+- **AND** remaining bedroom = (0, 3185, 4550, 2275) — rectangular
 
-#### Scenario: Closet placed spanning full wall at requested depth
+#### Scenario: Vertical bedroom — CL on interior end
 
-- **GIVEN** a bedroom (3640 x 2730 mm) with bottom wall classified as `free`
-- **AND** closet spec has `depth_mm: 910`
+- **GIVEN** a bedroom rect (6370, 0, 2730, 5460) mm with building boundary (0, 0, 9100, 5460)
+- **AND** short side = 2730mm (top/bottom walls), long side = 5460mm (left/right direction)
+- **AND** top wall (y=0) is on building boundary (exterior), bottom wall (y2=5460) is on boundary (exterior)
+- **AND** left wall (x=6370) is interior (hall adjacent)
+- **AND** CL depth = 910mm
 - **WHEN** closet placement runs
-- **THEN** closet rect spans full bottom wall width: (x=bedroom.x, y=bedroom.y2-910, w=3640, h=910) mm
+- **THEN** CL is placed at top or bottom end (both exterior, pick based on door position)
+- **AND** CL rect spans full short side: width = 2730mm, depth = 910mm
+- **AND** remaining bedroom is rectangular: 2730 × 4550mm
 
-#### Scenario: No free wall available falls back to partial span
+#### Scenario: Overshoot cap reduces depth
 
-- **GIVEN** a bedroom where all four walls are classified as `exterior` or `door`
+- **GIVEN** a bedroom rect (0, 0, 1820, 5460) mm
+- **AND** short side = 1820mm, CL target area = 1,620,000 mm2 (1 tatami)
+- **AND** default depth 910mm gives area 1820 × 910 = 1,656,200 mm2 which is ≤ 2 × target
 - **WHEN** closet placement runs
-- **THEN** closet is placed as a partial strip on the least-conflicting wall, using the area-based sizing logic
+- **THEN** CL depth = 910mm, CL rect = 1820 × 910mm (full short side span)
 
-#### Scenario: Overshoot cap triggers partial span
+#### Scenario: Near-square room
 
-- **GIVEN** a bedroom (4550 x 1820 mm) with one `free` wall (the 4550mm long bottom wall)
-- **AND** closet target is 1.0 tatami (~1.66 sqm) and depth is 910mm
-- **AND** full-span area (4550 x 910 = 4.14 sqm) exceeds 2x target area
+- **GIVEN** a bedroom rect (0, 0, 2730, 2730) mm (perfect square)
 - **WHEN** closet placement runs
-- **THEN** closet uses partial span on the free wall, sized to approximate target area: rect width = ceil(target_area / depth) grid-aligned
-
-### Requirement: Closet Must Not Overlap Exterior Walls
-
-The system MUST NOT place an embedded closet on a wall classified as `exterior` when at least one `free` or `door` wall is available. This prevents closets from blocking window placement on exterior walls.
-
-#### Scenario: Exterior wall avoided when free wall exists
-
-- **GIVEN** a master bedroom with top wall `exterior` and bottom wall `free`
-- **WHEN** closet placement runs
-- **THEN** closet is placed on the bottom wall, not the top wall
-
-#### Scenario: Exterior wall used only as last resort
-
-- **GIVEN** a corner bedroom where top and right walls are `exterior`, left wall is `door`, and bottom wall is `door`
-- **WHEN** closet placement runs
-- **THEN** closet is placed on either the left or bottom `door` wall (not on an `exterior` wall)
+- **THEN** CL is placed on whichever wall is interior (not on building boundary), spanning the full 2730mm
 
 ### Requirement: Closet Must Not Block Doorways
 
-The system MUST NOT place an embedded closet on a wall classified as `door` when at least one `free` wall is available. When a `door` wall must be used (no `free` walls), the closet MUST be sized and positioned to leave the door segment unobstructed.
+The system MUST use computed door segments to ensure CL does not physically overlap a door. Because the CL strip spans the full short side, its edges align with the host room boundary — this means the CL can block doors not only on the candidate wall but also on perpendicular walls near the CL strip corner. Wall selection MUST simulate the CL rect and reject candidates that would overlap any door segment. As a secondary defense, the renderer MUST trim door segments to exclude CL-overlapping portions.
 
-#### Scenario: Door wall avoided when free wall exists
+#### Scenario: CL and door on the same wall — door slides away
 
-- **GIVEN** a bedroom with left wall shared with hall (`door`) and bottom wall interior (`free`)
+- **GIVEN** a bedroom with CL placed at the right end (interior wall)
+- **AND** the right wall has a door segment from hall adjacency at the upper portion
+- **WHEN** renderer draws the door
+- **THEN** the door is positioned on the shared segment portion that does not overlap with the CL rect
+
+#### Scenario: CL on wall with no door — no conflict
+
+- **GIVEN** a bedroom with CL placed at the top end
+- **AND** the top wall has no topology-adjacent door-eligible neighbor
 - **WHEN** closet placement runs
-- **THEN** closet is placed on the bottom wall, not the left wall
+- **THEN** CL is placed without door conflict consideration
+
+#### Scenario: CL would block door on perpendicular wall — avoids that wall
+
+- **GIVEN** a vertical bedroom rect (0, 2730, 2275, 5460) mm with candidates top/bottom
+- **AND** the hall door is on the right wall (x=2275) at y=[2730, 3640]
+- **AND** CL on "top" would produce rect (0, 2730, 2275, 910) whose right edge (x=2275) overlaps the door segment
+- **WHEN** wall selection simulates CL rects for each candidate
+- **THEN** "top" is rejected (blocks perpendicular door), "bottom" is chosen instead
+- **AND** the door remains unobstructed
 
 ### Requirement: Shared Door-Eligibility Logic
 

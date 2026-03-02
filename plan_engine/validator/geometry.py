@@ -79,14 +79,10 @@ def validate_geometry(spec: PlanSpec, solution: PlanSolution, report: Validation
         for closet in floor.embedded_closets:
             parent = floor.spaces.get(closet.parent_id)
             if parent is None:
-                report.errors.append(
-                    f"{floor_id}:{closet.id} references missing parent_id '{closet.parent_id}'"
-                )
+                report.errors.append(f"{floor_id}:{closet.id} references missing parent_id '{closet.parent_id}'")
                 continue
             if not any(_contains_rect(parent_rect, closet.rect) for parent_rect in parent.rects):
-                report.errors.append(
-                    f"{floor_id}:{closet.id} is not inside parent '{closet.parent_id}'"
-                )
+                report.errors.append(f"{floor_id}:{closet.id} is not inside parent '{closet.parent_id}'")
             if closet.rect.x < 0 or closet.rect.y < 0 or closet.rect.x2 > width or closet.rect.y2 > depth:
                 report.errors.append(f"{floor_id}:{closet.id} is outside site envelope")
             for value_name, value in (
@@ -165,10 +161,7 @@ def _touches_exterior(rect: Rect, width: int, depth: int) -> bool:
 def _is_inside_any(rect: Rect, containers: list[Rect]) -> bool:
     """Return True when ``rect`` is fully contained in at least one container."""
     return any(
-        rect.x >= container.x
-        and rect.y >= container.y
-        and rect.x2 <= container.x2
-        and rect.y2 <= container.y2
+        rect.x >= container.x and rect.y >= container.y and rect.x2 <= container.x2 and rect.y2 <= container.y2
         for container in containers
     )
 
@@ -180,9 +173,4 @@ def _entities_touch(rects_a: list[Rect], rects_b: list[Rect]) -> bool:
 
 def _contains_rect(container: Rect, inner: Rect) -> bool:
     """Return True when ``inner`` is fully inside ``container``."""
-    return (
-        inner.x >= container.x
-        and inner.y >= container.y
-        and inner.x2 <= container.x2
-        and inner.y2 <= container.y2
-    )
+    return inner.x >= container.x and inner.y >= container.y and inner.x2 <= container.x2 and inner.y2 <= container.y2

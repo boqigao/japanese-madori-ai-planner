@@ -157,8 +157,7 @@ def run_preflight(spec: PlanSpec) -> PreflightResult:
 
         if hall_fanout >= 8:
             report.warnings.append(
-                f"preflight: {floor_id} hall adjacency fanout is {hall_fanout} (>=8), "
-                "this often makes solving harder"
+                f"preflight: {floor_id} hall adjacency fanout is {hall_fanout} (>=8), this often makes solving harder"
             )
 
         report.diagnostics.append(
@@ -211,9 +210,7 @@ def build_solver_failure_report(
     for floor_id in sorted(floor_stats):
         stats = floor_stats[floor_id]
         if stats.hall_fanout >= 7:
-            report.suggestions.append(
-                f"Reduce {floor_id} hall adjacency fanout from {stats.hall_fanout} to <=6."
-            )
+            report.suggestions.append(f"Reduce {floor_id} hall adjacency fanout from {stats.hall_fanout} to <=6.")
     report.suggestions.append("Simplify hall shape/component count when using multi-rectangle hall.")
     return report
 
@@ -240,7 +237,7 @@ def _stair_area_by_floor(
     floors_with_stair.update(fid for fid, floor in spec.floors.items() if floor.core.stair is not None)
     floors_with_stair.intersection_update(spec.floors.keys())
     stair_area = sum(component[3] * component[4] for component in footprint.components)
-    return {floor_id: stair_area for floor_id in floors_with_stair}
+    return dict.fromkeys(floors_with_stair, stair_area)
 
 
 def _floor_area_budget(
@@ -278,10 +275,7 @@ def _floor_area_budget(
 def _check_envelope_alignment(spec: PlanSpec, report: ValidationReport) -> None:
     """Verify site envelope aligns to the minor grid (defensive duplicate check)."""
     if spec.site.envelope.width % spec.grid.minor != 0 or spec.site.envelope.depth % spec.grid.minor != 0:
-        report.errors.append(
-            "preflight: envelope width/depth must align to minor grid "
-            f"({spec.grid.minor}mm)"
-        )
+        report.errors.append(f"preflight: envelope width/depth must align to minor grid ({spec.grid.minor}mm)")
 
 
 def _check_room_min_width(
@@ -358,9 +352,7 @@ def _check_major_room_exterior_touch_feasibility(
         f"Adjust {floor_id} buildable_mask so at least one rectangle reaches envelope edge for "
         "bedroom/master_bedroom/ldk exterior-touch."
     )
-    report.suggestions.append(
-        f"Or move one of [{major_list}] to another floor where buildable mask contacts exterior."
-    )
+    report.suggestions.append(f"Or move one of [{major_list}] to another floor where buildable mask contacts exterior.")
 
 
 def _rect_touches_envelope_edge(
@@ -388,10 +380,7 @@ def _rect_touches_envelope_edge(
     if w_cells <= 0 or h_cells <= 0:
         return False
     return (
-        x_cells == 0
-        or y_cells == 0
-        or x_cells + w_cells == envelope_w_cells
-        or y_cells + h_cells == envelope_h_cells
+        x_cells == 0 or y_cells == 0 or x_cells + w_cells == envelope_w_cells or y_cells + h_cells == envelope_h_cells
     )
 
 
@@ -437,8 +426,7 @@ def _check_buildable_mask_consistency(
                 )
         if rect.x < 0 or rect.y < 0 or rect.x + rect.w > envelope_w_mm or rect.y + rect.h > envelope_h_mm:
             report.errors.append(
-                f"preflight: {floor_id} buildable rect #{index} is outside envelope "
-                f"({envelope_w_mm}x{envelope_h_mm}mm)"
+                f"preflight: {floor_id} buildable rect #{index} is outside envelope ({envelope_w_mm}x{envelope_h_mm}mm)"
             )
         if aligned:
             total_cells += mm_to_cells(rect.w, spec.grid.minor) * mm_to_cells(rect.h, spec.grid.minor)

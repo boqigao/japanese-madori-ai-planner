@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, TypeAlias
+from typing import Literal
 
-StairType: TypeAlias = Literal["straight", "L_landing", "U_turn"]
+type StairType = Literal["straight", "L_landing", "U_turn"]
 
 
 @dataclass(frozen=True)

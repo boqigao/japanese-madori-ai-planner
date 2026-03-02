@@ -30,6 +30,8 @@ def draw_interior_doors(renderer, drawing: svgwrite.Drawing, floor: FloorSolutio
     Returns:
         None.
     """
+    closet_rects = [closet.rect for closet in floor.embedded_closets]
+
     door_entries: list[tuple[int, tuple[tuple[int, int], tuple[int, int]], str, str]] = []
     door_pairs: set[frozenset[str]] = set()
     for index, (left_id, right_id) in enumerate(floor.topology):
@@ -45,6 +47,9 @@ def draw_interior_doors(renderer, drawing: svgwrite.Drawing, floor: FloorSolutio
         left_type = floor.spaces[left_id].type if left_id in floor.spaces else left_id
         right_type = floor.spaces[right_id].type if right_id in floor.spaces else right_id
         if not _should_draw_interior_door(left_type, right_type):
+            continue
+        segment = _trim_segment_for_closets(segment, closet_rects)
+        if _segment_length(segment[0], segment[1]) <= 0:
             continue
         door_entries.append((index, segment, left_type, right_type))
         door_pairs.add(frozenset((left_id, right_id)))
@@ -192,3 +197,56 @@ def draw_windows(
             else:
                 opening_segments.append(renderer._draw_window_symbol(drawing, segment[0], segment[1], offset_ratio=0.5))
     return opening_segments
+
+
+def _trim_segment_for_closets(
+    segment: tuple[tuple[int, int], tuple[int, int]],
+    closet_rects: list[Rect],
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Trim a door segment to exclude portions overlapping with closet rects.
+
+    For each closet rect that overlaps the segment's wall line, the
+    overlapping portion is removed and the longest remaining piece is returned.
+
+    Args:
+        segment: Door segment ``((x1, y1), (x2, y2))``.
+        closet_rects: All embedded closet rects on this floor.
+
+    Returns:
+        Trimmed segment (longest non-overlapping portion), or original if
+        no closets overlap.
+    """
+    (x1, y1), (x2, y2) = segment
+    is_vertical = x1 == x2
+    if is_vertical:
+        seg_coord = x1
+        seg_start = min(y1, y2)
+        seg_end = max(y1, y2)
+    else:
+        seg_coord = y1
+        seg_start = min(x1, x2)
+        seg_end = max(x1, x2)
+
+    for cr in closet_rects:
+        if is_vertical and cr.x <= seg_coord <= cr.x2 and cr.y < seg_end and cr.y2 > seg_start:
+            overlap_start = max(seg_start, cr.y)
+            overlap_end = min(seg_end, cr.y2)
+            left_len = overlap_start - seg_start
+            right_len = seg_end - overlap_end
+            if right_len >= left_len:
+                seg_start = overlap_end
+            else:
+                seg_end = overlap_start
+        elif not is_vertical and cr.y <= seg_coord <= cr.y2 and cr.x < seg_end and cr.x2 > seg_start:
+            overlap_start = max(seg_start, cr.x)
+            overlap_end = min(seg_end, cr.x2)
+            left_len = overlap_start - seg_start
+            right_len = seg_end - overlap_end
+            if right_len >= left_len:
+                seg_start = overlap_end
+            else:
+                seg_end = overlap_start
+
+    if is_vertical:
+        return (seg_coord, seg_start), (seg_coord, seg_end)
+    return (seg_start, seg_coord), (seg_end, seg_coord)
