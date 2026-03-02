@@ -1,5 +1,5 @@
 [project]
-name = "ai-driven-plan-engine"
+name = "japanese-madori-ai-planner"
 version = "0.1.0"
 description = "Constraint-based Japanese detached-house floor plan generator"
 license = "MIT"

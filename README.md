@@ -1,4 +1,4 @@
-# AI-Driven Plan Engine
+# Japanese Madori AI Planner
 
 Constraint-based Japanese detached-house floor plan generator.
 
