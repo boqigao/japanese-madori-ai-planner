@@ -6,6 +6,8 @@ This project reads a YAML DSL (`spec.yaml`), solves layout geometry with OR-Tool
 
 Pipeline: `DSL -> Solver -> Validator -> Renderer`
 
+Includes a **Spec Generator** (`gen_spec.py`) that auto-creates `spec.yaml` from high-level inputs (envelope size + room count), eliminating the need to hand-author grid alignments, area budgets, and topology rules.
+
 ## What It Supports
 
 - 455mm grid-based planning (`minor=455`, `major=910`)
@@ -18,7 +20,9 @@ Pipeline: `DSL -> Solver -> Validator -> Renderer`
 - Hall/LDK multi-rectangle support (`L2`)
 - Floor-level indoor buildable masks
 - Outdoor spaces (`balcony`, `veranda`) with explicit indoor-access rules
+- Compact wet module types (`washstand`, `shower`) for tight layouts
 - Output artifacts: `solution.json`, `report.txt`, `{floor}.svg`, `{floor}.png`
+- **Spec Generator**: auto-generate `spec.yaml` from `--envelope 8x9 --rooms 5ldk`
 
 ## Quick Start
 
@@ -32,6 +36,20 @@ Pipeline: `DSL -> Solver -> Validator -> Renderer`
 ```bash
 uv sync
 ```
+
+### Generate a spec (recommended for new users)
+
+```bash
+uv run python gen_spec.py --envelope 8x9 --rooms 5ldk
+```
+
+This creates `spec.yaml` with proper grid alignment, area allocation, and topology. Then solve it:
+
+```bash
+uv run python main.py --spec spec.yaml --outdir plan_output --solver-timeout 90
+```
+
+For more options, see [docs/spec_generator.md](docs/spec_generator.md).
 
 ### Run (default tmp spec)
 
@@ -102,12 +120,11 @@ done
 
 ## Spec Authoring Guide
 
-For a full step-by-step guide (from land dimensions to valid topology), read:
+**Auto-generate** (recommended): [docs/spec_generator.md](docs/spec_generator.md)
+- Generate `spec.yaml` from `--envelope 8x9 --rooms 5ldk`
+- Handles grid snap, area allocation, wet selection, topology
 
-- [docs/how_to_use.md](docs/how_to_use.md)
-
-It includes:
-
+**Hand-author**: [docs/how_to_use.md](docs/how_to_use.md)
 - Complete `spec.yaml` schema walkthrough
 - Room type and shape rules (including `storage` vs `closet` vs `wic`)
 - Buildable mask + balcony/veranda semantics
@@ -117,7 +134,8 @@ It includes:
 ## Project Structure
 
 ```text
-main.py
+main.py              # solver/renderer entrypoint
+gen_spec.py          # spec generator entrypoint
 Makefile
 
 plan_engine/
@@ -131,9 +149,18 @@ plan_engine/
   validator/
   renderer/
   structural/
+  generator/         # spec generator pipeline
+    cli.py           #   CLI + room spec parser
+    metrics.py       #   grid snap + floor metrics
+    distribute.py    #   room distribution + wet selection
+    allocate.py      #   proportional area allocation
+    topology.py      #   adjacency generation
+    emit.py          #   YAML emission + feasibility check
+    profiles.py      #   room profiles + constants
 
 docs/
-  how_to_use.md
+  how_to_use.md      # manual spec authoring guide
+  spec_generator.md  # generator usage guide
 examples/
 resources/specs/
 tests/

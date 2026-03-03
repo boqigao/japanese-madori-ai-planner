@@ -2,6 +2,11 @@
 
 This guide is for users who want to create a valid `spec.yaml` from scratch and generate realistic Japanese detached-house floor plans.
 
+> **Tip:** If you want to skip hand-authoring, use the **Spec Generator** to create a `spec.yaml` automatically from envelope size and room count. See [docs/spec_generator.md](spec_generator.md) or run:
+> ```bash
+> uv run python gen_spec.py --envelope 8x9 --rooms 5ldk
+> ```
+
 ## 1. Mental Model
 
 The engine is strict and deterministic before solving:
@@ -488,4 +493,20 @@ Useful numeric context (area budgets, buildable stats, breakdowns).
 
 ---
 
-If you want, the next iteration can add a second guide with copy-ready design patterns (compact 4LDK, narrow-frontage lot, balcony-heavy 2F, hiraya variants).
+## 17. Spec Generator (Auto-Generate `spec.yaml`)
+
+Instead of hand-authoring, you can use `gen_spec.py` to generate a complete `spec.yaml` from high-level inputs:
+
+```bash
+# Simple: just envelope + room count
+uv run python gen_spec.py --envelope 8x9 --rooms 5ldk
+
+# Detailed: per-floor room specs
+uv run python gen_spec.py --envelope 8x9 \
+  --f1 "ldk@18, bed, toilet, wash+bath" \
+  --f2 "master+wic@8+2, bed:3@6, toilet, ws+shower"
+```
+
+The generator handles grid snapping, room distribution, area allocation, wet module selection, and topology generation automatically. It prints a feasibility report before writing the YAML.
+
+For the full guide, see [docs/spec_generator.md](spec_generator.md).
