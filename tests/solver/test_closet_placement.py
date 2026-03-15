@@ -7,6 +7,7 @@ from plan_engine.solver.solution_builder import (
     _closet_blocked_exterior_segments,
     _pick_closet_wall,
     _place_closet_on_wall,
+    _would_block_all_windows,
     compute_door_segments,
 )
 
@@ -106,10 +107,11 @@ class TestPickClosetWall:
         host = Rect(2730, 0, 5460, 2275)
         building = Rect(0, 0, 8190, 5460)
         door_segs: dict[frozenset[str], tuple[tuple[int, int], tuple[int, int]]] = {}
-        wall = _pick_closet_wall(host, building, door_segs, "bed1", [])
+        wall, is_fallback = _pick_closet_wall(host, building, door_segs, "bed1", [])
         assert wall in ("left", "right")
         # Left wall (x=2730) is interior, right wall (x2=8190) is exterior → picks left
         assert wall == "left"
+        assert is_fallback is False
 
     def test_vertical_room_picks_top_or_bottom(self):
         """Vertical room (H > W) candidates are top/bottom (ends of long axis)."""
@@ -118,8 +120,9 @@ class TestPickClosetWall:
         # top (y=0) is exterior, bottom (y2=5460) is exterior
         # left (x=6370) is interior — but left/right are not candidates for vertical room
         door_segs: dict[frozenset[str], tuple[tuple[int, int], tuple[int, int]]] = {}
-        wall = _pick_closet_wall(host, building, door_segs, "bed3", [])
+        wall, is_fallback = _pick_closet_wall(host, building, door_segs, "bed3", [])
         assert wall in ("top", "bottom")
+        assert is_fallback is False
 
     def test_prefers_interior_over_exterior(self):
         """Interior wall is preferred over exterior."""
@@ -127,7 +130,7 @@ class TestPickClosetWall:
         host = Rect(1820, 0, 3640, 2275)
         building = Rect(0, 0, 5460, 5460)
         door_segs: dict[frozenset[str], tuple[tuple[int, int], tuple[int, int]]] = {}
-        wall = _pick_closet_wall(host, building, door_segs, "bed1", [])
+        wall, _ = _pick_closet_wall(host, building, door_segs, "bed1", [])
         # left (x=1820) is interior, right (x2=5460) is exterior → picks left
         assert wall == "left"
 
@@ -137,7 +140,7 @@ class TestPickClosetWall:
         building = Rect(0, 0, 9100, 5460)
         # top (y=0) exterior, left (x=0) exterior, bottom & right are interior
         door_segs: dict[frozenset[str], tuple[tuple[int, int], tuple[int, int]]] = {}
-        wall = _pick_closet_wall(host, building, door_segs, "bed1", [])
+        wall, _ = _pick_closet_wall(host, building, door_segs, "bed1", [])
         assert wall in ("bottom", "right")  # interior walls
 
     def test_door_segment_tiebreaker(self):
@@ -148,7 +151,7 @@ class TestPickClosetWall:
         door_segs = {
             frozenset(("bed1", "hall")): ((1820, 1820), (1820, 4095)),  # left wall
         }
-        wall = _pick_closet_wall(host, building, door_segs, "bed1", [("bed1", "hall")])
+        wall, _ = _pick_closet_wall(host, building, door_segs, "bed1", [("bed1", "hall")])
         # left has a door, right has no door → picks right
         assert wall == "right"
 
@@ -164,7 +167,7 @@ class TestPickClosetWall:
         door_segs = {
             frozenset(("bed2", "hall")): ((4095, 0), (4095, 2730)),  # right wall = door
         }
-        wall = _pick_closet_wall(host, building, door_segs, "bed2", [("bed2", "hall")])
+        wall, _ = _pick_closet_wall(host, building, door_segs, "bed2", [("bed2", "hall")])
         # right has door (interior), left has no door (exterior) → picks left (exterior)
         assert wall == "left"
 
@@ -182,7 +185,7 @@ class TestPickClosetWall:
         door_segs = {
             frozenset(("bed4", "hall2")): ((2275, 2730), (2275, 3640)),
         }
-        wall = _pick_closet_wall(host, building, door_segs, "bed4", [("hall2", "bed4")])
+        wall, _ = _pick_closet_wall(host, building, door_segs, "bed4", [("hall2", "bed4")])
         # top is interior but blocks door; bottom is exterior but safe
         assert wall == "bottom"
 
@@ -247,3 +250,129 @@ class TestClosetBlockedExteriorSegments:
         assert ((0, 0), (910, 0)) in segments   # top edge
         assert ((0, 0), (0, 2275)) in segments   # left edge
         assert len(segments) == 2
+
+
+# ---------------------------------------------------------------------------
+# _would_block_all_windows tests
+# ---------------------------------------------------------------------------
+
+
+class TestWouldBlockAllWindows:
+    """Tests for _would_block_all_windows helper."""
+
+    def test_single_exterior_wall_returns_true(self):
+        """Room with only one exterior wall: blocking it kills all windows."""
+        # Room touches only left boundary (x=0)
+        host = Rect(0, 3640, 4550, 3640)
+        building = Rect(0, 0, 6370, 12740)
+        assert _would_block_all_windows(host, "left", building) is True
+
+    def test_two_exterior_walls_returns_false(self):
+        """Room with two exterior walls: blocking one still leaves the other."""
+        # Room touches left (x=0) and bottom (y2=12740)
+        host = Rect(0, 7280, 3640, 5460)
+        building = Rect(0, 0, 6370, 12740)
+        assert _would_block_all_windows(host, "left", building) is False
+        assert _would_block_all_windows(host, "bottom", building) is False
+
+    def test_corner_room_three_exterior_walls(self):
+        """Corner room with three exterior walls: blocking any one is fine."""
+        # Room touches top (y=0), left (x=0), right (x2=6370)
+        host = Rect(0, 0, 6370, 2730)
+        building = Rect(0, 0, 6370, 12740)
+        assert _would_block_all_windows(host, "top", building) is False
+        assert _would_block_all_windows(host, "left", building) is False
+
+    def test_fully_interior_room(self):
+        """Fully interior room: blocking any wall kills all windows (vacuously none)."""
+        host = Rect(1820, 1820, 2730, 2730)
+        building = Rect(0, 0, 9100, 9100)
+        # No exterior walls at all → blocking any wall "kills all" (there are none)
+        assert _would_block_all_windows(host, "left", building) is True
+
+
+# ---------------------------------------------------------------------------
+# Window-preserving fallback tests
+# ---------------------------------------------------------------------------
+
+
+class TestWindowPreservingFallback:
+    """Tests for closet placement falling back to long-side walls to preserve windows."""
+
+    def test_fallback_to_long_side_when_short_kills_windows(self):
+        """Bedroom with one exterior short wall: CL falls back to long-side interior."""
+        # Bedroom 4 scenario: only left wall (x=0) is exterior, door on right
+        host = Rect(0, 3640, 4550, 3640)
+        building = Rect(0, 0, 6370, 12740)
+        door_segs = {
+            frozenset(("bed4", "hall2")): ((4550, 3640), (4550, 7280)),
+        }
+        wall, is_fallback = _pick_closet_wall(host, building, door_segs, "bed4", [("hall2", "bed4")])
+        # Short-side candidates (left, right) both block all windows or have door
+        # Fallback to long-side: top (y=3640, interior) or bottom (y=7280, check)
+        assert is_fallback is True
+        assert wall in ("top", "bottom")
+
+    def test_no_fallback_when_short_side_preserves_windows(self):
+        """Bedroom with two exterior walls: short side works fine, no fallback."""
+        # Room touches left (x=0) and bottom (y2=12740)
+        host = Rect(0, 7280, 3640, 5460)
+        building = Rect(0, 0, 6370, 12740)
+        door_segs: dict[frozenset[str], tuple[tuple[int, int], tuple[int, int]]] = {}
+        wall, is_fallback = _pick_closet_wall(host, building, door_segs, "master", [])
+        assert is_fallback is False
+        # Short sides are top/bottom (h > w), both exterior
+        # Prefers interior but both are exterior, so picks either
+        assert wall in ("top", "bottom")
+
+    def test_partial_span_on_long_wall(self):
+        """Fallback placement uses partial span, not full wall length."""
+        host = Rect(0, 3640, 4550, 3640)
+        # CL target = 1.0 tatami ≈ 1,620,000 mm2, depth = 910mm
+        # span = ceil(1620000 / 910) = 1782mm → ceil to 455 grid = 1820mm
+        rect = _place_closet_on_wall(host, "top", 910, 1820)
+        assert rect.w == 1820
+        assert rect.h == 910
+        # Anchored at host origin corner
+        assert rect.x == host.x
+        assert rect.y == host.y
+
+    def test_regression_bed4_narrow_lot_preserves_window(self):
+        """Regression: bed4 on 6370×12740 lot with single exterior wall gets windows.
+
+        Original bug: bed4 at (0, 3640, 4550, 3640) had only the left wall
+        (x=0) as exterior. CL was placed on the left wall (short side), blocking
+        all windows. After fix, CL falls back to a long-side interior wall.
+        """
+        from plan_engine.solver.solution_builder import _fit_closet_strip
+
+        host = Rect(0, 3640, 4550, 3640)
+        building = Rect(0, 0, 6370, 12740)
+        # Door on right wall from hall2
+        door_segs = {
+            frozenset(("bed4", "hall2")): ((4550, 3640), (4550, 7280)),
+        }
+        target_area_mm2 = 1_620_000  # 1.0 tatami
+        cl = _fit_closet_strip(
+            host=host,
+            target_area_mm2=target_area_mm2,
+            depth_cells_candidates=[2],
+            minor_grid=455,
+            building_rect=building,
+            floor_topology=[("hall2", "bed4")],
+            solved_spaces={},
+            host_id="bed4",
+            host_type="bedroom",
+            door_segments=door_segs,
+        )
+        # CL must NOT cover the entire left exterior wall
+        left_exterior_blocked = cl.x == 0 and cl.y <= host.y and cl.y2 >= host.y2
+        assert not left_exterior_blocked, (
+            f"CL {cl} covers entire left exterior wall of bed4 — no windows"
+        )
+        # CL should be on a long-side (top or bottom) wall, partial span
+        is_on_top = cl.y == host.y and cl.h < host.h
+        is_on_bottom = cl.y2 == host.y2 and cl.h < host.h
+        assert is_on_top or is_on_bottom, f"CL {cl} should be on top/bottom long side"
+        # CL width should be partial (< full wall width 4550)
+        assert cl.w < host.w, f"CL width {cl.w} should be less than wall {host.w}"

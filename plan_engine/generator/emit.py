@@ -39,6 +39,7 @@ class FeasibilityReport:
     floor_summaries: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    stair_type: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -128,7 +129,7 @@ def build_spec(
     Returns:
         (spec_dict, feasibility_report) tuple.
     """
-    report = FeasibilityReport()
+    report = FeasibilityReport(stair_type=stair_type)
 
     spec: dict[str, Any] = {
         "version": 0.2,
@@ -221,6 +222,8 @@ def emit_yaml(spec: dict[str, Any], output_path: str) -> None:
 def print_report(report: FeasibilityReport) -> None:
     """Print feasibility report to stderr."""
     print("\n=== Feasibility Report ===", file=sys.stderr)
+    if report.stair_type:
+        print(f"  Stair type: {report.stair_type}", file=sys.stderr)
     for summary in report.floor_summaries:
         print(f"  {summary}", file=sys.stderr)
 

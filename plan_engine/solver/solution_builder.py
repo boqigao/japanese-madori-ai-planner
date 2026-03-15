@@ -321,7 +321,7 @@ def _fit_closet_strip(
             reduced = math.ceil(target_area_mm2 / short_side / minor_grid) * minor_grid
             depth_mm = max(minor_grid, reduced)
 
-        wall_name = _pick_closet_wall(
+        wall_name, is_long_side_fallback = _pick_closet_wall(
             host=host,
             building_rect=building_rect,
             door_segments=door_segments,
@@ -336,7 +336,16 @@ def _fit_closet_strip(
         elif wall_name in ("left", "right") and depth_mm > host.w:
             depth_mm = host.w
 
-        return _place_closet_on_wall(host, wall_name, depth_mm, short_side)
+        if is_long_side_fallback:
+            # Partial span: size CL to target area, not full wall length
+            span_mm = _ceil_to_mm_cells(target_area_mm2 / depth_mm, minor_grid)
+            # Clamp to wall length
+            wall_length = host.w if wall_name in ("top", "bottom") else host.h
+            span_mm = min(span_mm, wall_length)
+        else:
+            span_mm = short_side
+
+        return _place_closet_on_wall(host, wall_name, depth_mm, span_mm)
 
     return _fit_closet_strip_legacy(host, target_area_mm2, depth_cells_candidates, minor_grid)
 
@@ -420,6 +429,28 @@ def _closet_blocked_exterior_segments(
     return segments
 
 
+def _would_block_all_windows(
+    host: Rect,
+    wall_name: str,
+    building_rect: Rect,
+) -> bool:
+    """Return True if placing CL on *wall_name* would block all exterior window segments.
+
+    This checks whether the parent room has any exterior wall on a side OTHER
+    than ``wall_name``.  If not, covering ``wall_name`` eliminates all possible
+    window positions.
+    """
+    other_exterior = {
+        "top": host.y == building_rect.y,
+        "bottom": host.y2 == building_rect.y2,
+        "left": host.x == building_rect.x,
+        "right": host.x2 == building_rect.x2,
+    }
+    # Remove the wall we're considering placing CL on
+    other_exterior.pop(wall_name, None)
+    return not any(other_exterior.values())
+
+
 def _pick_closet_wall(
     host: Rect,
     building_rect: Rect,
@@ -427,17 +458,20 @@ def _pick_closet_wall(
     host_id: str,
     floor_topology: list[tuple[str, str]],
     depth_mm: int = 910,
-) -> str:
+) -> tuple[str, bool]:
     """Pick which wall to place the closet on using the short-wall-span rule.
 
     For a non-square room, CL candidates are the two walls at the ends of the
-    long axis (these have length == short side). Among the two candidates:
+    long axis (these have length == short side).  When all short-side candidates
+    would block every exterior window segment, long-side walls are added as
+    fallback candidates so that the exterior wall is preserved for windows.
 
-    1. Avoid walls where the CL strip would block any door — this includes
-       doors on the candidate wall itself AND doors on perpendicular walls
-       near the CL strip corner.
-    2. Among non-blocking walls, prefer interior over exterior to preserve
-       exterior walls for windows.
+    Scoring per candidate: ``(blocks_door, kills_all_windows, is_exterior)``.
+
+    1. Avoid walls where the CL strip would block any door (highest priority).
+    2. Preserve windows: never choose a wall that eliminates all window
+       segments when an alternative exists.
+    3. Among remaining, prefer interior over exterior.
 
     For a near-square room, consider all four walls with the same scoring.
 
@@ -450,14 +484,19 @@ def _pick_closet_wall(
         depth_mm: CL strip depth in millimeters (used for overlap simulation).
 
     Returns:
-        Wall name: ``'top'``, ``'bottom'``, ``'left'``, or ``'right'``.
+        Tuple of (wall_name, is_long_side_fallback).
+        ``is_long_side_fallback`` is True when the selected wall is a long-side
+        wall chosen to preserve windows (CL should use partial span).
     """
     if host.w > host.h:
-        candidates = ["left", "right"]
+        short_side_walls = ["left", "right"]
+        long_side_walls = ["top", "bottom"]
     elif host.h > host.w:
-        candidates = ["top", "bottom"]
+        short_side_walls = ["top", "bottom"]
+        long_side_walls = ["left", "right"]
     else:
-        candidates = ["top", "bottom", "left", "right"]
+        short_side_walls = ["top", "bottom", "left", "right"]
+        long_side_walls = []
 
     is_exterior = {
         "top": host.y == building_rect.y,
@@ -469,9 +508,9 @@ def _pick_closet_wall(
     short_side = min(host.w, host.h)
     host_door_segs = [seg for key, seg in door_segments.items() if host_id in key]
 
-    def _cl_blocks_door(wall_name: str) -> int:
+    def _cl_blocks_door(wall_name: str, span: int) -> int:
         """Return 1 if the CL strip on *wall_name* would overlap any door."""
-        cl = _place_closet_on_wall(host, wall_name, depth_mm, short_side)
+        cl = _place_closet_on_wall(host, wall_name, depth_mm, span)
         for (sx1, sy1), (sx2, sy2) in host_door_segs:
             if sx1 == sx2 and cl.x <= sx1 <= cl.x2 and cl.y < max(sy1, sy2) and cl.y2 > min(sy1, sy2):
                 return 1
@@ -479,38 +518,60 @@ def _pick_closet_wall(
                 return 1
         return 0
 
-    def wall_score(wall_name: str) -> tuple[int, int]:
-        return (_cl_blocks_door(wall_name), 1 if is_exterior[wall_name] else 0)
+    def wall_score(wall_name: str, span: int) -> tuple[int, int, int]:
+        kills = 1 if _would_block_all_windows(host, wall_name, building_rect) else 0
+        return (_cl_blocks_door(wall_name, span), kills, 1 if is_exterior[wall_name] else 0)
 
-    candidates.sort(key=wall_score)
-    return candidates[0]
+    # Score short-side candidates first
+    short_scored = [(wall_score(w, short_side), w) for w in short_side_walls]
+    short_scored.sort(key=lambda t: t[0])
+    best_short = short_scored[0]
+
+    # If the best short-side candidate would kill all windows, add long sides
+    best_short_kills = best_short[0][1] == 1
+    if best_short_kills and long_side_walls:
+        candidates = short_side_walls + long_side_walls
+        scored = [(wall_score(w, short_side), w) for w in candidates]
+        scored.sort(key=lambda t: t[0])
+        best_wall = scored[0][1]
+        is_fallback = best_wall in long_side_walls
+    else:
+        best_wall = best_short[1]
+        is_fallback = False
+
+    return best_wall, is_fallback
 
 
 def _place_closet_on_wall(
     host: Rect,
     wall_name: str,
     depth_mm: int,
-    short_side: int,
+    span_mm: int,
 ) -> Rect:
-    """Place a closet strip spanning the full short side on the named wall.
+    """Place a closet strip on the named wall.
 
-    The CL rect always spans ``short_side`` mm along the short axis and
-    ``depth_mm`` mm cut from the named wall.
+    The CL rect spans ``span_mm`` along the wall and ``depth_mm`` mm cut
+    from it.  For short-side placement ``span_mm`` equals the full short
+    side.  For long-side fallback ``span_mm`` may be smaller than the wall
+    length (partial coverage).
+
+    The strip is anchored at the "first" corner of the wall (top-left for
+    top/left, bottom-left for bottom, top-right for right).
 
     Args:
         host: Parent room rectangle.
         wall_name: Target wall (``'top'``/``'bottom'``/``'left'``/``'right'``).
         depth_mm: Closet depth in millimeters.
-        short_side: Full short side length in millimeters.
+        span_mm: Length of the CL strip along the wall.
 
     Returns:
         CL rectangle.
     """
     if wall_name == "top":
-        return Rect(host.x, host.y, short_side, depth_mm)
+        return Rect(host.x, host.y, span_mm, depth_mm)
     if wall_name == "bottom":
-        return Rect(host.x, host.y2 - depth_mm, short_side, depth_mm)
+        return Rect(host.x, host.y2 - depth_mm, span_mm, depth_mm)
     if wall_name == "left":
-        return Rect(host.x, host.y, depth_mm, short_side)
+        return Rect(host.x, host.y, depth_mm, span_mm)
     # right
-    return Rect(host.x2 - depth_mm, host.y, depth_mm, short_side)
+    return Rect(host.x2 - depth_mm, host.y, depth_mm, span_mm)

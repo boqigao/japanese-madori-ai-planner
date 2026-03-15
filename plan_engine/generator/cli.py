@@ -51,6 +51,7 @@ class GeneratorArgs:
     floors: int = 2
     north: str = "top"
     stair_type: str = "U_turn"
+    stair_type_explicit: bool = False
     f1_specs: list[RoomSpec] | None = None
     f2_specs: list[RoomSpec] | None = None
     closets: str = "auto"
@@ -245,9 +246,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--stair",
-        default="U_turn",
+        default=None,
         choices=["straight", "L_landing", "U_turn"],
-        help="Stair type (default: U_turn)",
+        help="Stair type (default: auto-selected by lot width)",
     )
     parser.add_argument(
         "--f1",
@@ -302,13 +303,17 @@ def parse_args(argv: list[str] | None = None) -> GeneratorArgs:
     f1_specs = parse_floor_spec(args.f1) if args.f1 else None
     f2_specs = parse_floor_spec(args.f2) if args.f2 else None
 
+    stair_explicit = args.stair is not None
+    stair_type = args.stair if stair_explicit else "U_turn"
+
     return GeneratorArgs(
         envelope_w_m=envelope_w_m,
         envelope_d_m=envelope_d_m,
         n_ldk=n_ldk,
         floors=args.floors,
         north=args.north,
-        stair_type=args.stair,
+        stair_type=stair_type,
+        stair_type_explicit=stair_explicit,
         f1_specs=f1_specs,
         f2_specs=f2_specs,
         closets=args.closets,

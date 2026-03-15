@@ -15,6 +15,7 @@ from plan_engine.generator.cli import parse_args
 from plan_engine.generator.distribute import distribute_rooms
 from plan_engine.generator.emit import build_spec, emit_yaml, print_report
 from plan_engine.generator.metrics import compute_metrics
+from plan_engine.generator.profiles import select_stair_type
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,6 +34,13 @@ def main(argv: list[str] | None = None) -> int:
         f"({metrics.cols}×{metrics.rows} grid, {metrics.area_jo:.1f}jo/floor)",
         file=sys.stderr,
     )
+
+    # Auto-select stair type based on lot width (skip for 1F or explicit --stair).
+    if not args.stair_type_explicit and args.floors >= 2:
+        args.stair_type = select_stair_type(metrics.envelope_w_mm)
+        print(f"Stair: auto-selected '{args.stair_type}'", file=sys.stderr)
+    elif args.floors >= 2:
+        print(f"Stair: '{args.stair_type}' (user-specified)", file=sys.stderr)
 
     # Stage 2 & 3: Distribution and wet selection.
     plans = distribute_rooms(args, metrics)

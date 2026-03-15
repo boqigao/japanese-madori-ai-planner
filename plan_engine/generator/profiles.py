@@ -87,6 +87,22 @@ TOPOLOGY_RULES: list[tuple[str, str, str, str]] = [
 
 # Default stair configuration.
 DEFAULT_STAIR_TYPE = "U_turn"
+
+
+def select_stair_type(envelope_width_mm: int) -> str:
+    """Select optimal stair type based on lot width.
+
+    Thresholds (based on stair footprint + hall + room fit):
+        <=6370mm (14 cells): straight (2-cell width fits beside hall)
+        <=7735mm (15-17 cells): L_landing (5-cell footprint fits)
+        >=8190mm (18+ cells): U_turn (preferred when space allows)
+    """
+    if envelope_width_mm <= 6370:
+        return "straight"
+    elif envelope_width_mm <= 7735:
+        return "L_landing"
+    else:
+        return "U_turn"
 DEFAULT_STAIR_WIDTH_MM = 910
 DEFAULT_FLOOR_HEIGHT_MM = 2730
 DEFAULT_RISER_PREF_MM = 230

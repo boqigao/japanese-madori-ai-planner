@@ -11,6 +11,7 @@ from plan_engine.generator.cli import (
     parse_room_spec,
     parse_rooms_shorthand,
 )
+from plan_engine.generator.profiles import select_stair_type
 
 # ---------------------------------------------------------------------------
 # parse_room_spec — single room
@@ -274,3 +275,66 @@ class TestParseArgs:
     def test_invalid_envelope(self):
         with pytest.raises(ValueError, match="invalid envelope"):
             parse_args(["--envelope", "bad"])
+
+    def test_stair_not_explicit_by_default(self):
+        """When --stair is not passed, stair_type_explicit is False."""
+        args = parse_args(["--envelope", "8x9"])
+        assert args.stair_type_explicit is False
+        assert args.stair_type == "U_turn"
+
+    def test_stair_explicit_when_specified(self):
+        """When --stair is passed, stair_type_explicit is True."""
+        args = parse_args(["--envelope", "8x9", "--stair", "straight"])
+        assert args.stair_type_explicit is True
+        assert args.stair_type == "straight"
+
+
+# ---------------------------------------------------------------------------
+# select_stair_type — width-based selection
+# ---------------------------------------------------------------------------
+
+
+class TestSelectStairType:
+    def test_narrow_lot_selects_straight(self):
+        """Lot width <=6370mm → straight."""
+        assert select_stair_type(6370) == "straight"
+        assert select_stair_type(5460) == "straight"
+
+    def test_medium_lot_selects_l_landing(self):
+        """Lot width 6825-7735mm → L_landing."""
+        assert select_stair_type(6825) == "L_landing"
+        assert select_stair_type(7280) == "L_landing"
+        assert select_stair_type(7735) == "L_landing"
+
+    def test_wide_lot_selects_u_turn(self):
+        """Lot width >=8190mm → U_turn."""
+        assert select_stair_type(8190) == "U_turn"
+        assert select_stair_type(9100) == "U_turn"
+
+    def test_threshold_boundaries(self):
+        """Verify exact boundary behavior."""
+        assert select_stair_type(6370) == "straight"  # upper bound for straight
+        assert select_stair_type(6371) == "L_landing"  # just above
+        assert select_stair_type(7735) == "L_landing"  # upper bound for L_landing
+        assert select_stair_type(7736) == "U_turn"  # just above
+
+
+# ---------------------------------------------------------------------------
+# User --stair override priority
+# ---------------------------------------------------------------------------
+
+
+class TestStairOverridePriority:
+    def test_explicit_stair_overrides_auto(self):
+        """User --stair U_turn on narrow lot → U_turn preserved, not auto-selected."""
+        args = parse_args(["--envelope", "7x13", "--stair", "U_turn"])
+        assert args.stair_type == "U_turn"
+        assert args.stair_type_explicit is True
+        # The auto-selection would choose 'straight' for 6370mm width,
+        # but since explicit=True, gen_spec.py skips auto-selection.
+
+    def test_explicit_straight_on_wide_lot(self):
+        """User --stair straight on wide lot → straight preserved."""
+        args = parse_args(["--envelope", "10x10", "--stair", "straight"])
+        assert args.stair_type == "straight"
+        assert args.stair_type_explicit is True
